@@ -279,6 +279,77 @@ int INT(char* expression) {
   return 1;
 }
 
+int csv(FILE* f, char* expression) {
+  // parse header col names
+  char cols[MAXCOLS][NAMELEN]= {};
+  char head[NAMELEN*MAXCOLS]= {};
+  fgets(&head[0], sizeof(head), f);
+  //printf("HEAD=%s<\n", head);
+  int col= 0, row= 0;
+  char* h= &head[0];
+  int i= 0;
+  // prefix with table name?
+  while(*h) {
+    while(*h && isspace(*h)) h++;
+    // TODO: quoted strings?
+    if (*h==',') {
+      i= 0;
+      col++;
+    } else {
+      cols[col][i++]= *h;
+    }
+    h++;
+  }
+
+  val vals[MAXCOLS]={};
+  for(int i=0; i<=col; i++) {
+    vals[i].d= i;
+    vals[i].not_null = 1;
+    linkval(cols[i], &vals[i]);
+  }
+
+  col= 0;
+  while(!feof(f)) {
+    int c= fgetc(f);
+
+    if (c=='\n' || c=='\r') {
+      where(expression);
+      ZERO(vals);
+      if (col) row++;
+      col= 0;
+      //printf("----\n");
+    } else if (isspace(c))
+      ;
+    else if (c==',') {
+      col++;
+    } else if (isdigit(c)) {
+      ungetc(c, f);
+      if (1==fscanf(f, "%lg", &vals[col].d)) {
+	//printf("%d.%s.NUM=%g\n", col, cols[col], vals[col].d);
+	vals[col].not_null= 1;
+      }
+    } else if (c=='"') {
+      int i= 0;
+      printf("  %d.%s.STRING=", col, cols[col]);
+      while((c= fgetc(f))!=EOF) {
+	if (c=='"') break;
+	printf("%c", c);
+	// TODO: i limit?
+      }
+
+      // TODO: store the string!
+      vals[col].s= "STRING-TODO";
+      vals[col].not_null= 1;
+      if (c=='"') printf("<");
+      printf("\n");
+    } else {
+      // TODO: handle unquoted strings
+      printf(" (%c) ", c);
+    }
+  }
+  return 1;
+}
+
 int from_list(char* expression) {
   char* start= ps;
   if (got("int")) INT(expression);
@@ -288,73 +359,7 @@ int from_list(char* expression) {
       error("Unknown from-iterator");
     FILE* f= fopen(filnam, "r");
     if (!f) error(filnam); // "no such file");
-    // parse header col names
-    char cols[MAXCOLS][NAMELEN]= {};
-    char head[NAMELEN*MAXCOLS]= {};
-    fgets(&head[0], sizeof(head), f);
-    //printf("HEAD=%s<\n", head);
-    int col= 0, row= 0;
-    char* h= &head[0];
-    int i= 0;
-    // prefix with table name?
-    while(*h) {
-      while(*h && isspace(*h)) h++;
-      // TODO: quoted strings?
-      if (*h==',') {
-	i= 0;
-	col++;
-      } else {
-	cols[col][i++]= *h;
-      }
-      h++;
-    }
-
-    val vals[MAXCOLS]={};
-    for(int i=0; i<=col; i++) {
-      vals[i].d= i;
-      vals[i].not_null = 1;
-      linkval(cols[i], &vals[i]);
-    }
-
-    col= 0;
-    while(!feof(f)) {
-      char c= fgetc(f);
-
-      if (c=='\n' || c=='\r') {
-	where(expression);
-	ZERO(vals);
-	if (col) row++;
-	col= 0;
-	//printf("----\n");
-      } else if (isspace(c))
-	;
-      else if (c==',') {
-	col++;
-      } else if (isdigit(c)) {
-	ungetc(c, f);
-	if (1==fscanf(f, "%lg", &vals[col].d)) {
-	  //printf("%d.%s.NUM=%g\n", col, cols[col], vals[col].d);
-	  vals[col].not_null= 1;
-	}
-      } else if (c=='"') {
-	int i= 0;
-	printf("  %d.%s.STRING=", col, cols[col]);
-	while((c= fgetc(f))!=EOF) {
-	  if (c=='"') break;
-	  printf("%c", c);
-	  // TODO: i limit?
-	}
-
-	// TODO: store the string!
-	vals[col].s= "STRING-TODO";
-	vals[col].not_null= 1;
-	if (c=='"') printf("<");
-	printf("\n");
-      } else {
-	// TODO: handle unquoted strings
-	printf(" (%c) ", c);
-      }
-    }
+    csv(f, expression);
     fclose(f);
   }
   // restore parse position!
@@ -396,6 +401,6 @@ int main(int argc, char** argv) {
 
   parse(cmd);
   int r= sql();
-  printf("r=%d, ps=%s\n", r, ps?ps:"(NULL)");
+  printf("r=%d, TODO ps=%s\n", r, ps?ps:"(NULL)");
   return 0;
 }
