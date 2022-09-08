@@ -105,7 +105,7 @@ typedef struct val {
 void print_val(val* v) {
   if (!v->not_null) printf("NULL");
   else if (v->s) printf("\"%s\"", v->s);
-  else printf("%lf", v->d);
+  else printf("%lg", v->d);
 }
 
 char* varnames[VARCOUNT]= {0};
