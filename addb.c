@@ -279,7 +279,7 @@ int INT(char* expression) {
   return 1;
 }
 
-int csv(FILE* f, char* expression) {
+int CSV(FILE* f, char* expression) {
   // parse header col names
   char cols[MAXCOLS][NAMELEN]= {};
   char head[NAMELEN*MAXCOLS]= {};
@@ -359,7 +359,7 @@ int from_list(char* expression) {
       error("Unknown from-iterator");
     FILE* f= fopen(filnam, "r");
     if (!f) error(filnam); // "no such file");
-    csv(f, expression);
+    CSV(f, expression);
     fclose(f);
   }
   // restore parse position!
