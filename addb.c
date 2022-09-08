@@ -279,7 +279,7 @@ int INT(char* expression) {
   return 1;
 }
 
-int CSV(FILE* f, char* expression) {
+int TABCSV(FILE* f, char* expression) {
   // parse header col names
   char cols[MAXCOLS][NAMELEN]= {};
   char head[NAMELEN*MAXCOLS]= {};
@@ -292,7 +292,8 @@ int CSV(FILE* f, char* expression) {
   while(*h) {
     while(*h && isspace(*h)) h++;
     // TODO: quoted strings?
-    if (*h==',') {
+    // TODO: name w space/funny char?
+    if (*h==',' || *h=='\t') {
       i= 0;
       col++;
     } else {
@@ -320,7 +321,7 @@ int CSV(FILE* f, char* expression) {
       //printf("----\n");
     } else if (isspace(c))
       ;
-    else if (c==',') {
+    else if (c==',' || c=='\t') {
       col++;
     } else if (isdigit(c)) {
       ungetc(c, f);
@@ -354,12 +355,20 @@ int from_list(char* expression) {
   char* start= ps;
   if (got("int")) INT(expression);
   else {
+    // fallback, assume filename!
     char filnam[NAMELEN];
     if (!getname(filnam))
       error("Unknown from-iterator");
     FILE* f= fopen(filnam, "r");
     if (!f) error(filnam); // "no such file");
-    CSV(f, expression);
+
+    // TODO: fil.csv("a,b,c") == header
+    TABCSV(f, expression);
+    // TODO: json
+    // TODO: xml
+    // TODO: passwd styhle "foo:bar:fie"
+    // (designate delimiter, use TABCSV)
+    
     fclose(f);
   }
   // restore parse position!
