@@ -105,7 +105,7 @@ typedef struct val {
 void print_val(val* v) {
   if (!v->not_null) printf("NULL");
   else if (v->s) printf("\"%s\"", v->s);
-  else printf("%lg", v->d);
+  else printf("%.15lg", v->d);
 }
 
 char* varnames[VARCOUNT]= {0};
@@ -302,7 +302,7 @@ int select() {
   printf("SELECT =>\n");
   char* expression= ps;
   // "skip" (dummies)
-  char* end= print_expr_list(expression, 1);
+  char* end= print_expr_list(expression, 0);
   if (end) ps= end;
 
   from(expression);
