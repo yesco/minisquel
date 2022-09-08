@@ -117,6 +117,7 @@ int linkval(char* name, val* v) {
   varnames[varcount]= name;
   varvals[varcount]= v;
   varcount++;
+  return 1;
 }
 
 int getval(char name[NAMELEN], val* v) {
@@ -132,7 +133,11 @@ int getval(char name[NAMELEN], val* v) {
     return 1;
   }
   // lookup variables
-
+  for(int i=0; i<varcount; i++)
+    if (0==strcmp(name, varnames[i])) {
+      *v= *varvals[i];
+      return 1;
+    }
   // DO: v->not_null= 1;
 
   // TODO:
@@ -142,16 +147,19 @@ int getval(char name[NAMELEN], val* v) {
   return 0;
 }
 	   
-int var(val* v) {
+int getname(char name[NAMELEN]) {
   spcs();
-  char name[NAMELEN]= {0};
   char* p= &name[0];
   while(!end() && (isalnum(*ps) || *ps=='$'|| *ps=='.')) {
     *p++= *ps;
     ps++;
   }
-  if (p==&name[0]) return 0;
-  if (getval(name, v)) return 1;
+  return p!=&name[0];
+}
+
+int var(val* v) {
+  char name[NAMELEN]= {};
+  if (getname(name) && getval(name, v)) return 1;
   // not found == null
   ZERO(*v);
   return 1; // "NULL"
@@ -218,10 +226,9 @@ char* print_expr_list(char* expression, int do_print) {
   spcs();
   val v= {};
   do {
-    if (expr(&v))
+    if (expr(&v)) {
       if (do_print) print_val(&v);
-    else
-      expected("expression");
+    } else expected("expression");
     if (do_print) printf("\t");
   } while(gotc(','));
   printf("\n");
@@ -234,7 +241,7 @@ char* print_expr_list(char* expression, int do_print) {
 
 int where(char* expression) {
   val v= {};
-  if (got('where')) {
+  if (got("where")) {
     // TODO: test
   } else {
     v.not_null= 1;
@@ -242,21 +249,42 @@ int where(char* expression) {
   
   if (v.not_null)
     print_expr_list(expression, 1);
+
+  return 1;
 }
 
-int from_list(char* expression) {
-  // go over each ressult
+int INT(char* expression) {
+  char name[NAMELEN]= {};
+  double start= 0, stop= 0, step= 1;
+  // TODO: generalize
+  // TODO: make it use expression
+  if (gotc('(') && num(&start) && gotc(',')
+      && num(&stop) && gotc(')')) {
+    stop+= 0.5;
+    spcs();
+    if (!getname(name)) expected("name");
+  } else return 0;
+
   val v= {};
-  linkval("i", &v);
+  linkval(name, &v);
   int old_count= varcount;
-  for(int i= 0; i<10; i++) {
+  for(double i= start; i<stop; i+= step) {
     v.d= i;
     v.not_null= 1;
 
     where(expression);
   }
   varcount= old_count;
-  // TODO: do it for a list of "table specs"
+  return 1;
+}
+
+int from_list(char* expression) {
+  char* start= ps;
+  if (got("int")) INT(expression);
+  else error("Unknown from-iterator");
+  // restore parse position!
+  ps= start;
+  return 1;
 }
 
 int from(char* expression) {
