@@ -19,10 +19,10 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 
 Integer iterator:
 
-   select i, i*i from int(1,10) i
+    select i, i*i from int(1,10) i
 
 CSV file querying:
 
-   select a,b,c from foo.csv foo
+    select a,b,c from foo.csv foo
 
 
