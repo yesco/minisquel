@@ -9,7 +9,7 @@
 #define MAXCOLS 32
 
 char* ps= NULL;
-int lineno= 1;
+int lineno= 0;
 
 #define ZERO(z) memset(&z, 0, sizeof(z))
 
@@ -410,9 +410,9 @@ int main(int argc, char** argv) {
 
   parse(cmd);
   int r= sql();
-  printf("\n");
-  if (r!=1) printf("result=%d\n", r);
-  if (ps && *ps) printf("UNPARSED: ps=%s\n", ps);
+  printf("---\nrows=%d\n", lineno-1);
+  if (r!=1) printf("%%result=%d\n", r);
+  if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
 
 
