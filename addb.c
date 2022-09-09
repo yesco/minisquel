@@ -386,9 +386,9 @@ int from(char* expression) {
   }
 }
 
+// just an aggregator!
 int select() {
   if (!got("select")) return 0;
-  printf("SELECT =>\n");
   char* expression= ps;
   // "skip" (dummies)
   char* end= print_expr_list(expression, 0);
@@ -406,10 +406,15 @@ int sql() {
 
 int main(int argc, char** argv) {
   char* cmd= argv[1];
-  printf("cmd=%s<\n", cmd);
+  printf("SQL> %s\n", cmd);
 
   parse(cmd);
   int r= sql();
-  printf("r=%d, TODO ps=%s\n", r, ps?ps:"(NULL)");
+  printf("\n");
+  if (r!=1) printf("result=%d\n", r);
+  if (ps && *ps) printf("UNPARSED: ps=%s\n", ps);
+  printf("\n");
+
+
   return 0;
 }
