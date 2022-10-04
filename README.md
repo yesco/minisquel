@@ -25,8 +25,19 @@ CSV file querying:
 
     select a,b,c from foo.csv foo
 
-## TODO:
+## TODO/IDEAS:
 
 - tab join tab using(c, ...)
+- Query 22 Mb external URL
+
+      SELECT ...
+      FROM  https://raw.githubusercontent.com/megagonlabs/HappyDB/master/happydb/data/cleaned_hm.csv AS happy
+      WHERE ...
+
+      download, cache
+
+      Possibly an specific
+
+      IMPORT TABLE happy FROM https://...
 
 

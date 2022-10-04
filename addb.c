@@ -279,6 +279,7 @@ int INT(char* expression) {
   return 1;
 }
 
+// TODO: take delimiter as argument?
 int TABCSV(FILE* f, char* expression) {
   // parse header col names
   char cols[MAXCOLS][NAMELEN]= {};
@@ -313,25 +314,33 @@ int TABCSV(FILE* f, char* expression) {
   while(!feof(f)) {
     int c= fgetc(f);
 
+    // TODO: move to readval function
+    // TODO: readtill('"')
     if (c=='\n' || c=='\r') {
       where(expression);
       ZERO(vals);
       if (col) row++;
       col= 0;
-      //printf("----\n");
+      vals[col].d= 0;
+      vals[col].not_null= 0;
+      printf("\n");
     } else if (isspace(c))
       ;
     else if (c==',' || c=='\t') {
       col++;
+      vals[col].d= 0;
+      vals[col].not_null= 0;
     } else if (isdigit(c)) {
+      // TODO: parse myself as number?
+      // TODO: how to handle "24h" "74-11-x"
       ungetc(c, f);
       if (1==fscanf(f, "%lg", &vals[col].d)) {
-	//printf("%d.%s.NUM=%g\n", col, cols[col], vals[col].d);
+	printf("  %d.%s\tNUM=%g\n", col, cols[col], vals[col].d);
 	vals[col].not_null= 1;
       }
     } else if (c=='"') {
       int i= 0;
-      printf("  %d.%s.STRING=", col, cols[col]);
+      printf("  %d.%s\tSTRING=", col, cols[col]);
       while((c= fgetc(f))!=EOF) {
 	if (c=='"') break;
 	printf("%c", c);
@@ -344,9 +353,27 @@ int TABCSV(FILE* f, char* expression) {
       if (c=='"') printf("<");
       printf("\n");
     } else {
-      // TODO: handle unquoted strings
-      printf(" (%c) ", c);
+      // TODO: prepend to "string"
+      if (vals[col].not_null)
+	printf("%% trail text after number\n");
+
+      // unquoted string
+      ungetc(c, f);
+      printf("  %d.%s\tUNQSTRING=", col, cols[col]);
+      while((c= fgetc(f))!=EOF) {
+	if (c==',' || c=='\n' || c=='\r') break;
+	printf("%c", c);
+	// TODO: i limit?
+      }
+      ungetc(c, f);
+      
+      // TODO: store the string!
+      vals[col].s= "STRING-TODO";
+      vals[col].not_null= 1;
+      printf("<\n");
     }
+
+    // TODO: print value detected
   }
   return 1;
 }
@@ -356,7 +383,7 @@ int from_list(char* expression) {
   if (got("int")) INT(expression);
   else {
     // fallback, assume filename!
-    char filnam[NAMELEN];
+    char filnam[NAMELEN]= {0};
     if (!getname(filnam))
       error("Unknown from-iterator");
     FILE* f= fopen(filnam, "r");
