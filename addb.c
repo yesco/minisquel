@@ -151,7 +151,7 @@ int getval(char name[NAMELEN], val* v) {
 int getname(char name[NAMELEN]) {
   spcs();
   char* p= &name[0];
-  while(!end() && (isalnum(*ps) || *ps=='$'|| *ps=='.')) {
+  while(!end() && (isalnum(*ps) || *ps=='_' || *ps=='$'|| *ps=='.')) {
     *p++= *ps;
     ps++;
   }
@@ -313,7 +313,7 @@ int isnewline(int c) {
 //
 //   - https://datatracker.ietf.org/doc/html/rfc7111
 
-int readfield(FILE* f, char* s, int max, double* d) {
+int freadCSV(FILE* f, char* s, int max, double* d) {
   //printf("[ f=%p ]\n", f);
   int c, q= 0, typ= 0;;
   char* r= s;
@@ -358,6 +358,9 @@ int readfield(FILE* f, char* s, int max, double* d) {
 int TABCSV(FILE* f, char* expression) {
   // parse header col names
   char cols[MAXCOLS][NAMELEN]= {};
+  // TODO: freadline
+  //char* header= NULL;
+  //getline(&header, 0, f);
   char head[NAMELEN*MAXCOLS]= {};
   fgets(&head[0], sizeof(head), f);
   //printf("HEAD=%s<\n", head);
@@ -365,7 +368,9 @@ int TABCSV(FILE* f, char* expression) {
   char* h= &head[0];
   int i= 0;
   // prefix with table name?
+  printf("===========");
   while(*h) {
+    printf("%c", *h);
     while(*h && isspace(*h)) h++;
     // TODO: quoted strings?
     // TODO: name w space/funny char?
@@ -377,79 +382,47 @@ int TABCSV(FILE* f, char* expression) {
     }
     h++;
   }
+  printf("<<<\n");
 
-  val vals[MAXCOLS]={};
+  val vals[MAXCOLS]={0};
   for(int i=0; i<=col; i++) {
     vals[i].d= i;
     vals[i].not_null = 1;
     linkval(cols[i], &vals[i]);
   }
 
-  col= 0;
-  while(!feof(f)) {
-    int c= fgetc(f);
+  double d;
+  char s[1024]= {0};
+  int r;
 
-    // TODO: move to readval function
-    // TODO: readtill('"')
-    if (c=='\n' || c=='\r') {
+  col= 0;
+  while((r= freadCSV(f, s, sizeof(s), &d))) {
+    if (vals[col].s) free(vals[col].s);
+    ZERO(vals[col]);
+
+    if (r==RNEWLINE) {
       where(expression);
       ZERO(vals);
       if (col) row++;
       col= 0;
-      vals[col].d= 0;
-      vals[col].not_null= 0;
-      printf("\n");
-    } else if (isspace(c))
-      ;
-    else if (c==',' || c=='\t') {
-      col++;
-      vals[col].d= 0;
-      vals[col].not_null= 0;
-    } else if (isdigit(c)) {
-      // TODO: parse myself as number?
-      // TODO: how to handle "24h" "74-11-x"
-      ungetc(c, f);
-      if (1==fscanf(f, "%lg", &vals[col].d)) {
-	printf("  %d.%s\tNUM=%g\n", col, cols[col], vals[col].d);
-	vals[col].not_null= 1;
-      }
-    } else if (c=='"') {
-      int i= 0;
-      printf("  %d.%s\tSTRING=", col, cols[col]);
-      while((c= fgetc(f)) != EOF) {
-	if (c=='"') break;
-	printf("%c", c);
-	// TODO: i limit?
-      }
-
-      // TODO: store the string!
-      vals[col].s= "STRING-TODO";
-      vals[col].not_null= 1;
-      if (c=='"') printf("<");
-      printf("\n");
-    } else {
-      // TODO: prepend to "string"
-      if (vals[col].not_null)
-	printf("%% trail text after number\n");
-
-      // unquoted string
-      ungetc(c, f);
-      printf("  %d.%s\tUNQSTRING=", col, cols[col]);
-      while((c= fgetc(f)) != EOF) {
-	if (c==',' || c=='\n' || c=='\r') break;
-	printf("%c", c);
-	// TODO: i limit?
-      }
-      ungetc(c, f);
-      
-      // TODO: store the string!
-      vals[col].s= "STRING-TODO";
-      vals[col].not_null= 1;
-      printf("<\n");
+      continue;
     }
 
-    // TODO: print value detected
+    // have col
+    vals[col].not_null= (r != RNULL);
+    if (r==RNULL) ;
+    else if (r==RNUM) vals[col].d= d;
+    else if (r==RSTRING) vals[col].s= strdup(s);
+    else error("Unknown freadCSV ret val");
+
+    col++;
   }
+
+  // free strings
+  for(int i=0; i<MAXCOLS; i++)
+    if (vals[i].s) free(vals[i].s);
+
+  fclose(f);
   return 1;
 }
 
@@ -534,7 +507,7 @@ void testread() {
   char s[10240];
   int r= 0;
   double d= 0;
-  while((r=readfield(f, s, sizeof(s), &d))) {
+  while((r=freadCSV(f, s, sizeof(s), &d))) {
     if (r==RNEWLINE) printf("\n");
     else if (r==RNUM) printf("=> %3d  >%lg<\n", r, d);
     else if (r==RNULL) printf("=> %3d  NULL\n", r);
@@ -545,9 +518,8 @@ void testread() {
 }
 
 int main(int argc, char** argv) {
-  testread();
-  exit(0);
-  
+// testread(); exit(0);
+ 
   char* cmd= argv[1];
   printf("SQL> %s\n", cmd);
 
