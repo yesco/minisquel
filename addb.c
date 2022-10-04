@@ -289,8 +289,40 @@ int isnewline(int c) {
 #define RNUM 30
 #define RSTRING 40 // -RSTRING if truncated
 
+int readfield(FILE* f, char* s, int max, double* d) {
+  //printf("[ f=%p ]\n", f);
+  int c, q= 0, typ= 0;;
+  char* r= s;
+  *r= 0;
+  max--;
+  // field ends: EOF/,/NL (if not in quote)
+  while((c= fgetc(f))!=EOF &&
+	(c!=',' || q>0) && (c!='\n' || q>0)) {
+    if (c==0) return RNEWLINE;
+    if (c==q) {q= -q; continue; } // "foo" bar, ok!
+    if (c==-q) q= c;
+    else if (!typ && !q && (c=='"' || c=='\'')) { q= c; continue; }
+    if (!typ && isspace(c)) continue;
+    if (c=='\\') c= fgetc(f);
+    if (max>0) {
+      *r++= c;
+      *r= 0;
+      max--;
+      typ= RSTRING;
+    }
+  }
+  // have value
+  if (c=='\n') ungetc(0, f);
+  if (c==EOF) return 0;
+  // number?
+  char* end;
+  *d= strtod(s, &end);
+  if (end!=s && s+strlen(s)==end) return RNUM;
+  return typ?typ:RNULL;
+}
+
 // TODO: 70 lines too much, maybe not parse num?
-int readfield(FILE* f, char* r, int max) {
+int readfield2(FILE* f, char* r, int max) {
   // TODO: try use fscanf instead?
   // TODO: maybe use malloced strings?
   int c= fgetc(f);
@@ -554,12 +586,15 @@ void testread() {
   // not crash for either file
   //FILE* f= fopen("foo.csv", "r");
   FILE* f= fopen("happy.csv", "r");
+  //FILE* f= fopen("err.csv", "r");
   if (!f) error("NOFILE");
-  char s[1024];
+  char s[10240];
   int r= 0;
-  while((r=readfield(f, s, sizeof(s)))) {
-    printf("=> %3d  >%s<\n", r, s);
+  double d= 0;
+  while((r=readfield(f, s, sizeof(s), &d))) {
     if (r==RNEWLINE) printf("\n");
+    else if (r==RNUM) printf("=> %3d  >%d<\n", r, d);
+    else printf("=> %3d  >%s<\n", r, s);
   }
   printf("=> %3d  %s\n", r, s);
   fclose(f);
