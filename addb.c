@@ -283,15 +283,35 @@ int isnewline(int c) {
   return c=='\n' || c=='\n';
 }
 
+// TODO: https://en.m.wikipedia.org/wiki/Flat-file_database
+// - flat-file
+// - ; : TAB (modify below?)
+
 // returns one of these or 0 at EOF
 #define RNEWLINE 10
 #define RNULL 20
 #define RNUM 30
 #define RSTRING 40 // -RSTRING if truncated
+// TODO:
+//#define RDATE 50 // bad idea?
 
 //CSV: 2, 3x, 4, 5y , 6 , 7y => n,s,n,s,n,s
 //CSV: "foo", foo, "foo^Mbar"
 //CSV: "fooo""bar", "foo\"bar"
+
+// TODO: separator specified in file
+//   Sep=^    (excel)
+//   - https://en.m.wikipedia.org/wiki/Comma-separated_values
+
+// TODO: mime/csv
+//   https://datatracker.ietf.org/doc/html/rfc4180
+
+// TODO: extract cols/fields/rows from URL
+//   http://example.com/data.csv#row=4-7
+//   http://example.com/data.csv#col=2-*
+//   http://example.com/data.csv#cell=4,1
+//
+//   - https://datatracker.ietf.org/doc/html/rfc7111
 
 int readfield(FILE* f, char* s, int max, double* d) {
   //printf("[ f=%p ]\n", f);
@@ -330,6 +350,7 @@ int readfield(FILE* f, char* s, int max, double* d) {
     if (s+strlen(s)==end) return RNUM;
   }
   // TODO: trailing spaces on unquoted str?
+  // (standard disallows)
   return typ?typ:RNULL;
 }
 
