@@ -25,4 +25,8 @@ CSV file querying:
 
     select a,b,c from foo.csv foo
 
+## TODO:
+
+- tab join tab using(c, ...)
+
 
