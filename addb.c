@@ -386,6 +386,24 @@ int from(char* expression) {
   }
 }
 
+// --- JOIN
+// - https://dev.mysql.com/doc/refman/5.7/en/join.html
+//   FROM tab (|AS t)
+//   (|LEFT|RIGHT)
+//   (|INNER|OUTER|NATURAL|CROSS)
+//   JOIN tab (|AS t)
+//   (ON (a=b AND ...) | USING (col, col, col))
+// simplify:
+//   from (|MERGE) JOIN from USING(col, ...)
+//
+// 1. implemnt as nested loop
+// 2. merge join if sorted
+//    a. analyze file -> create link if sorted:
+//        FILTAB.index:a,b,c
+//    b. merge-join
+//    c. sort files/create index
+
+
 // just an aggregator!
 int select() {
   if (!got("select")) return 0;
