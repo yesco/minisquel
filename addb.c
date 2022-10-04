@@ -317,7 +317,13 @@ int readfield(FILE* f, char* s, int max, double* d) {
   // number?
   char* end;
   *d= strtod(s, &end);
-  if (end!=s && s+strlen(s)==end) return RNUM;
+  if (end!=s) {
+    // remove trailing spaces and reparse
+    //printf("...>%s<\n", end);
+    while(end>s && isspace(*end)) *end--= 0;
+    *d= strtod(s, &end);
+    if (s+strlen(s)==end) return RNUM;
+  }
   return typ?typ:RNULL;
 }
 
@@ -585,15 +591,16 @@ int sql() {
 void testread() {
   // not crash for either file
   //FILE* f= fopen("foo.csv", "r");
-  FILE* f= fopen("happy.csv", "r");
+  //FILE* f= fopen("happy.csv", "r");
   //FILE* f= fopen("err.csv", "r");
+  FILE* f= fopen("fil.csv", "r");
   if (!f) error("NOFILE");
   char s[10240];
   int r= 0;
   double d= 0;
   while((r=readfield(f, s, sizeof(s), &d))) {
     if (r==RNEWLINE) printf("\n");
-    else if (r==RNUM) printf("=> %3d  >%d<\n", r, d);
+    else if (r==RNUM) printf("=> %3d  >%lg<\n", r, d);
     else printf("=> %3d  >%s<\n", r, s);
   }
   printf("=> %3d  %s\n", r, s);
