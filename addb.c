@@ -279,6 +279,107 @@ int INT(char* expression) {
   return 1;
 }
 
+int isnewline(int c) {
+  return c=='\n' || c=='\n';
+}
+
+// returns one of these or 0 at EOF
+#define RNEWLINE 10
+#define RNULL 20
+#define RNUM 30
+#define RSTRING 40 // -RSTRING if truncated
+
+// TODO: 70 lines too much, maybe not parse num?
+int readfield(FILE* f, char* r, int max) {
+  // TODO: try use fscanf instead?
+  // TODO: maybe use malloced strings?
+  int c= fgetc(f);
+;
+  int typ= RNULL;
+  *r= 0;
+  if (isnewline(c)) return RNEWLINE;
+  ungetc(c, f);
+  // terminator
+  max--;
+  while((c=fgetc(f)) != EOF) {
+    *r= 0;
+    if (c==',') return typ;
+    if (isnewline(c)) {
+      ungetc(c, f);
+      return typ;
+    }
+    if (isspace(c)) continue;
+    // TODO: 'foo'
+    if (c=='"') {
+      typ= RSTRING;
+      while((c=fgetc(f)) != EOF) {
+	if (c=='"') {
+	  if((c=fgetc(f)) == EOF) return typ;
+	  while(isspace(c) && c!=EOF) c=fgetc(f);
+	  if (isnewline(c)) {
+	    ungetc(c, f);
+	    return typ;
+	  }
+	  if (c==EOF || c==',') return typ;
+	  // TODO: unexpected chars after quoted string, error?
+	  return typ;
+	}
+	// newline is fine!
+	// TODO: handle quote
+	if (max==0) typ= -RSTRING;
+	if (max>0) {
+	  *r++= c;
+	  *r= 0;
+	}
+	max--;
+      }
+      return -RSTRING;
+    }
+    if (isdigit(c) || c=='.' || c=='-' || c=='+') {
+      // TODO: merge with unquoted string detect if number
+      typ= RNUM;
+      do {
+	if (max==0) typ= -RSTRING;
+	*r++= c;
+	*r= 0;
+	max--;
+	if ((c=fgetc(f)) == EOF) return typ;
+	if (isnewline(c)) {
+	  ungetc(c, f);
+	  return typ;
+	}
+      } while(isdigit(c) || c=='.' || c=='-' || c=='+' || c=='e' || c== 'E');
+      while(isspace(c) && c!=EOF) c=fgetc(f);
+      if (c=='\n') ungetc(c, f);
+      if (c!=',') {
+	ungetc(c, f);
+	// hopefully jumps to unquoted string
+	// TODO: 24" would be problem...
+	typ= 0;
+	continue;
+      }
+      return typ;
+    }
+    // unquoted string
+    typ= RSTRING;
+    do {
+	if (c==',') return typ;
+	if (isnewline(c)) {
+	  ungetc(c, f);
+	  return typ;
+	}
+	// TODO: handle quote
+	if (max==0) typ= -RSTRING;
+	*r++= c;
+	*r= 0;
+	max--;
+    } while((c=fgetc(f)) != EOF);
+    // nothing wrong
+    return RSTRING;
+  }
+  return 0;
+}
+
 // TODO: take delimiter as argument?
 int TABCSV(FILE* f, char* expression) {
   // parse header col names
@@ -341,7 +442,7 @@ int TABCSV(FILE* f, char* expression) {
     } else if (c=='"') {
       int i= 0;
       printf("  %d.%s\tSTRING=", col, cols[col]);
-      while((c= fgetc(f))!=EOF) {
+      while((c= fgetc(f)) != EOF) {
 	if (c=='"') break;
 	printf("%c", c);
 	// TODO: i limit?
@@ -360,7 +461,7 @@ int TABCSV(FILE* f, char* expression) {
       // unquoted string
       ungetc(c, f);
       printf("  %d.%s\tUNQSTRING=", col, cols[col]);
-      while((c= fgetc(f))!=EOF) {
+      while((c= fgetc(f)) != EOF) {
 	if (c==',' || c=='\n' || c=='\r') break;
 	printf("%c", c);
 	// TODO: i limit?
@@ -449,7 +550,25 @@ int sql() {
   return r;
 }
 
+void testread() {
+  // not crash for either file
+  //FILE* f= fopen("foo.csv", "r");
+  FILE* f= fopen("happy.csv", "r");
+  if (!f) error("NOFILE");
+  char s[1024];
+  int r= 0;
+  while((r=readfield(f, s, sizeof(s)))) {
+    printf("=> %3d  >%s<\n", r, s);
+    if (r==RNEWLINE) printf("\n");
+  }
+  printf("=> %3d  %s\n", r, s);
+  fclose(f);
+}
+
 int main(int argc, char** argv) {
+  testread();
+  exit(0);
+  
   char* cmd= argv[1];
   printf("SQL> %s\n", cmd);
 
