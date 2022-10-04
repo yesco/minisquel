@@ -356,38 +356,34 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
 
 // TODO: take delimiter as argument?
 int TABCSV(FILE* f, char* expression) {
+  char* cols[MAXCOLS]= {0};
+
   // parse header col names
-  char cols[MAXCOLS][NAMELEN]= {};
-  // TODO: freadline
-  //char* header= NULL;
-  //getline(&header, 0, f);
-  char head[NAMELEN*MAXCOLS]= {};
-  fgets(&head[0], sizeof(head), f);
-  //printf("HEAD=%s<\n", head);
+  char* header= NULL;
+  size_t hlen= 0;
+  getline(&header, &hlen, f);
+
+  char* h= header;
+  // TODO: read w freadCSV()
+  // TODO: prefix with table name?
   int col= 0, row= 0;
-  char* h= &head[0];
-  int i= 0;
-  // prefix with table name?
-  printf("===========");
-  while(*h) {
-    printf("%c", *h);
-    while(*h && isspace(*h)) h++;
-    // TODO: quoted strings?
-    // TODO: name w space/funny char?
-    if (*h==',' || *h=='\t') {
-      i= 0;
-      col++;
-    } else {
-      cols[col][i++]= *h;
+  cols[0]= h;
+  while(*h && *h!='\n') {
+    if (isspace(*h)) ;
+    else if (*h==',' || *h=='\t') {
+      *h= 0;
+      cols[++col]= h+1;
     }
     h++;
   }
-  printf("<<<\n");
+  *h= 0;
 
+  // link column as variables
   val vals[MAXCOLS]={0};
   for(int i=0; i<=col; i++) {
     vals[i].d= i;
     vals[i].not_null = 1;
+    //printf("===col %d %s\n", i, cols[i]);
     linkval(cols[i], &vals[i]);
   }
 
@@ -422,6 +418,7 @@ int TABCSV(FILE* f, char* expression) {
   for(int i=0; i<MAXCOLS; i++)
     if (vals[i].s) free(vals[i].s);
 
+  free(header);
   fclose(f);
   return 1;
 }
