@@ -289,6 +289,9 @@ int isnewline(int c) {
 #define RNUM 30
 #define RSTRING 40 // -RSTRING if truncated
 
+//CSV: 2, 3x, 4, 5y , 6 , 7y => n,s,n,s,n,s
+//CSV: "foo", foo, "fooo""bar", "foo^Mbar"
+
 int readfield(FILE* f, char* s, int max, double* d) {
   //printf("[ f=%p ]\n", f);
   int c, q= 0, typ= 0;;
@@ -319,11 +322,13 @@ int readfield(FILE* f, char* s, int max, double* d) {
   *d= strtod(s, &end);
   if (end!=s) {
     // remove trailing spaces and reparse
-    //printf("...>%s<\n", end);
-    while(end>s && isspace(*end)) *end--= 0;
+    // but only if no other chars
+    int l= strspn(end, " ");
+    if (end+l==s+strlen(s)) *end=0;
     *d= strtod(s, &end);
     if (s+strlen(s)==end) return RNUM;
   }
+  // TODO: trailing spaces on unquoted str?
   return typ?typ:RNULL;
 }
 
@@ -591,9 +596,9 @@ int sql() {
 void testread() {
   // not crash for either file
   //FILE* f= fopen("foo.csv", "r");
-  //FILE* f= fopen("happy.csv", "r");
+  FILE* f= fopen("happy.csv", "r");
   //FILE* f= fopen("err.csv", "r");
-  FILE* f= fopen("fil.csv", "r");
+  //FILE* f= fopen("fil.csv", "r");
   if (!f) error("NOFILE");
   char s[10240];
   int r= 0;
@@ -601,6 +606,7 @@ void testread() {
   while((r=readfield(f, s, sizeof(s), &d))) {
     if (r==RNEWLINE) printf("\n");
     else if (r==RNUM) printf("=> %3d  >%lg<\n", r, d);
+    else if (r==RNULL) printf("=> %3d  NULL\n", r);
     else printf("=> %3d  >%s<\n", r, s);
   }
   printf("=> %3d  %s\n", r, s);
