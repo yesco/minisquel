@@ -290,7 +290,8 @@ int isnewline(int c) {
 #define RSTRING 40 // -RSTRING if truncated
 
 //CSV: 2, 3x, 4, 5y , 6 , 7y => n,s,n,s,n,s
-//CSV: "foo", foo, "fooo""bar", "foo^Mbar"
+//CSV: "foo", foo, "foo^Mbar"
+//CSV: "fooo""bar", "foo\"bar"
 
 int readfield(FILE* f, char* s, int max, double* d) {
   //printf("[ f=%p ]\n", f);
