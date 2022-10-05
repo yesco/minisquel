@@ -287,14 +287,6 @@ int isnewline(int c) {
 // - flat-file
 // - ; : TAB (modify below?)
 
-// returns one of these or 0 at EOF
-#define RNEWLINE 10
-#define RNULL 20
-#define RNUM 30
-#define RSTRING 40 // -RSTRING if truncated
-// TODO:
-//#define RDATE 50 // bad idea?
-
 //CSV: 2, 3x, 4, 5y , 6 , 7y => n,s,n,s,n,s
 //CSV: "foo", foo, "foo^Mbar"
 //CSV: "fooo""bar", "foo\"bar"
@@ -312,32 +304,49 @@ int isnewline(int c) {
 //   http://example.com/data.csv#cell=4,1
 //
 //   - https://datatracker.ietf.org/doc/html/rfc7111
+// TODO: null?
+//   - https://docs.snowflake.com/en/user-guide/data-unload-considerations.html
 
+// TODO:
+//#define RDATE 50 // bad idea?
+
+// freadCSV reads from FILE a STRING of MAXLEN
+// and sets a DOUBLE if it's a number.
+//
+// Returns one of these or 0 at EOF
+#define RNEWLINE 10
+#define RNULL 20
+#define RNUM 30
+#define RSTRING 40
+
+// NOTES:
+//   "foo""bar"","foo\"bar",'foo"bar' quoting
+//   unquoted leading spaces removed
+//   string that is (only) number becomes number
+//   foo,,bar,"",'' gives 3 RNULLS
 int freadCSV(FILE* f, char* s, int max, double* d) {
-  //printf("[ f=%p ]\n", f);
   int c, q= 0, typ= 0;;
   char* r= s;
-  *r= 0;
-  max--;
-  // field ends: EOF/,/NL (if not in quote)
+  *r= 0; max--; // zero terminate 1 byte
   while((c= fgetc(f))!=EOF &&
 	(c!=',' || q>0) && (c!='\n' || q>0)) {
     if (c==0) return RNEWLINE;
-    if (c==q) {q= -q; continue; } // "foo" bar, ok!
+    if (c==q) { q= -q; continue; } // "foo" bar, ok!
     if (c==-q) q= c;
-    else if (!typ && !q && (c=='"' || c=='\'')) { q= c; continue; }
+    else if (!typ && !q && (c=='"' || c=='\''))
+      { q= c; typ= RSTRING; continue; }
     if (!typ && isspace(c)) continue;
     if (c=='\\') c= fgetc(f);
     if (max>0) {
       *r++= c;
       *r= 0;
       max--;
-      typ= RSTRING;
-    }
+      typ= RSTRING; // implicit if not quoted
+    } else ; // TODO: indicate truncation?
   }
   // have value
-  if (c=='\n') ungetc(0, f);
-  if (c==EOF) return 0;
+  if (c=='\n') ungetc(0, f); // next: RNEWLINE
+  if (c==EOF) if (!typ) return 0;
   // number?
   char* end;
   *d= strtod(s, &end);
@@ -349,8 +358,7 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
     *d= strtod(s, &end);
     if (s+strlen(s)==end) return RNUM;
   }
-  // TODO: trailing spaces on unquoted str?
-  // (standard disallows)
+  // Null if empty string
   return typ?typ:RNULL;
 }
 
@@ -413,6 +421,8 @@ int TABCSV(FILE* f, char* expression) {
 
     col++;
   }
+  // no newline at end
+  if (col) where(expression);
 
   // free strings
   for(int i=0; i<MAXCOLS; i++)
