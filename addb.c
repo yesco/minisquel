@@ -103,9 +103,21 @@ typedef struct val {
   int not_null;
 } val;
   
+void print_quoted(char* s, char quot) {
+  if (!s) return (void)printf("NULL");
+  putchar(quot);
+  while(*s) {
+    if (*s==quot) printf("\\%c", quot);
+    else if (*s=='\\') printf("\\\\");
+    else putchar(*s);
+    s++;
+  }
+  putchar(quot);
+}
+
 void print_val(val* v) {
   if (!v->not_null) printf("NULL");
-  else if (v->s) printf("\"%s\"", v->s);
+  else if (v->s) print_quoted(v->s, '\"');
   else printf("%.15lg", v->d);
 }
 
@@ -224,6 +236,7 @@ char* print_expr_list(char* expression, int do_print) {
   char* old_ps= ps;
   ps= expression;
   
+  // TODO: alternative formats: csv,tab,TAB
   spcs();
   val v= {};
   do {
@@ -325,7 +338,7 @@ int isnewline(int c) {
 //   string that is (only) number becomes number
 //   foo,,bar,"",'' gives 3 RNULLS
 int freadCSV(FILE* f, char* s, int max, double* d) {
-  int c, q= 0, typ= 0;;
+  int c, q= 0, typ= 0;
   char* r= s;
   *r= 0; max--; // zero terminate 1 byte
   while((c= fgetc(f))!=EOF &&
