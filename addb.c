@@ -217,6 +217,13 @@ int mult(val* v) {
   return 1;
 }
 
+// Aggregators - probably not
+// - https://learn.microsoft.com/en-us/sql/t-sql/functions/aggregate-functions-transact-sql?source=recommendations&view=sql-server-ver16
+
+// TODO: functions
+// - https://learn.microsoft.com/en-us/sql/t-sql/functions/date-and-time-data-types-and-functions-transact-sql?view=sql-server-2017
+// - https://learn.microsoft.com/en-us/sql/t-sql/functions/string-functions-transact-sql?view=sql-server-2017
+
 int expr(val* v) {
   spcs();
   ZERO(*v);
@@ -239,10 +246,18 @@ int expr(val* v) {
 
 int comparator(char cmp[NAMELEN]) {
   spcs();
-  // TODO: like
+  // TODO: not prefix?
   if (got("like")) { strcpy(cmp, "like"); return 1; }
+  if (got("in")) { strcpy(cmp, "in"); return 1; }
+  // TODO: (not) between...and...
+  //   is (not)
+  
   cmp[0]= gotcs("<=>!");
   cmp[1]= gotcs("<=>!");
+  // third? <=> (mysql)
+  //   nullsafe =
+  //   null==null ->1 null=? -> 0
+  //   - https://dev.mysql.com/doc/refman/8.0/en/comparison-operators.html#operator_equal-to
   if (!cmp[0]) expected("comparator");
   return 1;
 }
@@ -254,7 +269,9 @@ int dcmp(char* cmp, double a, double b) {
   int eq= (a==b) || (fabs((a-b)/(fabs(a)+fabs(b))) < 1e-9);
   
   switch (TWO(cmp[0], cmp[1])) {
+  case TWO('i', 'n'): expected("not implemented in")
     // lol
+
   case TWO('i','l'):  // ilike
   case TWO('l', 'i'): // like
   case '=':
@@ -271,8 +288,9 @@ int dcmp(char* cmp, double a, double b) {
   case TWO('!','<'):
   case TWO('>','='): return (a>=b) || eq;
   case '>': return (a>b) && !eq;
-  default: return 0; //expected("comparator");
+  default: expected("comparator");
   }
+  return 0;
 }
 
 int scmp(char* cmp, char* a, char* b) {
@@ -280,6 +298,8 @@ int scmp(char* cmp, char* a, char* b) {
   int r= strcmp(a, b);
   
   switch (TWO(cmp[0], cmp[1])) {
+  case TWO('i', 'n'): expected("not implemented in")
+
   case TWO('i','l'): // ilike
   case TWO('l', 'i'): // like
     return 0; // expected("implement like");
@@ -306,7 +326,7 @@ int scmp(char* cmp, char* a, char* b) {
 // v.not_null if true
 int comparison() {
   val a, b; char op[NAMELEN]= {};
-  // TODO: and or, priority?
+  // TODO: not and or, priority?
   if (!(expr(&a) && comparator(op) && expr(&b)))
     expected("comparison");
 
@@ -343,6 +363,7 @@ char* print_expr_list(char* e, int do_print) {
 }
 
 int where(char* selexpr) {
+  // ref - https://www.sqlite.org/lang_expr.html
   val v= {};
   if (got("where")) {
     // TODO: logocal expr w and/or
