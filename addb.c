@@ -3,6 +3,7 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <math.h>
 
 #define NAMELEN 64
 #define VARCOUNT 256
@@ -78,7 +79,8 @@ int str(char** s) {
     ps++;
   ps--;
   if (*ps != '"') return 0;
-  *ps= 0; // terminate string
+  char* a= strndup(*s, ps-*s);
+  *s= a;
   ps++;
   return 1;
 }
@@ -99,6 +101,7 @@ void expected(char* msg) {
 // app
 typedef struct val {
   char* s;
+  char* dealloc; // if set (to s) deallocate
   double d;
   int not_null;
 } val;
@@ -191,7 +194,7 @@ int prim(val* v) {
     return 1;
   }
   if (num(&v->d)) { v->not_null= 1; return 1; }
-  if (str(&v->s)) return 1;
+  if (str(&v->s)) { v->dealloc= v->s; v->not_null= 1; return 1; }
   if (var(v)) return 1;
   return 0;
 }
@@ -216,6 +219,7 @@ int mult(val* v) {
 
 int expr(val* v) {
   spcs();
+  ZERO(*v);
   if (!mult(v)) return 0;
   char op;
   while ((op= gotcs("+-"))) {
@@ -231,6 +235,89 @@ int expr(val* v) {
     }
   }
   return 1;
+}
+
+int comparator(char cmp[NAMELEN]) {
+  spcs();
+  // TODO: like
+  if (got("like")) { strcpy(cmp, "like"); return 1; }
+  cmp[0]= gotcs("<=>!");
+  cmp[1]= gotcs("<=>!");
+  if (!cmp[0]) expected("comparator");
+  return 1;
+}
+
+#define TWO(a, b) (a+16*b)
+
+int dcmp(char* cmp, double a, double b) {
+  // relative difference
+  int eq= (a==b) || (fabs((a-b)/(fabs(a)+fabs(b))) < 1e-9);
+  
+  switch (TWO(cmp[0], cmp[1])) {
+    // lol
+  case TWO('i','l'):  // ilike
+  case TWO('l', 'i'): // like
+  case '=':
+  case TWO('~','='):
+  case TWO('=','='): return eq;
+
+  case TWO('<','>'):
+  case TWO('!','='): return !eq;
+
+  case TWO('!','>'):
+  case TWO('<','='): return (a<=b) || eq;
+  case '<': return (a<b) && !eq;
+
+  case TWO('!','<'):
+  case TWO('>','='): return (a>=b) || eq;
+  case '>': return (a>b) && !eq;
+  default: return 0; //expected("comparator");
+  }
+}
+
+int scmp(char* cmp, char* a, char* b) {
+  // relative difference
+  int r= strcmp(a, b);
+  
+  switch (TWO(cmp[0], cmp[1])) {
+  case TWO('i','l'): // ilike
+  case TWO('l', 'i'): // like
+    return 0; // expected("implement like");
+    
+  case TWO('~','='): return !strcasecmp(a, b);
+
+  case '=':
+  case TWO('=','='): return !r;
+
+  case TWO('<','>'):
+  case TWO('!','='): return !!r;
+
+  case TWO('!','>'):
+  case TWO('<','='): return (r<=0);
+  case '<': return (r<0);
+
+  case TWO('!','<'):
+  case TWO('>','='): return (r>=0);
+  case '>': return (r>0);
+  default: return 0; //expected("comparator");
+  }
+}
+
+// v.not_null if true
+int comparison() {
+  val a, b; char op[NAMELEN]= {};
+  // TODO: and or, priority?
+  if (!(expr(&a) && comparator(op) && expr(&b)))
+    expected("comparison");
+
+  if (!a.not_null || !b.not_null)
+    return 0;
+  if (a.s && b.s)
+    return scmp(op, a.s, b.s);
+  else if (!a.s && !b.s)
+    return dcmp(op, a.d, b.d);
+  else
+    return 0;
 }
 
 // returns end pointer
@@ -258,7 +345,8 @@ char* print_expr_list(char* e, int do_print) {
 int where(char* selexpr) {
   val v= {};
   if (got("where")) {
-    // TODO: test
+    // TODO: logocal expr w and/or
+    v.not_null= comparison();
   } else {
     v.not_null= 1;
   }
@@ -415,8 +503,9 @@ int TABCSV(FILE* f, char* selexpr) {
   int r;
 
   col= 0;
+  // TODO: consider caching whole line in order to not allocate small string fragments, then can point/modify that string
   while((r= freadCSV(f, s, sizeof(s), &d))) {
-    if (vals[col].s) free(vals[col].s);
+    if (vals[col].dealloc) free(vals[col].dealloc);
     ZERO(vals[col]);
 
     if (r==RNEWLINE) {
@@ -431,7 +520,7 @@ int TABCSV(FILE* f, char* selexpr) {
     vals[col].not_null= (r != RNULL);
     if (r==RNULL) ;
     else if (r==RNUM) vals[col].d= d;
-    else if (r==RSTRING) vals[col].s= strdup(s);
+    else if (r==RSTRING) vals[col].dealloc= vals[col].s= strdup(s);
     else error("Unknown freadCSV ret val");
 
     col++;
@@ -453,7 +542,7 @@ int from_list(char* selexpr) {
   if (got("int")) INT(selexpr);
   else {
     // fallback, assume filename!
-    char filnam[NAMELEN]= {0};
+    char filnam[NAMELEN]= {};
     if (!getname(filnam))
       error("Unknown from-iterator");
     FILE* f= fopen(filnam, "r");
@@ -505,7 +594,7 @@ int from(char* selexpr) {
 int select() {
   if (!got("select")) return 0;
   char* expr= ps;
-  // "skip" (dummies)
+  // "skip" (dummies) to get beyond
   char* end= print_expr_list(expr, 0);
   if (end) ps= end;
 

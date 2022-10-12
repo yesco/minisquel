@@ -1,7 +1,19 @@
-clang addb.c && ./a.out 'select 42'
-clang addb.c && ./a.out 'select 3+4*2'
-clang addb.c && ./a.out 'select 3+x, x+3'
-clang addb.c && ./a.out 'select $lineno, i from int(1,5) i'
+clang addb.c && {
 
-clang addb.c && ./a.out 'select i,+3, 1/3 from int(1,5) i'
-clang addb.c && ./a.out 'select a,b,c,d from foo.csv as foo' 
+./a.out 'select 42'
+./a.out 'select 3+4*2'
+./a.out 'select 3+x, x+3'
+./a.out 'select $lineno, i from int(1,5) i'
+
+./a.out 'select i,+3, 1/3 from int(1,5) i'
+./a.out 'select a,b,c,d from foo.csv as foo' 
+
+# where clause
+./a.out 'select 42, "foo"'
+./a.out 'select 42, "foo" where 1=1'
+./a.out 'select 42, "foo" where 1=0'
+./a.out 'select 42, "foo" where 0.3*3+0.1=1+0.0'
+./a.out 'select 42, "foo" where 0.3*3+0.1=1+0.00001'
+
+
+}
