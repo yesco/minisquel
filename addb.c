@@ -433,6 +433,7 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
   *r= 0; max--; // zero terminate 1 byte
   while((c= fgetc(f))!=EOF &&
 	(c!=',' || q>0) && (c!='\n' || q>0)) {
+    if (c=='\r') continue; // DOS
     if (c==0) return RNEWLINE;
     if (c==q) { q= -q; continue; } // "foo" bar, ok!
     if (c==-q) q= c;
