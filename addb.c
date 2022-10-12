@@ -162,8 +162,10 @@ int getval(char name[NAMELEN], val* v) {
 	   
 int getname(char name[NAMELEN]) {
   spcs();
-  char* p= &name[0];
-  while(!end() && (isalnum(*ps) || *ps=='_' || *ps=='$'|| *ps=='.')) {
+  char *p= &name[0], *last= &name[NAMELEN-1];
+  // first char already "verified"
+  while(!end() && (p < last) &&
+	(isalnum(*ps) || *ps=='_' || *ps=='$'|| *ps=='.')) {
     *p++= *ps;
     ps++;
   }
@@ -232,9 +234,9 @@ int expr(val* v) {
 }
 
 // returns end pointer
-char* print_expr_list(char* expression, int do_print) {
+char* print_expr_list(char* e, int do_print) {
   char* old_ps= ps;
-  ps= expression;
+  ps= e;
   
   // TODO: alternative formats: csv,tab,TAB
   spcs();
@@ -248,12 +250,12 @@ char* print_expr_list(char* expression, int do_print) {
   printf("\n");
   lineno++;
   
-  expression= ps;
+  e= ps;
   ps= old_ps;
-  return expression;
+  return e;
 }
 
-int where(char* expression) {
+int where(char* selexpr) {
   val v= {};
   if (got("where")) {
     // TODO: test
@@ -262,12 +264,12 @@ int where(char* expression) {
   }
   
   if (v.not_null)
-    print_expr_list(expression, 1);
+    print_expr_list(selexpr, 1);
 
   return 1;
 }
 
-int INT(char* expression) {
+int INT(char* selexpr) {
   char name[NAMELEN]= {};
   double start= 0, stop= 0, step= 1;
   // TODO: generalize
@@ -286,7 +288,7 @@ int INT(char* expression) {
     v.d= i;
     v.not_null= 1;
 
-    where(expression);
+    where(selexpr);
   }
   varcount= old_count;
   return 1;
@@ -376,7 +378,7 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
 }
 
 // TODO: take delimiter as argument?
-int TABCSV(FILE* f, char* expression) {
+int TABCSV(FILE* f, char* selexpr) {
   char* cols[MAXCOLS]= {0};
 
   // parse header col names
@@ -418,7 +420,7 @@ int TABCSV(FILE* f, char* expression) {
     ZERO(vals[col]);
 
     if (r==RNEWLINE) {
-      where(expression);
+      where(selexpr);
       ZERO(vals);
       if (col) row++;
       col= 0;
@@ -435,7 +437,7 @@ int TABCSV(FILE* f, char* expression) {
     col++;
   }
   // no newline at end
-  if (col) where(expression);
+  if (col) where(selexpr);
 
   // free strings
   for(int i=0; i<MAXCOLS; i++)
@@ -446,9 +448,9 @@ int TABCSV(FILE* f, char* expression) {
   return 1;
 }
 
-int from_list(char* expression) {
+int from_list(char* selexpr) {
   char* start= ps;
-  if (got("int")) INT(expression);
+  if (got("int")) INT(selexpr);
   else {
     // fallback, assume filename!
     char filnam[NAMELEN]= {0};
@@ -458,7 +460,7 @@ int from_list(char* expression) {
     if (!f) error(filnam); // "no such file");
 
     // TODO: fil.csv("a,b,c") == header
-    TABCSV(f, expression);
+    TABCSV(f, selexpr);
     // TODO: json
     // TODO: xml
     // TODO: passwd styhle "foo:bar:fie"
@@ -471,12 +473,12 @@ int from_list(char* expression) {
   return 1;
 }
 
-int from(char* expression) {
+int from(char* selexpr) {
   if (!got("from")) {
-    where(expression);
+    where(selexpr);
     return 0;
   } else {
-    from_list(expression);
+    from_list(selexpr);
     return 1;
   }
 }
@@ -502,12 +504,12 @@ int from(char* expression) {
 // just an aggregator!
 int select() {
   if (!got("select")) return 0;
-  char* expression= ps;
+  char* expr= ps;
   // "skip" (dummies)
-  char* end= print_expr_list(expression, 0);
+  char* end= print_expr_list(expr, 0);
   if (end) ps= end;
 
-  from(expression);
+  from(expr);
   return 1;
 }
 
