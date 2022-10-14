@@ -257,6 +257,28 @@ int expr(val* v) {
   return 1;
 }
 
+// returns end pointer
+char* print_expr_list(char* e, int do_print) {
+  char* old_ps= ps;
+  ps= e;
+  
+  // TODO: alternative formats: csv,tab,TAB
+  spcs();
+  val v= {};
+  do {
+    if (expr(&v)) {
+      if (do_print) print_val(&v);
+    } else expected("expression");
+    if (do_print) printf("\t");
+  } while(gotc(','));
+  printf("\n");
+  lineno++;
+  
+  e= ps;
+  ps= old_ps;
+  return e;
+}
+
 int comparator(char cmp[NAMELEN]) {
   spcs();
   // TODO: not prefix?
@@ -337,10 +359,15 @@ int scmp(char* cmp, char* a, char* b) {
   }
 }
 
-// returns boolean of evaluation
+// returns "extended boolean"
+#define LFAIL 0
+#define LFALSE (-1)
+#define LTRUE 1
+// NOTE: -LFALSE==LTRUE !!
+
 int comparison() {
   val a, b; char op[NAMELEN]= {};
-  if (!(expr(&a))) return 0;
+  if (!(expr(&a))) return LFAIL;
   if (!comparator(op) || !expr(&b))
     expected("comparison");
 
@@ -348,46 +375,40 @@ int comparison() {
   print_val(&a); putchar(' '); print_val(&b);
   printf("\n");
   if (!a.not_null || !b.not_null)
-    return 0;
+    return LFALSE;
   if (a.s && b.s)
-    return scmp(op, a.s, b.s);
+    return scmp(op, a.s, b.s)?LTRUE:LFALSE;
   else if (!a.s && !b.s)
-    return dcmp(op, a.d, b.d);
+    return dcmp(op, a.d, b.d)?LTRUE:LFALSE;
   else
-    return 0;
+    return LFALSE;
 }
 
-// returns end pointer
-char* print_expr_list(char* e, int do_print) {
-  char* old_ps= ps;
-  ps= e;
-  
-  // TODO: alternative formats: csv,tab,TAB
-  spcs();
-  val v= {};
-  do {
-    if (expr(&v)) {
-      if (do_print) print_val(&v);
-    } else expected("expression");
-    if (do_print) printf("\t");
-  } while(gotc(','));
-  printf("\n");
-  lineno++;
-  
-  e= ps;
-  ps= old_ps;
-  return e;
+int logical();
+
+int logsimple() {
+  // TODO: WHERE (1)=1    lol
+  // ==extended expr & use val?
+  if (gotc('(')) {
+      int r= logical();
+      if (!gotc(')')) expected(")");
+      return r;
+  }
+  if (got("not")) return -logsimple();
+  // TODO "or here"?
+  // but need lower prio than not
+  return comparison();
 }
 
 // returns boolean of evaluation
 int logical() {
-  int r;
   spcs();
-  // TODO: WHERE (1)=1    lol
-  // ==extended expr & use val?
-  if (gotc('(') && (r= logical()) && gotc(')')) return r;
-  if (got("not")) return !logical();
-  return comparison();
+  int r;
+  while((r= logsimple())) {
+    // TODO: OR...
+    if (!got("and")) return r;
+  }
+  return r;
 }
 
 int where(char* selexpr) {
@@ -395,7 +416,7 @@ int where(char* selexpr) {
   val v= {};
   if (got("where")) {
     // TODO: logocal expr w and/or
-    v.not_null= logical();
+    v.not_null= (logical()==LTRUE);
   } else {
     v.not_null= 1;
   }

@@ -14,6 +14,11 @@ clang addb.c && {
 ./a.out 'select 42, "foo" where 1=0'
 ./a.out 'select 42, "foo" where 0.3*3+0.1=1+0.0'
 ./a.out 'select 42, "foo" where 0.3*3+0.1=1+0.00001'
+# and
+clang -g addb.c && ./a.out 'select 42 where 1=1 and 1=2'
+clang -g addb.c && ./a.out 'select 42 where 1=1 and 2=2'
+clang -g addb.c && ./a.out 'select 42 where not(1=1 and 2=1)'
+clang -g addb.c && ./a.out 'select 42 where not(1=1 and 1=2)'
 
 # fail - TODO:
 ./a.out 'select 42 where (1)=1'
