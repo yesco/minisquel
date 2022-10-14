@@ -51,6 +51,7 @@ int isid(char c) {
  
 // also removes starting/trailing spaces, no prefix match
 // use only for [alnum _ $ .]
+// TODO: case insensitive?
 int got(char* s) {
   if (end() || !s) return 0;
   spcs();
@@ -96,12 +97,14 @@ void error(char* msg) {
   fprintf(stdout, "Error: %s\n", msg);
   fprintf(stderr, "Error: %s\n", msg);
   // TODO: return 1 for shortcut?
+  fprintf(stderr, "At>%s<\n", ps);
   exit(1);
 }
 
 void expected(char* msg) {
   fprintf(stdout, "Error: expected %s\n", msg);
   fprintf(stderr, "Error: expected %s\n", msg);
+  fprintf(stderr, "At>%s<\n", ps);
   exit(1);
 }
 
@@ -181,6 +184,9 @@ int getname(char name[NAMELEN]) {
   return p!=&name[0];
 }
 
+// parse var name and get value
+// WARNING: if not found=>NULL
+// and always return true
 int var(val* v) {
   char name[NAMELEN]= {};
   if (getname(name) && getval(name, v)) return 1;
@@ -201,7 +207,8 @@ int prim(val* v) {
   }
   if (num(&v->d)) { v->not_null= 1; return 1; }
   if (str(&v->s)) { v->dealloc= v->s; v->not_null= 1; return 1; }
-  if (var(v)) return 1;
+  // only if has name
+  if (isid(*ps) && var(v)) return 1;
   return 0;
 }
 
@@ -265,6 +272,7 @@ int comparator(char cmp[NAMELEN]) {
   //   null==null ->1 null=? -> 0
   //   - https://dev.mysql.com/doc/refman/8.0/en/comparison-operators.html#operator_equal-to
   if (!cmp[0]) expected("comparator");
+  spcs();
   return 1;
 }
 
@@ -294,7 +302,7 @@ int dcmp(char* cmp, double a, double b) {
   case TWO('!','<'):
   case TWO('>','='): return (a>=b) || eq;
   case '>': return (a>b) && !eq;
-  default: expected("comparator");
+  default: expected("dcmp: comparator");
   }
   return 0;
 }
@@ -325,17 +333,20 @@ int scmp(char* cmp, char* a, char* b) {
   case TWO('!','<'):
   case TWO('>','='): return (r>=0);
   case '>': return (r>0);
-  default: return 0; //expected("comparator");
+  default: return 0; //expected("scmp: comparator");
   }
 }
 
-// v.not_null if true
+// returns boolean of evaluation
 int comparison() {
   val a, b; char op[NAMELEN]= {};
-  // TODO: not and or, priority?
-  if (!(expr(&a) && comparator(op) && expr(&b)))
+  if (!(expr(&a))) return 0;
+  if (!comparator(op) || !expr(&b))
     expected("comparison");
 
+  printf("COMPARE %s  ", op);
+  print_val(&a); putchar(' '); print_val(&b);
+  printf("\n");
   if (!a.not_null || !b.not_null)
     return 0;
   if (a.s && b.s)
@@ -368,12 +379,23 @@ char* print_expr_list(char* e, int do_print) {
   return e;
 }
 
+// returns boolean of evaluation
+int logical() {
+  int r;
+  spcs();
+  // TODO: WHERE (1)=1    lol
+  // ==extended expr & use val?
+  if (gotc('(') && (r= logical()) && gotc(')')) return r;
+  if (got("not")) return !logical();
+  return comparison();
+}
+
 int where(char* selexpr) {
   // ref - https://www.sqlite.org/lang_expr.html
   val v= {};
   if (got("where")) {
     // TODO: logocal expr w and/or
-    v.not_null= comparison();
+    v.not_null= logical();
   } else {
     v.not_null= 1;
   }

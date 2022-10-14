@@ -15,5 +15,8 @@ clang addb.c && {
 ./a.out 'select 42, "foo" where 0.3*3+0.1=1+0.0'
 ./a.out 'select 42, "foo" where 0.3*3+0.1=1+0.00001'
 
+# fail - TODO:
+./a.out 'select 42 where (1)=1'
+./a.out 'select 42 where ((1)=1)'
 
 }
