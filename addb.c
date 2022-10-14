@@ -371,9 +371,6 @@ int comparison() {
   if (!comparator(op) || !expr(&b))
     expected("comparison");
 
-  printf("COMPARE %s  ", op);
-  print_val(&a); putchar(' '); print_val(&b);
-  printf("\n");
   if (!a.not_null || !b.not_null)
     return LFALSE;
   if (a.s && b.s)
@@ -403,10 +400,21 @@ int logsimple() {
 // returns boolean of evaluation
 int logical() {
   spcs();
-  int r;
-  while((r= logsimple())) {
-    // TODO: OR...
-    if (!got("and")) return r;
+  int r= LTRUE, n;
+  while((n= logsimple())) {
+    r= ((r==LTRUE) && (n==LTRUE))?LTRUE:LFALSE;
+    if (got("and")) {
+      continue;
+    } else if (!got("or")) {
+      return r;
+    } else {
+      // OR
+      while((n= logsimple())) {
+	if (n==LTRUE) r= n;
+	if (!got("or")) break;
+      }
+      if (!got("and")) return r;
+    }
   }
   return r;
 }
