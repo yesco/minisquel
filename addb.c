@@ -45,7 +45,12 @@ int spcs() {
   return n;
 }
 
-// also removes starting/trailing spaces
+int isid(char c) {
+  return isalnum(c) || c=='_' || c=='$' || c=='.';
+}
+ 
+// also removes starting/trailing spaces, no prefix match
+// use only for [alnum _ $ .]
 int got(char* s) {
   if (end() || !s) return 0;
   spcs();
@@ -54,6 +59,8 @@ int got(char* s) {
     p++; s++;
   }
   if (*s) return 0;
+  // got("f") not match "foo"
+  if (isid(*p)) return 0;
   ps= p;
   spcs();
   return 1;
@@ -167,8 +174,7 @@ int getname(char name[NAMELEN]) {
   spcs();
   char *p= &name[0], *last= &name[NAMELEN-1];
   // first char already "verified"
-  while(!end() && (p < last) &&
-	(isalnum(*ps) || *ps=='_' || *ps=='$'|| *ps=='.')) {
+  while(isid(*ps) && !end() && p < last) {
     *p++= *ps;
     ps++;
   }
@@ -269,7 +275,7 @@ int dcmp(char* cmp, double a, double b) {
   int eq= (a==b) || (fabs((a-b)/(fabs(a)+fabs(b))) < 1e-9);
   
   switch (TWO(cmp[0], cmp[1])) {
-  case TWO('i', 'n'): expected("not implemented in")
+  case TWO('i', 'n'): expected("not implemented in");
     // lol
 
   case TWO('i','l'):  // ilike
@@ -298,7 +304,7 @@ int scmp(char* cmp, char* a, char* b) {
   int r= strcmp(a, b);
   
   switch (TWO(cmp[0], cmp[1])) {
-  case TWO('i', 'n'): expected("not implemented in")
+  case TWO('i', 'n'): expected("not implemented in");
 
   case TWO('i','l'): // ilike
   case TWO('l', 'i'): // like
@@ -401,10 +407,6 @@ int INT(char* selexpr) {
   }
   varcount= old_count;
   return 1;
-}
-
-int isnewline(int c) {
-  return c=='\n' || c=='\n';
 }
 
 // TODO: https://en.m.wikipedia.org/wiki/Flat-file_database
