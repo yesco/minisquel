@@ -13,7 +13,11 @@ char* ps= NULL;
 int lineno= 0;
 
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
+// TODO: change to enum(disable_call, disable_print, print_header)
+//   to handle header name def/print
+//   to handle aggregates (not print every row, only last (in group))
 int parse_only= 0;
+
 
 #define ZERO(z) memset(&z, 0, sizeof(z))
 
@@ -238,6 +242,7 @@ int getval(char* name, val* v) {
 	   
 int getname(char name[NAMELEN]) {
   spcs();
+  ZERO(*name);
   char *p= &name[0], *last= &name[NAMELEN-1];
   // first char already "verified"
   while(isid(*ps) && !end() && p < last) {
@@ -446,19 +451,43 @@ char* print_expr_list(char* e) {
   
   // TODO: alternative formats: csv,tab,TAB
   spcs();
+  int col= 0;
   val v= {};
   do {
     // TODO: SELECT *, tab.*
+    char* start= ps;
     if (expr(&v)) {
+      col++;
       if (!parse_only) printval(&v);
     } else expected("expression");
-    // select 42 AS
+
+    // set column name as 1,2,3...
+    char name[NAMELEN]= {0};
+    sprintf(name, "%d", col);
+    // TODO: link name? (not copy!)
+    if (!parse_only) setvar(name, &v);
+    ZERO(*name);
+
+    // select 42 AS foo
     if (got("as")) {
-      char name[NAMELEN]= {0};
       if (!getname(name)) expected("name");
-      // during first parsing/skip we don't print and not setvar
-      // TODO: other meachanism?
       if (!parse_only) setvar(name, &v);
+      // TODO: "header" print state?
+    }
+
+    // use name, or find header name
+    // TODO: move out?
+    if (parse_only) {
+      if (!name[0]) {
+	// make a nmae from expr
+	char* spc= strchr(start, ' ');
+	char* end= strchr(start, ',');
+	if (spc<end) end= spc;
+	if (!end) end= start+8;
+	strncpy(name, start, end-start);
+	if (end-start>8) strcpy(name+6, "..");
+      }
+      printf("=%s\t", name);
     }
     if (!parse_only) printf("\t");
   } while(gotc(','));

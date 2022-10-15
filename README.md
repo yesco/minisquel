@@ -44,10 +44,10 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - (only?) nested loop evaluation
 - where <singlecomparison>
 - undefined variables/colum names used are considered null
+- NULL is always null if not set, LOL ("feature")
 
 ## TODO:
 
-- NULL constant
 - log queries/statistics
 - val with altname/num/table.col
 - upper/lower-case for "sql"
