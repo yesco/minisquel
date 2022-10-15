@@ -113,7 +113,7 @@ typedef struct val {
   char* s;
   char* dealloc; // if set (to s) deallocate
   double d;
-  int not_null;
+  int not_null; // haha: "have val"
   // aggregations/statistics
   // TODO: cost too much?
   double min, max, sum, sqsum;
@@ -121,7 +121,7 @@ typedef struct val {
 } val;
   
 // keeps stats
-void clear_val(val* v) {
+void clearval(val* v) {
   if (v->dealloc) free(v->dealloc);
   v->dealloc= v->s= NULL;
   v->d= 0;
@@ -140,14 +140,15 @@ void print_quoted(char* s, char quot) {
   putchar(quot);
 }
 
-void print_val(val* v) {
+void printval(val* v) {
   if (!v->not_null) printf("NULL");
   else if (v->s) print_quoted(v->s, '\"');
   else printf("%.15lg", v->d);
 }
 
-void update_stats(val *v) {
+void updatestats(val *v) {
   if (v->s) {
+    // TODO: string values, min/max
     v->nstr++;
   } else if (!v->not_null) {
     v->nnull++;
@@ -174,20 +175,40 @@ double stats_avg(val *v) {
 }
 
 char* varnames[VARCOUNT]= {0};
-// TODO: varvals used?
-//   TABCSV uses its own...
 val* varvals[VARCOUNT]= {0};
 int varcount= 0;
 
-int linkval(char* name, val* v) {
+val* linkval(char* name, val* v) {
   if (varcount>=VARCOUNT) error("out of vars");
   varnames[varcount]= name;
   varvals[varcount]= v;
   varcount++;
-  return 1;
+  return v;
 }
 
-int getval(char name[NAMELEN], val* v) {
+val* findvar(char name[NAMELEN]) {
+  for(int i=0; i<varcount; i++)
+    if (0==strcmp(name, varnames[i]))
+      return varvals[i];
+  return NULL;
+}
+
+val* setvar(char* name, val* s) {
+  val* v= findvar(name);
+  // TODO: deallocate duped name...
+  //   - or not, only "alloc once"
+  if (!v) v= linkval(strdup(name), calloc(1, sizeof(*v)));
+  // copy only value (not stats)
+  clearval(v);
+  v->s= s->s;
+  v->dealloc= s->dealloc;
+  v->d= s->d;
+  v->not_null= s->not_null;
+  updatestats(v);
+  return v;
+}
+
+int getval(char* name, val* v) {
   // special names
   if (0==strcmp("$lineno", name)) {
     v->d= lineno;
@@ -200,15 +221,8 @@ int getval(char name[NAMELEN], val* v) {
     return 1;
   }
   // lookup variables
-  for(int i=0; i<varcount; i++)
-    if (0==strcmp(name, varnames[i])) {
-      *v= *varvals[i]; // copy value
-      return 1;
-    }
-  // DO: v->not_null= 1;
-
-  // TODO:
-
+  val* f= findvar(name);
+  if (f) { *v= *f; return 1; }
   // failed, null
   ZERO(*v);
   return 0;
@@ -299,6 +313,7 @@ int expr(val* v) {
 }
 
 // returns end pointer
+// TODO: configurable action/resultF
 char* print_expr_list(char* e, int do_print) {
   char* old_ps= ps;
   ps= e;
@@ -307,9 +322,17 @@ char* print_expr_list(char* e, int do_print) {
   spcs();
   val v= {};
   do {
+    // TODO: SELECT *, tab.*
     if (expr(&v)) {
-      if (do_print) print_val(&v);
+      if (do_print) printval(&v);
     } else expected("expression");
+    if (got("as")) {
+      char name[NAMELEN]= {0};
+      if (!getname(name)) expected("name");
+      // during first parsing/skip we don't print and not setvar
+      // TODO: other meachanism?
+      if (do_print) setvar(name, &v);
+    }
     if (do_print) printf("\t");
   } while(gotc(','));
   printf("\n");
@@ -621,12 +644,12 @@ int TABCSV(FILE* f, char* selexpr) {
   col= 0;
   // TODO: consider caching whole line in order to not allocate small string fragments, then can point/modify that string
   while((r= freadCSV(f, s, sizeof(s), &d))) {
-    clear_val(&vals[col]);
+    clearval(&vals[col]);
 
     if (r==RNEWLINE) {
       where(selexpr);
       for(int i=0; i<MAXCOLS; i++)
-	clear_val(&vals[col]);
+	clearval(&vals[col]);
       if (col) row++;
       col= 0;
       continue;
@@ -639,7 +662,7 @@ int TABCSV(FILE* f, char* selexpr) {
     else if (r==RSTRING) vals[col].dealloc= vals[col].s= strdup(s);
     else error("Unknown freadCSV ret val");
 
-    update_stats(&vals[col]);
+    updatestats(&vals[col]);
     col++;
   }
   // no newline at end
@@ -649,13 +672,16 @@ int TABCSV(FILE* f, char* selexpr) {
   // print stats and free strings
   printf("----\n");
   printf("Stats\n");
-  for(int i=0; i<MAXCOLS; i++) {
-    val* v= &vals[i];
+  for(int i=0; i<varcount; i++) {
+    val* v= varvals[i];
+    // TODO: string values (nstr)
+    // TODO: nulls (nnull)
     if (v->n) {
       printf("  %s %d#[%lg,%lg] u(%lg,%lg) S%lg\n",
-	     cols[i], v->n, v->min, v->max, stats_avg(v), stats_stddev(v), v->sum);
+	     varnames[i], v->n, v->min, v->max, stats_avg(v), stats_stddev(v), v->sum);
     }
-    clear_val(v);
+    // TODO: maybe not? (AS names may be needed?)
+    clearval(v);
   }
   
   free(header); // column names
