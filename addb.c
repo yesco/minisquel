@@ -108,14 +108,26 @@ void expected(char* msg) {
   exit(1);
 }
 
-// app
+// variable values
 typedef struct val {
   char* s;
   char* dealloc; // if set (to s) deallocate
   double d;
   int not_null;
+  // aggregations/statistics
+  // TODO: cost too much?
+  double min, max, sum, sqsum;
+  int n, nnull, nstr;
 } val;
   
+// keeps stats
+void clear_val(val* v) {
+  if (v->dealloc) free(v->dealloc);
+  v->dealloc= v->s= NULL;
+  v->d= 0;
+  v->not_null= 0;
+}
+
 void print_quoted(char* s, char quot) {
   if (!s) return (void)printf("NULL");
   putchar(quot);
@@ -134,7 +146,36 @@ void print_val(val* v) {
   else printf("%.15lg", v->d);
 }
 
+void update_stats(val *v) {
+  if (v->s) {
+    v->nstr++;
+  } else if (!v->not_null) {
+    v->nnull++;
+  } else {
+    v->n++;
+    v->sum+= v->d;
+    v->sqsum+= v->d*v->d;
+    if (!v->n || v->d < v->min) v->min= v->d;
+    if (!v->n || v->d > v->max) v->max= v->d;
+  }
+}
+
+double stats_stddev(val *v) {
+  // rapid calculation method
+  // - https://en.m.wikipedia.org/wiki/Standard_deviation
+  // s1==sum
+  // s2==sqsum
+  int N= v->n;
+  return sqrt((N*v->sqsum - v->sum*v->sum)/N/(N-1));
+}
+
+double stats_avg(val *v) {
+  return v->sum/v->n;
+}
+
 char* varnames[VARCOUNT]= {0};
+// TODO: varvals used?
+//   TABCSV uses its own...
 val* varvals[VARCOUNT]= {0};
 int varcount= 0;
 
@@ -161,7 +202,7 @@ int getval(char name[NAMELEN], val* v) {
   // lookup variables
   for(int i=0; i<varcount; i++)
     if (0==strcmp(name, varnames[i])) {
-      *v= *varvals[i];
+      *v= *varvals[i]; // copy value
       return 1;
     }
   // DO: v->not_null= 1;
@@ -580,12 +621,12 @@ int TABCSV(FILE* f, char* selexpr) {
   col= 0;
   // TODO: consider caching whole line in order to not allocate small string fragments, then can point/modify that string
   while((r= freadCSV(f, s, sizeof(s), &d))) {
-    if (vals[col].dealloc) free(vals[col].dealloc);
-    ZERO(vals[col]);
+    clear_val(&vals[col]);
 
     if (r==RNEWLINE) {
       where(selexpr);
-      ZERO(vals);
+      for(int i=0; i<MAXCOLS; i++)
+	clear_val(&vals[col]);
       if (col) row++;
       col= 0;
       continue;
@@ -598,16 +639,26 @@ int TABCSV(FILE* f, char* selexpr) {
     else if (r==RSTRING) vals[col].dealloc= vals[col].s= strdup(s);
     else error("Unknown freadCSV ret val");
 
+    update_stats(&vals[col]);
     col++;
   }
   // no newline at end
   if (col) where(selexpr);
 
-  // free strings
-  for(int i=0; i<MAXCOLS; i++)
-    if (vals[i].s) free(vals[i].s);
 
-  free(header);
+  // print stats and free strings
+  printf("----\n");
+  printf("Stats\n");
+  for(int i=0; i<MAXCOLS; i++) {
+    val* v= &vals[i];
+    if (v->n) {
+      printf("  %s %d#[%lg,%lg] u(%lg,%lg) S%lg\n",
+	     cols[i], v->n, v->min, v->max, stats_avg(v), stats_stddev(v), v->sum);
+    }
+    clear_val(v);
+  }
+  
+  free(header); // column names
   fclose(f);
   return 1;
 }
@@ -711,7 +762,7 @@ int main(int argc, char** argv) {
 
   parse(cmd);
   int r= sql();
-  printf("---\nrows=%d\n", lineno-1);
+  printf("\nrows=%d\n", lineno-1);
   if (r!=1) printf("%%result=%d\n", r);
   if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
