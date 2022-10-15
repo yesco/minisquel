@@ -19,9 +19,20 @@ clang -g addb.c && ./a.out 'select 42 where 1=1 and 1=2'
 clang -g addb.c && ./a.out 'select 42 where 1=1 and 2=2'
 clang -g addb.c && ./a.out 'select 42 where not(1=1 and 2=1)'
 clang -g addb.c && ./a.out 'select 42 where not(1=1 and 1=2)'
+# functions
+./a.out 'select plus(3,4)'
+./a.out 'select plus(3)'
+./a.out 'select plus(3,4,5)'
+./a.out 'select add()'
+./a.out 'select add(1,2,3)'
+./a.out 'select add(3,foo,bar,fie,4)'
+# aggregates
+./a.out 'select count(i) from int(1,10) i'
 
-# fail - TODO:
+# --------- fail - TODO:
 ./a.out 'select 42 where (1)=1'
 ./a.out 'select 42 where ((1)=1)'
+./a.out 'select count(42)'
+./a.out 'select count(1) from int(1,10) i'
 
 }

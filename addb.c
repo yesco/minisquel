@@ -12,6 +12,9 @@
 char* ps= NULL;
 int lineno= 0;
 
+// global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
+int parse_only= 0;
+
 #define ZERO(z) memset(&z, 0, sizeof(z))
 
 int parse(char* s) {
@@ -101,11 +104,16 @@ void error(char* msg) {
   exit(1);
 }
 
-void expected(char* msg) {
+void expected2(char* msg, char* param) {
   fprintf(stdout, "Error: expected %s\n", msg);
   fprintf(stderr, "Error: expected %s\n", msg);
+  if (param) printf("  %s\n", param);
   fprintf(stderr, "At>%s<\n", ps);
   exit(1);
+}
+
+void expected(char* msg) {
+  expected2(msg, NULL);
 }
 
 // variable values
@@ -239,18 +247,136 @@ int getname(char name[NAMELEN]) {
   return p!=&name[0];
 }
 
+
+// functions
+typedef struct func {
+  char* name;
+  void* f;
+  struct func* next;
+} func;
+
+func* funcs= NULL;
+
+void registerfun(char* name, void* f) {
+  func* p= funcs;
+  funcs= calloc(1, sizeof(func));
+  funcs->name= name;
+  funcs->f= f;
+  funcs->next= p;
+}
+
+func* findfunc(char* name) {
+  func* f= funcs;
+  while(f) {
+    if (0==strcmp(f->name, name))
+      return f;
+    f= f->next;
+  }
+  return NULL;
+}
+
+// --- your funcs here!
+// The functions can have two different signatures)
+
+// Example: 2 argument function
+// (max three direct params == +c)
+int plus(val* r, int n, val* a, val* b) {
+  if (n!=2) return -2;
+  r->d= a->d + b->d;
+  r->not_null= a->not_null && b->not_null;
+  return 1;
+}
+
+// Example: "vararg" (max 10 params)
+int add(val* r, int n, val params[]) {
+  r->d= 0; r->not_null= 1;
+  for(int i= 0; i<n; i++) {
+    if (params[i].not_null)
+      r->d+= params[i].d;
+  }
+  return 1;
+}
+
+// Aggregators:
+int count(val* r, int n, val* a) {
+  r->not_null= 1;
+  if (n==0) {
+    // select count() == count(*)
+    r->d= lineno-1;
+  } else if (n==1) {
+    // TODO: select count(1) from int(1,10) i
+    // TODO: select count(i) from int(1,10) i
+
+    // count(foo) (not count null)
+    r->d= a->n + a->nstr;
+    // count(42) but count(42 as ss
+    if (r->d==0 && a->nnull==0)
+      expected2("count", "currently only works on name variables");
+  } else
+    return -1;
+  return 1;
+}
+
+// TODO: how to make boolean functions?
+
+int in(val* r, int n, val params[]) {
+  return -1;
+}
+
+// make SURE to add your function here
+void register_funcs() {
+  // examples
+  registerfun("plus", plus);
+  registerfun("add", add);
+
+  registerfun("count", count);
+}
+
+// -- end your funcs
+
+// end functions
+
+int expr(val* v);
+
+int call(val* r, char* name) {
+  #define MAXPARAMS 10
+  val params[MAXPARAMS]= {0};
+  int pcount= 0;
+  func* f= findfunc(name);
+  if (!f) expected2("not found func", name);
+  while(!gotc(')')) {
+    if (!expr(&params[pcount++])) expected("expression");
+    spcs();
+    if (*ps!=')' && !gotc(',')) expected("comma");
+  } 
+  if (parse_only) return 1;
+  // caller cleans up in C, so this is safe!
+  int rv= ((int(*)(val*,int,val[],val*,val*))f->f)(r, pcount, params, params+1, params+2);
+  if (rv>0) return 1;
+  // wrong set of parameters
+  char msg[NAMELEN];
+  sprintf(msg, "%d parameters, got %d", -rv, pcount);
+  expected2(name, msg);
+  return 0;
+
+  #undef MAXPARAMS
+}
+
 // parse var name and get value
 // WARNING: if not found=>NULL
 // and always return true
 int var(val* v) {
   char name[NAMELEN]= {};
-  if (getname(name) && getval(name, v)) return 1;
+  if (getname(name)) {
+    if (gotc('(')) return call(v, name);
+    getval(name, v);
+    return 1;
+  }
+  // TODO: maybe not needed here?
   // not found == null
   ZERO(*v);
-  return 1; // "NULL"
+  return 1; // "NULL" "hmm"
 }
-
-int expr(val* v);
 
 int prim(val* v) {
   spcs();
@@ -314,7 +440,7 @@ int expr(val* v) {
 
 // returns end pointer
 // TODO: configurable action/resultF
-char* print_expr_list(char* e, int do_print) {
+char* print_expr_list(char* e) {
   char* old_ps= ps;
   ps= e;
   
@@ -324,16 +450,17 @@ char* print_expr_list(char* e, int do_print) {
   do {
     // TODO: SELECT *, tab.*
     if (expr(&v)) {
-      if (do_print) printval(&v);
+      if (!parse_only) printval(&v);
     } else expected("expression");
+    // select 42 AS
     if (got("as")) {
       char name[NAMELEN]= {0};
       if (!getname(name)) expected("name");
       // during first parsing/skip we don't print and not setvar
       // TODO: other meachanism?
-      if (do_print) setvar(name, &v);
+      if (!parse_only) setvar(name, &v);
     }
-    if (do_print) printf("\t");
+    if (!parse_only) printf("\t");
   } while(gotc(','));
   printf("\n");
   lineno++;
@@ -493,8 +620,10 @@ int where(char* selexpr) {
     v.not_null= 1;
   }
   
-  if (v.not_null)
-    print_expr_list(selexpr, 1);
+  if (v.not_null) {
+    parse_only= 0;
+    print_expr_list(selexpr);
+  }
 
   return 1;
 }
@@ -517,6 +646,7 @@ int INT(char* selexpr) {
   for(double i= start; i<stop; i+= step) {
     v.d= i;
     v.not_null= 1;
+    updatestats(&v);
 
     where(selexpr);
   }
@@ -747,7 +877,8 @@ int select() {
   if (!got("select")) return 0;
   char* expr= ps;
   // "skip" (dummies) to get beyond
-  char* end= print_expr_list(expr, 0);
+  parse_only= 1;
+  char* end= print_expr_list(expr);
   if (end) ps= end;
 
   from(expr);
@@ -783,6 +914,8 @@ void testread() {
 int main(int argc, char** argv) {
 // testread(); exit(0);
  
+  register_funcs();
+  
   char* cmd= argv[1];
   printf("SQL> %s\n", cmd);
 
