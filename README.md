@@ -42,9 +42,19 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - no optimization
 - order of data in kept in result
 - (only?) nested loop evaluation
-- where <singlecomparison>
+- WHERE ... AND ... OR NOT ...
 - undefined variables/colum names used are considered null
 - NULL is always null if not set, LOL ("feature")
+- COUNT(), SUM(), MIN(), MAX(), AVG(), DEV(), 
+- aggregators only work on variables, not computed values:
+       doesn't work (currently):
+
+         select sum(1) from int(1,10) i
+
+       workaround:
+       
+         select 1 as foo, sumfoo) fror int(1,10) i
+
 
 ## TODO:
 

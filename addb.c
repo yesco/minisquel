@@ -165,11 +165,11 @@ void updatestats(val *v) {
   } else if (!v->not_null) {
     v->nnull++;
   } else {
-    v->n++;
     v->sum+= v->d;
     v->sqsum+= v->d*v->d;
     if (!v->n || v->d < v->min) v->min= v->d;
     if (!v->n || v->d > v->max) v->max= v->d;
+    v->n++;
   }
 }
 
@@ -303,22 +303,59 @@ int add(val* r, int n, val params[]) {
 }
 
 // Aggregators:
+
+void agg_check(char* fun, val* r, val* a) {
+  r->not_null= 1;
+
+  int m= a->n + a->nstr + a->nnull;
+  if (!m) expected2(fun, "currently only works on named variables");
+}
+
 int count(val* r, int n, val* a) {
   r->not_null= 1;
   if (n==0) {
     // select count() == count(*)
-    r->d= lineno-1;
+    r->d= lineno;
   } else if (n==1) {
-    // TODO: select count(1) from int(1,10) i
-    // TODO: select count(i) from int(1,10) i
-
-    // count(foo) (not count null)
+    agg_check("count", r, a);
     r->d= a->n + a->nstr;
-    // count(42) but count(42 as ss
-    if (r->d==0 && a->nnull==0)
-      expected2("count", "currently only works on name variables");
   } else
     return -1;
+  return 1;
+}
+
+int sum(val* r, int n, val* a) {
+  if (n!=1) return -1;
+  agg_check("sum", r, a);
+  r->d= a->sum;
+  return 1;
+}
+
+int min(val* r, int n, val* a) {
+  if (n!=1) return -1;
+  agg_check("min", r, a);
+  r->d= a->min;
+  return 1;
+}
+
+int max(val* r, int n, val* a) {
+  if (n!=1) return -1;
+  agg_check("max", r, a);
+  r->d= a->max;
+  return 1;
+}
+
+int avg(val* r, int n, val* a) {
+  if (n!=1) return -1;
+  agg_check("avg", r, a);
+  r->d= stats_avg(a);
+  return 1;
+}
+
+int stdev(val* r, int n, val* a) {
+  if (n!=1) return -1;
+  agg_check("stdev", r, a);
+  r->d= stats_stddev(a);
   return 1;
 }
 
@@ -335,6 +372,11 @@ void register_funcs() {
   registerfun("add", add);
 
   registerfun("count", count);
+  registerfun("sum", sum);
+  registerfun("min", min);
+  registerfun("max", max);
+  registerfun("avg", avg);
+  registerfun("stdev", stdev);
 }
 
 // -- end your funcs
