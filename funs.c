@@ -112,6 +112,15 @@ int upper(val* r, int n, val* a) {
   return 1;
 }  
 
+// Time related
+int timestamp(val* r, int n, val* a) {
+  // TODO: normalize a if given?
+  if (n) return 0;
+  r->s= strdup(isotime());
+  r->not_null= 1;
+  return 1;
+}
+
 // Aggregators:
 
 void agg_check(char* fun, val* r, val* a) {
@@ -191,6 +200,9 @@ void register_funcs() {
   registerfun("lower", lower);
   registerfun("upper", upper);
   
+  // time
+  registerfun("timestamp", timestamp);
+
   // aggregators
   registerfun("count", count);
   registerfun("sum", sum);
