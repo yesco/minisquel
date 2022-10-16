@@ -6,13 +6,6 @@
 #include <math.h>
 #include <time.h>
 
-#define NAMELEN 64
-#define VARCOUNT 256
-#define MAXCOLS 32
-
-char* ps= NULL;
-int lineno= 0;
-
 char* isotime() {
   // from: jml project
   static char iso[sizeof "2011-10-08T07:07:09Z"];
@@ -33,6 +26,23 @@ long timems() {
 //   to handle header name def/print
 //   to handle aggregates (not print every row, only last (in group))
 int parse_only= 0;
+
+#define NAMELEN 64
+#define VARCOUNT 256
+#define MAXCOLS 32
+
+char* ps= NULL;
+long lineno= 0, foffset= 0;
+
+char format[30]= {0};
+
+char formatdelim() {
+  if (!*format) return '\t';
+  if (0==strcmp("csv", format)) return ',';
+  if (0==strcmp("tab", format)) return '\t';
+  if (0==strcmp("bar", format)) return '|';
+  return '\t';
+}
 
 #define ZERO(z) memset(&z, 0, sizeof(z))
 
@@ -221,12 +231,15 @@ val* findvar(char name[NAMELEN]) {
   return NULL;
 }
 
+FILE* dataf= NULL;
+
 val* setvar(char* name, val* s) {
   val* v= findvar(name);
   // TODO: deallocate duped name...
   //   - or not, only "alloc once"
   if (!v) v= linkval(strdup(name), calloc(1, sizeof(*v)));
   // copy only value (not stats)
+  printf("setvar %s >%s<\n", name, v->s);
   clearval(v);
   v->s= s->s;
   v->dealloc= s->dealloc;
@@ -238,15 +251,22 @@ val* setvar(char* name, val* s) {
 
 int getval(char* name, val* v) {
   // special names
-  if (0==strcmp("$lineno", name)) {
-    v->d= lineno;
-    v->not_null= 1;
-    return 1;
-  }
-  if (0==strcmp("$time", name)) {
-    v->d = 42; // TODO: utime?
-    v->not_null= 1;
-    return 1;
+  if (*name=='$') {
+    if (0==strcmp("$lineno", name)) {
+      v->d= lineno;
+      v->not_null= 1;
+      return 1;
+    }
+    if (0==strcmp("$foffset", name)) {
+      v->d= foffset;
+      v->not_null= 1;
+      return 1;
+    }
+    if (0==strcmp("$time", name)) {
+      v->d = 42; // TODO: utime?
+      v->not_null= 1;
+      return 1;
+    }
   }
   // lookup variables
   val* f= findvar(name);
@@ -412,6 +432,7 @@ char* print_expr_list(char* e) {
   char* old_ps= ps;
   ps= e;
   
+  char delim= formatdelim();
   // TODO: alternative formats: csv,tab,TAB
   spcs();
   int col= 0;
@@ -420,6 +441,7 @@ char* print_expr_list(char* e) {
     // TODO: SELECT *, tab.*
     char* start= ps;
     if (expr(&v)) {
+      if (col) putchar(delim);
       col++;
       if (!parse_only) printval(&v);
     } else expected("expression");
@@ -428,7 +450,10 @@ char* print_expr_list(char* e) {
     char name[NAMELEN]= {0};
     sprintf(name, "%d", col);
     // TODO: link name? (not copy!)
-    if (!parse_only) setvar(name, &v);
+    // TODO: can we use same val below?
+    // the string will be used twice!
+
+    //if (!parse_only) setvar(name, &v);
     ZERO(*name);
 
     // select 42 AS foo
@@ -445,14 +470,13 @@ char* print_expr_list(char* e) {
 	// make a nmae from expr
 	char* spc= strchr(start, ' ');
 	char* end= strchr(start, ',');
-	if (spc<end) end= spc;
+	if (!end || spc<end) end= spc;
 	if (!end) end= start+8;
 	strncpy(name, start, end-start);
 	if (end-start>8) strcpy(name+6, "..");
       }
-      printf("=%s\t", name);
+      printf("%s%s", delim=='\t'?"=":"", name);
     }
-    if (!parse_only) printf("\t");
   } while(gotc(','));
   printf("\n");
   lineno++;
@@ -746,7 +770,7 @@ int TABCSV(FILE* f, char* selexpr) {
   cols[0]= h;
   while(*h && *h!='\n') {
     if (isspace(*h)) ;
-    else if (*h==',' || *h=='\t') {
+    else if (*h==',' || *h=='\t' || *h=='|' || *h=';') {
       *h= 0;
       cols[++col]= h+1;
     }
@@ -769,10 +793,15 @@ int TABCSV(FILE* f, char* selexpr) {
 
   col= 0;
   // TODO: consider caching whole line in order to not allocate small string fragments, then can point/modify that string
+  foffset= 0; long fprev= ftell(f);
   while((r= freadCSV(f, s, sizeof(s), &d))) {
     clearval(&vals[col]);
 
     if (r==RNEWLINE) {
+      // store offset of start of row
+      // TODO: ovehead? not measurable
+      foffset= fprev;
+      fprev= ftell(f);
       if (col) {
 	where(selexpr);
 	for(int i=0; i<MAXCOLS; i++)
@@ -784,18 +813,34 @@ int TABCSV(FILE* f, char* selexpr) {
     }
 
     // have col
+    // TODO: move to setval?
     vals[col].not_null= (r != RNULL);
     if (r==RNULL) ;
     else if (r==RNUM) vals[col].d= d;
     else if (r==RSTRING) vals[col].dealloc= vals[col].s= strdup(s);
     else error("Unknown freadCSV ret val");
 
+    // reading index special value
+    // TODO: move more generic place
+    if (0==strcmp("$foffset", cols[col])) {
+      foffset= d;
+      printf("FOFFSET=%ld\n", foffset);
+      if (!dataf) dataf= fopen("foo.csv", "r");
+      if (dataf) fseek(dataf, foffset, SEEK_SET);
+      if (dataf) {
+	char* ln= NULL;
+	size_t l= 0;
+	getline(&ln, &l, dataf);
+	printf("\t%s\n", ln);
+	if (ln) free(ln);
+      }
+    }
+
     updatestats(&vals[col]);
     col++;
   }
   // no newline at end
   if (col) where(selexpr);
-
 
   // print stats and free strings
   printf("----\n");
@@ -872,6 +917,8 @@ int from(char* selexpr) {
 
 // just an aggregator!
 int sqlselect() {
+  ZERO(*format);
+  if (got("format") && !getname(format)) expected("expected format name");
   if (!got("select")) return 0;
   char* expr= ps;
   // "skip" (dummies) to get beyond
@@ -964,7 +1011,7 @@ int main(int argc, char** argv) {
 
   parse(cmd);
   int r= sql();
-  printf("\nrows=%d\n", lineno-1);
+  printf("\nrows=%ld\n", lineno-1);
   if (r!=1) printf("%%result=%d\n", r);
   if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
