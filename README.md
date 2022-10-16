@@ -58,6 +58,7 @@ Function calling
 
     select "abba" as f, char(ascii(upper(f)))
 
+
 ## Current Features
 - row by row processing
 - plain-text CSV/TAB-file querying
@@ -92,6 +93,7 @@ Function calling
 
 ## TODO:
 - allow prefix column name with table.column
+- Bigtable UDF:s - https://cloud.google.com/bigquery/docs/reference/standard-sql/user-defined-functions
 - log queries/statistics
 - val with altname/num/table.col
 - upper/lower-case for "sql"
@@ -100,7 +102,6 @@ Function calling
   - date/time functions (on strings)
   - json/xml extract val f string
   - more math?
-- MAX/MIN/COUNT/AVG/VAR on whole file/NO groupby but with WHERE
 - xml querying
 - json querying
 - flatfile querying

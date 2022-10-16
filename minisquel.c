@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <math.h>
+#include <time.h>
 
 #define NAMELEN 64
 #define VARCOUNT 256
@@ -12,12 +13,26 @@
 char* ps= NULL;
 int lineno= 0;
 
+char* isotime() {
+  // from: jml project
+  static char iso[sizeof "2011-10-08T07:07:09Z"];
+  time_t now;
+  time(&now);
+  strftime(iso, sizeof iso, "%FT%TZ", gmtime(&now));
+  return iso;
+}
+
+long timems() {
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return t.tv_sec*1000 + t.tv_nsec/1000;
+}
+
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
 // TODO: change to enum(disable_call, disable_print, print_header)
 //   to handle header name def/print
 //   to handle aggregates (not print every row, only last (in group))
 int parse_only= 0;
-
 
 #define ZERO(z) memset(&z, 0, sizeof(z))
 
@@ -140,21 +155,22 @@ void clearval(val* v) {
   v->not_null= 0;
 }
 
-void print_quoted(char* s, char quot) {
+void fprint_quoted(FILE* f, char* s, char quot) {
   if (!s) return (void)printf("NULL");
-  putchar(quot);
+  if (!*s) return; // NULL
+  fputc(quot, f);
   while(*s) {
-    if (*s==quot) printf("\\%c", quot);
-    else if (*s=='\\') printf("\\\\");
-    else putchar(*s);
+    if (*s==quot) fprintf(f, "\\%c", quot);
+    else if (*s=='\\') fprintf(f, "\\\\");
+    else fputc(*s, f);
     s++;
   }
-  putchar(quot);
+  fputc(quot, f);
 }
 
 void printval(val* v) {
   if (!v->not_null) printf("NULL");
-  else if (v->s) print_quoted(v->s, '\"');
+  else if (v->s) fprint_quoted(stdout, v->s, '\"');
   else printf("%.15lg", v->d);
 }
 
@@ -757,11 +773,13 @@ int TABCSV(FILE* f, char* selexpr) {
     clearval(&vals[col]);
 
     if (r==RNEWLINE) {
-      where(selexpr);
-      for(int i=0; i<MAXCOLS; i++)
-	clearval(&vals[col]);
-      if (col) row++;
-      col= 0;
+      if (col) {
+	where(selexpr);
+	for(int i=0; i<MAXCOLS; i++)
+	  clearval(&vals[col]);
+	if (col) row++;
+	col= 0;
+      }
       continue;
     }
 
@@ -853,7 +871,7 @@ int from(char* selexpr) {
 
 
 // just an aggregator!
-int select() {
+int sqlselect() {
   if (!got("select")) return 0;
   char* expr= ps;
   // "skip" (dummies) to get beyond
@@ -866,7 +884,7 @@ int select() {
 }
 
 int sql() {
-  int r= select();
+  int r= sqlselect();
   if (!r) return 0;
   return r;
 }
@@ -891,6 +909,47 @@ void testread() {
   fclose(f);
 }
 
+
+// TODO: this doesn't feel minimal, lol
+
+// TODO: first call (sql, "start", NULL...)
+//   after query (sql, "end", "error", "msg", readlines, rows, ms)
+void sqllog(char* sql, char* state, char* err, char* msg, long readlines, long rows, long ms) {
+  static FILE* f= NULL;
+  if (!f) {
+    f= fopen("minisquel.log.csv", "a+");
+    setlinebuf(f);
+  }
+  if (!f) error("can't open/create logfile");
+  fseek(f, 0, SEEK_END);
+  long pos= ftell(f);
+  // if new file, create header
+  // ISO-TIME,"query"
+  if (!pos) {
+    fprintf(f, "time,state,sql,error,rows,ms\n");
+  }
+
+  if (sql) {
+    fprintf(f, "%s,%s,", isotime(), state);
+    fprint_quoted(f, sql, '"');
+  }
+
+  if (err || msg || readlines || rows || ms) {
+    fputc(',', f);
+    fprint_quoted(f, err?err:"", '"');
+    fputc(',', f);
+    fprint_quoted(f, msg?msg:"", '"');
+    fputc(',', f);
+    fprintf(f, "%ld,%ld,%ld", readlines, rows, ms);
+  } else {
+    fprintf(f, ",,,,,");
+  }
+
+  fputc('\n', f);
+
+  // close is kind of optional, as "\a+" will flush?
+}
+
 int main(int argc, char** argv) {
 // testread(); exit(0);
  
@@ -899,6 +958,10 @@ int main(int argc, char** argv) {
   char* cmd= argv[1];
   printf("SQL> %s\n", cmd);
 
+  // log and time
+  sqllog(cmd, "start", NULL, NULL, 0, 0, 0);
+  long startms= timems();
+
   parse(cmd);
   int r= sql();
   printf("\nrows=%d\n", lineno-1);
@@ -906,6 +969,10 @@ int main(int argc, char** argv) {
   if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
 
+  // log and time
+  // TODO: readlines
+  long readlines= -1;
+  sqllog(cmd, "end", NULL, NULL, readlines, lineno-1, timems()-startms);
 
   return 0;
 }
