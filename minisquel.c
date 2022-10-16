@@ -619,13 +619,17 @@ int INT(char* selexpr) {
   val v= {};
   linkval(name, &v);
   int old_count= varcount;
+
+  char* saved= ps;
   for(double i= start; i<stop; i+= step) {
     v.d= i;
     v.not_null= 1;
     updatestats(&v);
 
+    ps= saved;
     where(selexpr);
   }
+  // ps= saved;
   varcount= old_count;
   return 1;
 }
