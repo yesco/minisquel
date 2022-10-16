@@ -1,12 +1,13 @@
 # addb - A simple plaintext sql interpreter
 
-This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concept doing an SQL-style interpreter from first principles. It takes the same stupid approach to interpretation as early BASICs did: It re-parses and interprets the code *every* time. Is it efficient? No. Was it easy to write? Yes! So far...
+This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concept doing an SQL-style interpreter from first principles. It takes the same naive/simple approach to interpretation as early BASICs did: It re-parses and interprets the source code *every* time. Is it efficient? No. Was it easy to write? Yes! So far...
 
 ## GOALS
 
 - "minimal" in code/complexity (<1000 lines code)
 - fast hack for fun
 - "not for professional use"
+- no depencies other than linux/posix
 - limited sql
 	SELECT count(money) xxx AS x, ...
 	FROM fil.csv AS fil
