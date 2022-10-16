@@ -770,7 +770,7 @@ int TABCSV(FILE* f, char* selexpr) {
   cols[0]= h;
   while(*h && *h!='\n') {
     if (isspace(*h)) ;
-    else if (*h==',' || *h=='\t' || *h=='|' || *h=';') {
+    else if (*h==',' || *h=='\t' || *h=='|' || *h==';') {
       *h= 0;
       cols[++col]= h+1;
     }
