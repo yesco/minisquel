@@ -56,6 +56,11 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
          select 1 as foo, sumfoo) fror int(1,10) i
 
 
+## functions
+- mod div
+- ascii char lower upper
+- count sum min max avg stdev
+
 ## TODO:
 
 - log queries/statistics
