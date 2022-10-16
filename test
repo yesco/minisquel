@@ -26,6 +26,9 @@ clang -g addb.c && ./a.out 'select 42 where not(1=1 and 1=2)'
 ./a.out 'select add()'
 ./a.out 'select add(1,2,3)'
 ./a.out 'select add(3,foo,bar,fie,4)'
+# strings
+./a.out 'select foo as f, upper(f) as F, lower(F)'
+./a.out 'select "A" as f, char(ascii(lower(f)))'
 # aggregates
 ./a.out 'select count(i) from int(1,10) i'
 # (workaround)

@@ -280,108 +280,13 @@ func* findfunc(char* name) {
   return NULL;
 }
 
-// --- your funcs here!
-// The functions can have two different signatures)
-
-// Example: 2 argument function
-// (max three direct params == +c)
-int plus(val* r, int n, val* a, val* b) {
-  if (n!=2) return -2;
-  r->d= a->d + b->d;
-  r->not_null= a->not_null && b->not_null;
-  return 1;
-}
-
-// Example: "vararg" (max 10 params)
-int add(val* r, int n, val params[]) {
-  r->d= 0; r->not_null= 1;
-  for(int i= 0; i<n; i++) {
-    if (params[i].not_null)
-      r->d+= params[i].d;
-  }
-  return 1;
-}
-
-// Aggregators:
-
-void agg_check(char* fun, val* r, val* a) {
-  r->not_null= 1;
-
-  int m= a->n + a->nstr + a->nnull;
-  if (!m) expected2(fun, "currently only works on named variables");
-}
-
-int count(val* r, int n, val* a) {
-  r->not_null= 1;
-  if (n==0) {
-    // select count() == count(*)
-    r->d= lineno;
-  } else if (n==1) {
-    agg_check("count", r, a);
-    r->d= a->n + a->nstr;
-  } else
-    return -1;
-  return 1;
-}
-
-int sum(val* r, int n, val* a) {
-  if (n!=1) return -1;
-  agg_check("sum", r, a);
-  r->d= a->sum;
-  return 1;
-}
-
-int min(val* r, int n, val* a) {
-  if (n!=1) return -1;
-  agg_check("min", r, a);
-  r->d= a->min;
-  return 1;
-}
-
-int max(val* r, int n, val* a) {
-  if (n!=1) return -1;
-  agg_check("max", r, a);
-  r->d= a->max;
-  return 1;
-}
-
-int avg(val* r, int n, val* a) {
-  if (n!=1) return -1;
-  agg_check("avg", r, a);
-  r->d= stats_avg(a);
-  return 1;
-}
-
-int stdev(val* r, int n, val* a) {
-  if (n!=1) return -1;
-  agg_check("stdev", r, a);
-  r->d= stats_stddev(a);
-  return 1;
-}
-
-// TODO: how to make boolean functions?
-
-int in(val* r, int n, val params[]) {
-  return -1;
-}
-
-// make SURE to add your function here
-void register_funcs() {
-  // examples
-  registerfun("plus", plus);
-  registerfun("add", add);
-
-  registerfun("count", count);
-  registerfun("sum", sum);
-  registerfun("min", min);
-  registerfun("max", max);
-  registerfun("avg", avg);
-  registerfun("stdev", stdev);
-}
-
-// -- end your funcs
+// hack to include C, haha
+#include "funs.c"
 
 // end functions
+
+
+// parser
 
 int expr(val* v);
 
