@@ -31,6 +31,33 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - JDBC no fxxing way!
 - stored prepared queries
 
+
+## Working Examples
+
+Calculations
+
+    select 1+3*4   => 13
+    
+Naming and using columns (EXTENSION!)
+
+    select 42 as ft, ft+7, ft*ft
+
+complex where clause
+
+    select 42 where 0=3*4 or 1=1 and 2=2
+    
+Integer iterator (EXTENSION!):
+
+    select i, i*i from int(1,10) i where i*i>10
+
+CSV file querying (EXTENSION!):
+
+    select a,b,c from foo.csv foo
+
+Function calling
+
+    select "abba" as f, char(ascii(upper(f)))
+
 ## Current Features
 - row by row processing
 - plain-text CSV/TAB-file querying
@@ -64,6 +91,7 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - count sum min max avg stdev
 
 ## TODO:
+- allow prefix column name with table.column
 - log queries/statistics
 - val with altname/num/table.col
 - upper/lower-case for "sql"
@@ -98,26 +126,3 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - Ordering and/or Aggregation with GROUP BY. Basically this would either have to use memory or temporary files. Not such good idea. Maybe generate set and then call unix "sort" with right arguments/types as ORDER BY, then could do GROUP BY.
 - GROUP BY (unless sorted input?)
 - ORDER BY
-
-## supported
-
-Calculations
-
-    select 1+3*4   => 13
-    
-Where clause
-
-    select 42 where 0=3*4 or 1=1 and 2=2
-    
-Integer iterator (EXTENSION!):
-
-    select i, i*i from int(1,10) i where i*i>10
-
-CSV file querying (EXTENSION!):
-
-    select a,b,c from foo.csv foo
-
-Function calling
-
-    select 
-
