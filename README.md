@@ -4,22 +4,23 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 
 ## GOALS
 
-- "minimal" in code/complexity
+- "minimal" in code/complexity (<1000 lines code)
 - fast hack for fun
+- "not for professional use"
 - limited sql
-      SELECT count(money) xxx AS x, ...
-      FROM fil.csv AS fil
-      JOIN foo.csv ON fil.id=foo.id
-      WHERE ...
-        AND ...
-	 OR NOT ...
-      GROUP BY 1,2
+	SELECT count(money) xxx AS x, ...
+	FROM fil.csv AS fil
+	JOIN foo.csv ON fil.id=foo.id
+	WHERE ...
+	AND ...
+	OR NOT ...
+	GROUP BY 1,2
 - sql *INTERPRETER* (means no internal structures/parse-tree/interpreter internal representation)
 - parse text files (csv, tab, plain, json, xml)
 - limited aggregation (full/group by on sorted data)
+- some variant of merge-join (on sorted data)
 
 ## NON-goals
-
 - full standard SQL (we go for subset)
 - efficency
 - tokenizer/parser/parse-tree
@@ -29,8 +30,7 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - JDBC no fxxing way!
 - stored prepared queries
 
-## features
-
+## Current Features
 - row by row processing
 - plain-text CSV/TAB-file querying
 - NULL (as in undefined variable/column)
@@ -45,6 +45,7 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - WHERE ... AND ... OR NOT ...
 - undefined variables/colum names used are considered null
 - NULL is always null if not set, LOL ("feature")
+- variable stats data used for aggregates
 - COUNT(), SUM(), MIN(), MAX(), AVG(), DEV(), 
 - aggregators only work on variables, not computed values:
        doesn't work (currently):
@@ -62,7 +63,6 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - count sum min max avg stdev
 
 ## TODO:
-
 - log queries/statistics
 - val with altname/num/table.col
 - upper/lower-case for "sql"
@@ -78,7 +78,6 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - APPEND (not UPDATE?) == SELECT ... INTO ... ?
 - BEGIN...END transactional over several files?
 - indix files=="create view" (auto-invalidate on update)
-- stat columns from table/metadata
 - consider connecting with user pipes and external programs like sql_orderby?
 - tab JOIN tab using(c, ...)
 - Query 22 Mb external URL
