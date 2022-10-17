@@ -225,32 +225,35 @@ double stats_avg(val *v) {
   return v->sum/v->n;
 }
 
+// TODO: make struct/linked list?
+char* tablenames[VARCOUNT]= {0};
 char* varnames[VARCOUNT]= {0};
 val* varvals[VARCOUNT]= {0};
 int varcount= 0;
 
-val* linkval(char* name, val* v) {
+val* linkval(char* table, char* name, val* v) {
   if (varcount>=VARCOUNT) error("out of vars");
+  tablenames[varcount]= table;
   varnames[varcount]= name;
   varvals[varcount]= v;
   varcount++;
   return v;
 }
 
-val* findvar(char name[NAMELEN]) {
-  for(int i=0; i<varcount; i++)
+val* findvar(char* table, char* name) {
+  for(int i=0; i<varcount; i++) 
     if (0==strcmp(name, varnames[i]))
-      return varvals[i];
+      if (!table || 0==strcmp(table, tablenames[i])) return varvals[i];
   return NULL;
 }
 
 FILE* dataf= NULL;
 
-val* setvar(char* name, val* s) {
-  val* v= findvar(name);
+val* setvar(char* table, char* name, val* s) {
+  val* v= findvar(table, name);
   // TODO: deallocate duped name...
   //   - or not, only "alloc once"
-  if (!v) v= linkval(strdup(name), calloc(1, sizeof(*v)));
+  if (!v) v= linkval(table, strdup(name), calloc(1, sizeof(*v)));
   // copy only value (not stats)
   clearval(v);
   v->s= s->s;
@@ -261,7 +264,7 @@ val* setvar(char* name, val* s) {
   return v;
 }
 
-int getval(char* name, val* v) {
+int getval(char* table, char* name, val* v) {
   // special names
   if (*name=='$') {
     if (0==strcmp("$lineno", name)) {
@@ -281,7 +284,7 @@ int getval(char* name, val* v) {
     }
   }
   // lookup variables
-  val* f= findvar(name);
+  val* f= findvar(table, name);
   if (f) { *v= *f; return 1; }
   // failed, null
   ZERO(*v);
@@ -369,7 +372,11 @@ int var(val* v) {
   char name[NAMELEN]= {};
   if (getname(name)) {
     if (gotc('(')) return call(v, name);
-    getval(name, v);
+    char* dot= strchr(name, '.');
+    if (dot) *dot= 0;
+    char* column= dot?dot+1:name;
+    char* table= dot?name:NULL;
+    getval(table, column, v);
     return 1;
   }
   // TODO: maybe not needed here?
@@ -472,7 +479,7 @@ char* print_expr_list(char* e) {
     // select 42 AS foo
     if (got("as")) {
       if (!getname(name)) expected("name");
-      if (!parse_only) setvar(name, &v);
+      if (!parse_only) setvar(NULL, name, &v);
       // TODO: "header" print state?
     }
 
@@ -683,7 +690,7 @@ int INT(char* selexpr) {
   } else return 0;
 
   val v= {};
-  linkval(name, &v);
+  linkval("int", name, &v);
   int old_count= varcount;
 
   char* saved= ps;
@@ -810,7 +817,7 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
     vals[i].d= i;
     vals[i].not_null = 1;
     //printf("===col %d %s\n", i, cols[i]);
-    linkval(cols[i], &vals[i]);
+    linkval(table, cols[i], &vals[i]);
   }
 
   double d;
