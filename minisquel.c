@@ -16,9 +16,11 @@ char* isotime() {
 }
 
 long timems() {
-  struct timespec t;
-  clock_gettime(CLOCK_MONOTONIC, &t);
-  return t.tv_sec*1000 + t.tv_nsec/1000;
+  return clock()*1000/CLOCKS_PER_SEC;
+  // really unreliable?
+  //struct timespec t;
+  //clock_gettime(CLOCK_MONOTONIC, &t);
+  //return t.tv_sec*1000 + t.tv_nsec/1000;
 }
 
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
@@ -677,11 +679,15 @@ int where(char* selexpr) {
   return 1;
 }
 
+// called to do next table
+int from_list(char* selexpr);
+
 int INT(char* selexpr) {
+  int nvars= varcount;
+
   char name[NAMELEN]= {};
   double start= 0, stop= 0, step= 1;
-  // TODO: generalize
-  // TODO: make it use expression
+  // TODO: generalize, use functions?
   if (gotc('(') && num(&start) && gotc(',')
       && num(&stop) && gotc(')')) {
     stop+= 0.5;
@@ -691,7 +697,6 @@ int INT(char* selexpr) {
 
   val v= {};
   linkval("int", name, &v);
-  int old_count= varcount;
 
   char* saved= ps;
   for(double i= start; i<stop; i+= step) {
@@ -700,10 +705,16 @@ int INT(char* selexpr) {
     updatestats(&v);
 
     ps= saved;
-    where(selexpr);
+    if (gotc(','))
+      from_list(selexpr);
+    else
+      where(selexpr);
   }
+
+  // restore "state"
   // ps= saved;
-  varcount= old_count;
+  varcount= nvars;
+
   return 1;
 }
 
@@ -789,6 +800,9 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
 
 // TODO: take delimiter as argument?
 int TABCSV(FILE* f, char* table, char* selexpr) {
+  int nvars= varcount;
+  char* saved= ps;
+
   char* cols[MAXCOLS]= {0};
 
   // parse header col names
@@ -836,7 +850,13 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
       foffset= fprev;
       fprev= ftell(f);
       if (col) {
-	where(selexpr);
+
+	ps= saved;
+	if (gotc(','))
+	  from_list(selexpr);
+	else
+	  where(selexpr);
+
 	for(int i=0; i<MAXCOLS; i++)
 	  clearval(&vals[col]);
 	if (col) row++;
@@ -875,7 +895,22 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
   // no newline at end
   if (col) where(selexpr);
 
-  // print stats and free strings
+  // deallocate values
+  for(int i=0; i<varcount; i++)
+      clearval(varvals[i]);
+  
+  free(header); // column names
+  fclose(f);
+
+  // restore
+  varcount= nvars;
+  ps= saved;
+
+  return 1;
+}
+
+// TOOD: print where?
+void printstats() {
   printf("----\n");
   printf("Stats\n");
   for(int i=0; i<varcount; i++) {
@@ -883,32 +918,32 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
     // TODO: string values (nstr)
     // TODO: nulls (nnull)
     if (v->n) {
-      printf("  %s %d#[%lg,%lg] u(%lg,%lg) S%lg\n",
-	     varnames[i], v->n, v->min, v->max, stats_avg(v), stats_stddev(v), v->sum);
+      char* t= tablenames[i];
+      printf("  %s.%s %d#[%lg,%lg] u(%lg,%lg) S%lg\n",
+	     t?t:"", varnames[i], v->n, v->min, v->max, stats_avg(v), stats_stddev(v), v->sum);
     }
-    // TODO: maybe not? (AS names may be needed?)
-    clearval(v);
   }
-  
-  free(header); // column names
-  fclose(f);
-  return 1;
 }
 
 int from_list(char* selexpr) {
   char* start= ps;
-  if (got("int")) INT(selexpr);
-  else {
-    // fallback, assume filename!
-    char filnam[NAMELEN]= {};
-    if (!getname(filnam))
-      error("Unknown from-iterator");
-    FILE* f= fopen(filnam, "r");
-    if (!f) error(filnam); // "no such file");
 
+  char spec[NAMELEN]= {0};
+  if (!getname(spec))
+    error("Unknown from-iterator");
+
+  // dispatch to named iterator
+  if (0==strcmp("int", spec)) INT(selexpr);
+  else {
+    // foo.csv foo
     char table[NAMELEN]= {0};
     // TODO: how NOT to read "where"
-    getname(table);
+    if (!getname(table)) expected2("table alias", spec);
+    
+    // fallback, assume filename!
+    FILE* f= fopen(spec, "r");
+    // TODO: "no such file");
+    if (!f) error(spec);
 
     // TODO: fil.csv("a,b,c") == header
     TABCSV(f, table, selexpr);
@@ -1050,9 +1085,9 @@ int main(int argc, char** argv) {
   int r= sql();
   long ms= timems()-startms;
 
-  printf("\nrows=%ld in %ldms\n", lineno-1, ms);
+  printf("\n%ld rows in %ld ms\n", lineno-1, ms);
   if (r!=1) printf("%%result=%d\n", r);
-  if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
+  //if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
 
   // log and time
