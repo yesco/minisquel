@@ -1032,11 +1032,13 @@ int main(int argc, char** argv) {
 
   // log and time
   sqllog(cmd, "start", NULL, NULL, 0, 0, 0);
-  long startms= timems();
 
+  long startms= timems();
   parse(cmd);
   int r= sql();
-  printf("\nrows=%ld\n", lineno-1);
+  long ms= timems()-startms;
+
+  printf("\nrows=%ld in %ldms\n", lineno-1, ms);
   if (r!=1) printf("%%result=%d\n", r);
   if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
@@ -1044,7 +1046,7 @@ int main(int argc, char** argv) {
   // log and time
   // TODO: readlines
   long readlines= -1;
-  sqllog(cmd, "end", NULL, NULL, readlines, lineno-1, timems()-startms);
+  sqllog(cmd, "end", NULL, NULL, readlines, lineno-1, ms);
 
   return 0;
 }
