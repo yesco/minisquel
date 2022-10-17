@@ -112,16 +112,25 @@ int num(double* d) {
 
 int str(char** s) {
   spcs();
-  if (!gotc('"')) return 0;
+  char q= gotcs("\"'");
+  if (!q) return 0;
   *s= ps;
-  // TODO: handle \ quoted chars
-  while(!end() && !gotc('"'))
+  while(!end()) {
+    if (*ps==q && *++ps!=q) break; // 'foo''bar'
+    if (*ps=='\\') ps++; // 'foo\'bar'
     ps++;
+  }
   ps--;
-  if (*ps != '"') return 0;
+  if (*ps!=q) return 0;
   char* a= strndup(*s, ps-*s);
   *s= a;
   ps++;
+  // fix quoted \' and 'foo''bar'
+  while(*a) {
+    if (*a==q || *a=='\\')
+      strcpy(a, a+1);
+    a++;
+  }
   return 1;
 }
 
@@ -165,22 +174,26 @@ void clearval(val* v) {
   v->not_null= 0;
 }
 
-void fprint_quoted(FILE* f, char* s, char quot) {
+// quot<0 => no surrounding quot
+// but will quote -quote|quot
+void fprintquoted(FILE* f, char* s, int quot, int delim) {
   if (!s) return (void)printf("NULL");
   if (!*s) return; // NULL
-  fputc(quot, f);
+  if (quot>0) fputc(quot, f);
   while(*s) {
-    if (*s==quot) fprintf(f, "\\%c", quot);
-    else if (*s=='\\') fprintf(f, "\\\\");
-    else fputc(*s, f);
+    if (*s==quot) fputc(abs(quot), f);
+    if (*s==abs(delim)) fputc('\\', f);
+    else if (*s=='\\') fputc(*s, f);
+    fputc(*s, f);
     s++;
   }
-  fputc(quot, f);
+  if (quot>0) fputc(quot, f);
 }
 
-void printval(val* v) {
+// quot: see fprintquoted
+void printval(val* v, int quot, int delim) {
   if (!v->not_null) printf("NULL");
-  else if (v->s) fprint_quoted(stdout, v->s, '\"');
+  else if (v->s) fprintquoted(stdout, v->s, quot, delim);
   else printf("%.15lg", v->d);
 }
 
@@ -426,24 +439,25 @@ int expr(val* v) {
   return 1;
 }
 
-// returns end pointer
 // TODO: configurable action/resultF
+// TODO: mix eval/print(val+header) a bit ugly
+// returns end pointer
 char* print_expr_list(char* e) {
   char* old_ps= ps;
   ps= e;
   
-  char delim= formatdelim();
-  // TODO: alternative formats: csv,tab,TAB
+  int delim= formatdelim();
   spcs();
   int col= 0;
   val v= {};
   do {
     // TODO: SELECT *, tab.*
+
     char* start= ps;
     if (expr(&v)) {
-      if (col) putchar(delim);
+      if (col) putchar(abs(delim));
       col++;
-      if (!parse_only) printval(&v);
+      if (!parse_only) printval(&v, delim==','?'\"':0, delim);
     } else expected("expression");
 
     // set column name as 1,2,3...
@@ -468,17 +482,28 @@ char* print_expr_list(char* e) {
     if (parse_only) {
       if (!name[0]) {
 	// make a nmae from expr
-	char* spc= strchr(start, ' ');
-	char* end= strchr(start, ',');
-	if (!end || spc<end) end= spc;
-	if (!end) end= start+8;
-	strncpy(name, start, end-start);
-	if (end-start>8) strcpy(name+6, "..");
+	size_t end= strcspn(start, " ,;(");
+	if (!end) end= 7;
+	strncpy(name, start, end);
+	if (end>7) strcpy(name+5, "..");
       }
-      printf("%s%s", delim=='\t'?"=":"", name);
+
+      fprintquoted(stdout, name, delim==','?'\"':0, delim);
     }
   } while(gotc(','));
-  printf("\n");
+  putchar('\n');
+
+  // pretty header
+  if (parse_only) {
+    if (abs(delim)=='|')
+      printf("==============\n");
+    else if (abs(delim)=='\t') {
+      for(int i=col; i; i--)
+	printf("======= ");
+      putchar('\n');
+    }
+  }
+
   lineno++;
   
   e= ps;
@@ -978,14 +1003,14 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readlines, long r
 
   if (sql) {
     fprintf(f, "%s,%s,", isotime(), state);
-    fprint_quoted(f, sql, '"');
+    fprintquoted(f, sql, '"', 0);
   }
 
   if (err || msg || readlines || rows || ms) {
     fputc(',', f);
-    fprint_quoted(f, err?err:"", '"');
+    fprintquoted(f, err?err:"", '"', 0);
     fputc(',', f);
-    fprint_quoted(f, msg?msg:"", '"');
+    fprintquoted(f, msg?msg:"", '"', 0);
     fputc(',', f);
     fprintf(f, "%ld,%ld,%ld", readlines, rows, ms);
   } else {

@@ -94,6 +94,7 @@ Function calling
 
 ## TODO:
 - allow prefix column name with table.column
+- select *,tab.*
 - Bigtable UDF:s - https://cloud.google.com/bigquery/docs/reference/standard-sql/user-defined-functions
 - log queries/statistics
 - val with altname/num/table.col
