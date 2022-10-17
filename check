@@ -1,0 +1,4 @@
+# regression testing, compares output
+./test > test.new 2>/dev/null
+
+diff -U10 -I".* ms" -F"SQL>" test.new test.out
