@@ -252,7 +252,6 @@ val* setvar(char* name, val* s) {
   //   - or not, only "alloc once"
   if (!v) v= linkval(strdup(name), calloc(1, sizeof(*v)));
   // copy only value (not stats)
-  printf("setvar %s >%s<\n", name, v->s);
   clearval(v);
   v->s= s->s;
   v->dealloc= s->dealloc;
@@ -654,6 +653,7 @@ int logical() {
 int where(char* selexpr) {
   // ref - https://www.sqlite.org/lang_expr.html
   val v= {};
+  char* saved= ps;
   if (got("where")) {
     // TODO: logocal expr w and/or
     v.not_null= (logical()==LTRUE);
@@ -665,7 +665,8 @@ int where(char* selexpr) {
     parse_only= 0;
     print_expr_list(selexpr);
   }
-
+  ps= saved;
+  
   return 1;
 }
 
@@ -780,7 +781,7 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
 }
 
 // TODO: take delimiter as argument?
-int TABCSV(FILE* f, char* selexpr) {
+int TABCSV(FILE* f, char* table, char* selexpr) {
   char* cols[MAXCOLS]= {0};
 
   // parse header col names
@@ -898,8 +899,12 @@ int from_list(char* selexpr) {
     FILE* f= fopen(filnam, "r");
     if (!f) error(filnam); // "no such file");
 
+    char table[NAMELEN]= {0};
+    // TODO: how NOT to read "where"
+    getname(table);
+
     // TODO: fil.csv("a,b,c") == header
-    TABCSV(f, selexpr);
+    TABCSV(f, table, selexpr);
     // TODO: json
     // TODO: xml
     // TODO: passwd styhle "foo:bar:fie"
