@@ -6,7 +6,8 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 
 - "minimal" in code/complexity (<1000 lines code)
 - fast hack for fun
-- "not for professional use"
+- do the simplest for the moment to add
+- "not for professional use" :-D
 - no depencies other than linux/posix
 - limited sql
         [FORMAT (CSV|TAB|BAR)]
@@ -23,15 +24,13 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - some variant of merge-join (on sorted data)
 
 ## NON-goals
-- full standard SQL (we go for subset)
-- efficency
-- tokenizer/parser/parse-tree
-- optimizer
-- more datatypes
-- ODBC
-- JDBC no fxxing way!
-- stored prepared queries
-
+- NO: full standard SQL (we go for subset)
+- NO:high optimial efficency (go download DuckDB instead!)
+- NO: tokenizer/parser-tree/internal represenation
+- NO: optimizer
+- NO: more datatypes (but funtions on strings: xml/json etc)
+- NO: ODBC, NO: JDBC - no fxxing way!
+- NO: stored prepared queries
 
 ## Working Examples
 
@@ -67,23 +66,31 @@ Joins!
     
 select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
     
+## Performance?
+- actually, not too bad!
+- 22MB of csv w 108K records take < 1s to scan!
+- 1000x1000 iterations <1s (1.4M "where"-evals)
+- opening/close same file 100,000 times (in nested loop) almost no overhead!
+
 ## Current Features
 - row by row processing
+- refer to columns by name or table.col
 - plain-text CSV/TAB-file querying
-- NULL (as in undefined variable/column)
+- cross-product join (no JOIN ... ON)
+- undefined/not present variables are NULL
+- NULL is always null if not set, LOL ("feature")
 - double as only numeric type (print %lg)
-- string as string type
+- string as "other type"
 - $lineno of generated out-lines
 - generic iterator/generator in from-clause
-- built in int iterator
+- built in INT iterator
 - no optimization
 - order of data in kept in result
 - (only?) nested loop evaluation
 - WHERE ... AND ... OR NOT ...
-- undefined variables/colum names used are considered null
-- NULL is always null if not set, LOL ("feature")
-- variable stats data used for aggregates
+- variable stats data used for aggregates:
 - COUNT(), SUM(), MIN(), MAX(), AVG(), DEV(), 
+- log queries/statistics
 - aggregators only work on variables, not computed values:
        doesn't work (currently):
 
@@ -98,27 +105,28 @@ select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
 - mod div
 - ascii char lower upper
 - count sum min max avg stdev
+- type
 
 ## TODO:
-- allow prefix column name with table.column
+- LIKE/REGEXP
 - select *,tab.*
-- Bigtable UDF:s - https://cloud.google.com/bigquery/docs/reference/standard-sql/user-defined-functions
-- log queries/statistics
+- CREATEF FUNCTION Bigtable UDF:s - https://cloud.google.com/bigquery/docs/reference/standard-sql/user-defined-functions
 - val with altname/num/table.col
 - upper/lower-case for "sql"
 - where not/and/or...
 - functions in expressions
   - date/time functions (on strings)
-  - json/xml extract val f string
+  - json/xml extract val from string
   - more math?
 - xml querying
 - json querying
+- yaml querying
 - flatfile querying
 - APPEND (not UPDATE?) == SELECT ... INTO ... ?
 - BEGIN...END transactional over several files?
-- indix files=="create view" (auto-invalidate on update)
-- consider connecting with user pipes and external programs like sql_orderby?
-- tab JOIN tab using(c, ...)
+- index files=="create view" (auto-invalidate on update)
+- consider connecting with user pipes and external programs like sql_orderby? or for nested queries, at least in "from"
+- tab JOIN tab USING(c, ...)
 - Query 22 Mb external URL
       SELECT ...
       FROM  https://raw.githubusercontent.com/megagonlabs/HappyDB/master/happydb/data/cleaned_hm.csv AS happy
@@ -129,8 +137,7 @@ select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
       IMPORT TABLE happy FROM https://...
 
 ## NOT todo
-
-- optimizer
+- optimizer (reordering)
 - row values/tuples
 - more datatypes (just keep as string)
 - Ordering and/or Aggregation with GROUP BY. Basically this would either have to use memory or temporary files. Not such good idea. Maybe generate set and then call unix "sort" with right arguments/types as ORDER BY, then could do GROUP BY.
