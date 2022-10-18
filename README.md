@@ -59,7 +59,14 @@ Function calling
 
     select "abba" as f, char(ascii(upper(f)))
 
+Joins!
 
+    select int.a, b, a*int.b
+    from int(1,10) a, int(1,10) b
+    where a=b
+    
+select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
+    
 ## Current Features
 - row by row processing
 - plain-text CSV/TAB-file querying

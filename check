@@ -10,4 +10,5 @@ echo
 echo "============================="
 echo "%%%%%% ERROR!"
 echo "check the diff!"
+echo "(if it's ok: cp test.new test.out)"
 }

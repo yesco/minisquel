@@ -104,7 +104,9 @@ int got(char* s) {
 int num(double* d) {
   spcs();
   int neg= gotc('-')? -1: 1;
-  int i= strspn(ps, "0123456789.");
+  gotc('+');
+  // TODO: this isn't correct for 1e-5 !!!
+  int i= strspn(ps, "0123456789.eE");
   if (!i) return 0;
   *d= atof(ps) * neg;
   ps+= i;
@@ -196,7 +198,22 @@ void fprintquoted(FILE* f, char* s, int quot, int delim) {
 void printval(val* v, int quot, int delim) {
   if (!v->not_null) printf("NULL");
   else if (v->s) fprintquoted(stdout, v->s, quot, delim);
-  else printf("%.15lg", v->d);
+  //else printf("%.15lg", v->d);
+  else {
+    if (v->d > 0 && v->d < 1e7) {
+      printf("%7.7lg", v->d);
+    } else if (v->d > 0 && v->d < 1e10) {
+      char s[NAMELEN]= {0};
+      sprintf(s, "%7.4lg", v->d);
+      // remove +0: 1.2e+05 -> 1.234e5 !
+      if (s[6]=='+' && s[7]=='0')
+	strcpy(s+6, s+8); // safe?
+      printf("%s", s);
+    } else {
+      // TODO: negatives!
+      printf("% 7.2lg", v->d);
+    }
+  }
 }
 
 void updatestats(val *v) {
