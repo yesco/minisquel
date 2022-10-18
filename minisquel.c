@@ -950,7 +950,7 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
   free(header); // column names
   fclose(f);
 
-  if (1) printstats();
+  //  if (1) printstats();
 
   // restore
   varcount= nvars;
