@@ -50,14 +50,14 @@ char* csvgetline(FILE* f) {
 	if (*s && (*s=='\'' || *s=='"')) inquote = *s++;
 	// find end quote
 	if (*s && !inquote) s++;
-	else while(*s && inquote) {
-	    if (*s++==inquote) inquote= 0;
-	}
+	else while(*s && inquote)
+	    if (*s++==inquote) {
+	      if (*s==inquote) s++;
+	      else inquote= 0;
+	    }
       } else s++;
     }
-    if (inquote) {
-      //printf("INQUOTE>>>\n%s<<<\n\n", r);
-      // read more
+    if (inquote) { // read more
       char* a= NULL;
       size_t ll= 0;
       getline(&a, &ll, f);
@@ -65,28 +65,28 @@ char* csvgetline(FILE* f) {
       free(a);
     }
   } while (inquote);
-
   return r;
 }
 
 int main(int argc, char** argv) {
-  {
-    char* s= strdupncat(strdup("foo"), -1, "bar");
-    printf(">%s<\n", s);
-    free(s);
-    s= NULL;
+  if (0) {
+    {
+      char* s= strdupncat(strdup("foo"), -1, "bar");
+      printf(">%s<\n", s);
+      free(s);
+      s= NULL;
+    }
+    {
+      char* s= strdupncat(strdup("foo"), 2, "bar");
+      printf(">%s<\n", s);
+      free(s);
+    }
+    {
+      char* s= strdupncat(NULL, 2, NULL);
+      printf(">%s<  %p\n", s, s);
+      free(s);
+    }
   }
-  {
-    char* s= strdupncat(strdup("foo"), 2, "bar");
-    printf(">%s<\n", s);
-    free(s);
-  }
-  {
-    char* s= strdupncat(NULL, 2, NULL);
-    printf(">%s<  %p\n", s, s);
-    free(s);
-  }
-
 
   {
     FILE* f= fopen("nl.csv", "r");
