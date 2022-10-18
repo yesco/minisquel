@@ -1,0 +1,16 @@
+echo "--- 1x then 10x happy file ---"
+#   download from:
+#   - https://raw.githubusercontent.com/megagonlabs/HappyDB/master/happydb/data/cleaned_hm.csv
+./sql 'select i,hmid from int(1,1) i, happy.csv f where hmid=27694' | grep '\(rows\|SQL\)'
+./sql 'select i,hmid from int(1,10) i, happy.csv f where hmid=27694' | grep '\(rows\|SQL\)'
+
+echo "--- 1000 x 1000 ---"
+#   takes less than one s!
+#   (about 1.4M rows/s)
+./sql 'select i,j from int(1,1000) i, int(1,1000) j where i=j' | grep '\(rows\|SQL\)'
+
+echo "--- 100,000 x 1 or 1 x 100,000 ---"
+#   this test opening files 1x or 100,000x
+#   (almost same speed: < 200ms!)
+./sql 'select i,j from int(1,1) i, int(1,100000) j where i=j' | grep '\(rows\|SQL\)'
+./sql 'select i,j from int(1,100000) i, int(1,1) j where i=j' | grep '\(rows\|SQL\)'
