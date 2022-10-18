@@ -166,8 +166,8 @@ typedef struct val {
   int not_null; // haha: "have val"
   // aggregations/statistics
   // TODO: cost too much?
-  double min, max, sum, sqsum;
-  int n, nnull, nstr;
+  double min, max, sum, sqsum, last;
+  int n, nnull, nstr, not_asc, not_desc;
 } val;
   
 // keeps stats
@@ -216,6 +216,7 @@ void printval(val* v, int quot, int delim) {
   }
 }
 
+// no measurable overhead!
 void updatestats(val *v) {
   if (v->s) {
     // TODO: string values, min/max
@@ -227,6 +228,11 @@ void updatestats(val *v) {
     v->sqsum+= v->d*v->d;
     if (!v->n || v->d < v->min) v->min= v->d;
     if (!v->n || v->d > v->max) v->max= v->d;
+    if (v->n) {
+      if (v->last > v->d) v->not_asc= 1;
+      if (v->last < v->d) v->not_desc= 1;
+    }
+    v->last= v->d;
     v->n++;
   }
 }
@@ -699,6 +705,27 @@ int where(char* selexpr) {
   return 1;
 }
 
+
+
+// TOOD: print where?
+void printstats() {
+  printf("----\n");
+  printf("Stats\n");
+  for(int i=0; i<varcount; i++) {
+    val* v= varvals[i];
+    // TODO: string values (nstr)
+    // TODO: nulls (nnull)
+    if (v->n) {
+      char* t= tablenames[i];
+      printf("  %s.%s %s%s %d#[%lg,%lg] u(%lg,%lg) S%lg\n",
+        t?t:"", varnames[i], !v->not_desc?"DESC":"", !v->not_asc?"ASC":"",
+        v->n, v->min, v->max, stats_avg(v), stats_stddev(v),
+        v->sum
+      );
+    }
+  }
+}
+
 // called to do next table
 int from_list(char* selexpr);
 
@@ -923,27 +950,13 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
   free(header); // column names
   fclose(f);
 
+  if (1) printstats();
+
   // restore
   varcount= nvars;
   ps= saved;
 
   return 1;
-}
-
-// TOOD: print where?
-void printstats() {
-  printf("----\n");
-  printf("Stats\n");
-  for(int i=0; i<varcount; i++) {
-    val* v= varvals[i];
-    // TODO: string values (nstr)
-    // TODO: nulls (nnull)
-    if (v->n) {
-      char* t= tablenames[i];
-      printf("  %s.%s %d#[%lg,%lg] u(%lg,%lg) S%lg\n",
-	     t?t:"", varnames[i], v->n, v->min, v->max, stats_avg(v), stats_stddev(v), v->sum);
-    }
-  }
 }
 
 int from_list(char* selexpr) {
