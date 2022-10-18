@@ -103,9 +103,6 @@ int sreadCSV(char** f, char* s, int max, double* d) {
   return typ?typ:RNULL;
 }
 
-
-
-
 int min(int a, int b) { return a<b?a:b; }
 int max(int a, int b) { return a>b?a:b; }
 
@@ -120,7 +117,7 @@ int max(int a, int b) { return a>b?a:b; }
 char* strdupncat(char* s, int n, char* add) {
   int l= min(n>=0?n:INT_MAX, add?strlen(add):0);
   return strncat(
-    realloc(s?s:strdup(""), s?strlen(s):0 + l+1),
+    realloc(s?s:strdup(""), l+1+(s?strlen(s):1)),
     add?add:"", l);
 }
 
@@ -164,15 +161,18 @@ char* csvgetline(FILE* f) {
       char* a= NULL;
       size_t ll= 0;
       getline(&a, &ll, f);
+      printf("\nREAD>%s< %lu\n", a, strlen(a));
+      printf("BEFORE>>>%s<<< %lu\n", r, strlen(r));
       r= strdupncat(r, -1, a);
       free(a);
+      printf("INQUOTE>>>%s<<< %lu\n\n", r, strlen(r));
     }
   } while (inquote);
   return r;
 }
 
 int main(int argc, char** argv) {
-  if (0) {
+  if (1) {
     {
       char* s= strdupncat(strdup("foo"), -1, "bar");
       printf(">%s<\n", s);
@@ -189,6 +189,12 @@ int main(int argc, char** argv) {
       printf(">%s<  %p\n", s, s);
       free(s);
     }
+    {
+      char* s= strdupncat(strdup("fie\\\n"), -1, "fum");
+      printf(">%s<  %p\n", s, s);
+      free(s);
+    }
+    printf("\n==================\n\n\n");
   }
 
   {
@@ -202,6 +208,7 @@ int main(int argc, char** argv) {
       if (r==RSTRING) printf(">%s<   ", v);
       if (r==RNEWLINE) printf("\n");
     }
+    fclose(f);
   }
 
   {
@@ -221,5 +228,6 @@ int main(int argc, char** argv) {
     }
 
     free(s);
+    fclose(f);
   }
 }
