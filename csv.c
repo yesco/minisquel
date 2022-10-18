@@ -56,6 +56,7 @@ char* csvgetline(FILE* f) {
       } else s++;
     }
     if (inquote) {
+      //printf("INQUOTE>>>\n%s<<<\n\n", r);
       // read more
       char* a= NULL;
       size_t ll= 0;
