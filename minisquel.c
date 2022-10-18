@@ -461,6 +461,7 @@ char* print_expr_list(char* e) {
   do {
     // TODO: SELECT *, tab.*
 
+    spcs();
     char* start= ps;
     if (expr(&v)) {
       if (col) putchar(abs(delim));
@@ -490,8 +491,8 @@ char* print_expr_list(char* e) {
     if (parse_only) {
       if (!name[0]) {
 	// make a nmae from expr
-	size_t end= strcspn(start, " ,;(");
-	if (!end) end= 7;
+	size_t end= strcspn(start, " ,;");
+	if (!end) end= 20;
 	strncpy(name, start, end);
 	if (end>7) strcpy(name+5, "..");
       }

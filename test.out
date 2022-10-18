@@ -1,3 +1,17 @@
+SQL> select 1234567, 42
+1234567	42
+======= ======= 
+1234567	42
+
+1 rows in 0 ms
+
+SQL> select 12345678, 42
+12345..	42
+======= ======= 
+12345678	42
+
+1 rows in 0 ms
+
 SQL> select 42
 42
 ======= 
@@ -13,14 +27,14 @@ SQL> select 3+4*2
 1 rows in 0 ms
 
 SQL> select 3+x, x+3
-3+x	 x+3
+3+x	x+3
 ======= ======= 
 NULL	NULL
 
 1 rows in 0 ms
 
 SQL> select $lineno, i from int(1,5) i
-$lineno	 i from
+$lineno	i
 ======= ======= 
 1	1
 2	2
@@ -43,40 +57,40 @@ a	b	c	d
 4 rows in 0 ms
 
 SQL> select 42, "foo"
-42	 "foo"
+42	"foo"
 ======= ======= 
 42	foo
 
 1 rows in 0 ms
 
 SQL> select 42, "foo" where 1=1
-42	 "foo" 
+42	"foo"
 ======= ======= 
 42	foo
 
 1 rows in 0 ms
 
 SQL> select 42, "foo" where 1=0
-42	 "foo" 
+42	"foo"
 ======= ======= 
 
 0 rows in 0 ms
 
 SQL> select 42, "foo" where 0.3*3+0.1=1+0.0
-42	 "foo" 
+42	"foo"
 ======= ======= 
 42	foo
 
 1 rows in 0 ms
 
 SQL> select 42, "foo" where 0.3*3+0.1=1+0.00001
-42	 "foo" 
+42	"foo"
 ======= ======= 
 
 0 rows in 0 ms
 
 SQL> select i, i*i from int(1,10) i where i*i>25
-i	 i*i fr
+i	i*i
 ======= ======= 
 6	36
 7	49
@@ -114,59 +128,59 @@ SQL> select 42 where not(1=1 and 1=2)
 1 rows in 0 ms
 
 SQL> select plus(3,4)
-plus
+plus(3
 ======= 
 7
 
 1 rows in 0 ms
 
 SQL> select plus(3)
-plus
+plus(3)
 ======= 
 Error: expected plus
   2 parameters, got 1
 SQL> select plus(3,4,5)
-plus
+plus(3
 ======= 
 Error: expected plus
   2 parameters, got 3
 SQL> select add()
-add
+add()
 ======= 
 0
 
 1 rows in 0 ms
 
 SQL> select add(1,2,3)
-add
+add(1
 ======= 
 6
 
 1 rows in 0 ms
 
 SQL> select add(3,foo,bar,fie,4)
-add
+add(3
 ======= 
 7
 
 1 rows in 0 ms
 
 SQL> select foo as f, upper(f) as F, lower(F)
-f	F	 lower(
+f	F	lower..
 ======= ======= ======= 
 NULL	NULL	NULL
 
 1 rows in 0 ms
 
 SQL> select "A" as f, char(ascii(lower(f)))
-f	 char(a
+f	char(..
 ======= ======= 
 A	a
 
 1 rows in 0 ms
 
 SQL> select count(i) from int(1,10) i
-count
+count..
 ======= 
 1
 2
@@ -181,8 +195,15 @@ count
 
 10 rows in 0 ms
 
+SQL> select type(NULL) as tnull, type(foo) as tstr, type(3.3) as tnumber, type(3) as tint
+tnull	tstr	tnumber	tint
+======= ======= ======= ======= 
+none	none	num	int
+
+1 rows in 0 ms
+
 SQL> select 1 as foo, sum(foo) from int(1,10) i
-foo	 sum(fo
+foo	sum(f..
 ======= ======= 
 1	1
 1	2
@@ -198,7 +219,7 @@ foo	 sum(fo
 10 rows in 0 ms
 
 SQL> select count(i), sum(i), min(i), avg(i), max(i), stdev(i) from int(1,10) i
-count	 sum(i)	 min(i)	 avg(i)	 max(i)	 stdev(
+count..	sum(i)	min(i)	avg(i)	max(i)	stdev..
 ======= ======= ======= ======= ======= ======= 
 1	1	1	1	1	nan
 2	3	1	1.5	2	0.707106781186548
@@ -211,7 +232,7 @@ count	 sum(i)	 min(i)	 avg(i)	 max(i)	 stdev(
 9	45	1	5	9	2.73861278752583
 10	55	1	5.5	10	3.02765035409749
 
-10 rows in 1 ms
+10 rows in 0 ms
 
 SQL> select 42 as foo,null,1234567890,i+333333333 from int(1,3) as i
 foo	null	12345..	i+333..
@@ -223,7 +244,7 @@ foo	null	12345..	i+333..
 3 rows in 0 ms
 
 SQL> select ta.a, tb.a from foo.csv ta, foo.csv tb where ta.a=tb.a
-ta.a	 tb.a f
+ta.a	tb.a
 ======= ======= 
 1	1
 2	2
@@ -246,7 +267,7 @@ i	j	i*j
 9	9	81
 10	10	100
 
-10 rows in 1 ms
+10 rows in 0 ms
 
 SQL> select 42 where (1)=1
 42
@@ -257,12 +278,19 @@ SQL> select 42 where ((1)=1)
 ======= 
 Error: expected comparator
 SQL> select count(42)
-count
+count..
 ======= 
 Error: expected count
   currently only works on named variables
 SQL> select count(1) from int(1,10) i
-count
+count..
 ======= 
 Error: expected count
   currently only works on named variables
+SQL> select 123 456, 42
+123
+======= 
+123
+
+1 rows in 0 ms
+

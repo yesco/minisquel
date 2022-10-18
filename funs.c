@@ -178,6 +178,18 @@ int stdev(val* r, int n, val* a) {
   return 1;
 }
 
+// system
+int _type(val* r, int n, val* a) {
+  if (n!=1) return -1;
+  r->not_null= 1;
+  if (!a->not_null) r->s= "none";
+  else if (a->s) r->s= "str";
+  // TODO: "date/time/json/xml etc?"
+  else if (a->d==(long)a->d) r->s= "int";
+  else r->s= "num";
+  return 1;
+}
+
 // TODO: how to make boolean functions?
 
 int in(val* r, int n, val params[]) {
@@ -210,6 +222,9 @@ void register_funcs() {
   registerfun("max", max);
   registerfun("avg", avg);
   registerfun("stdev", stdev);
+
+  // system
+  registerfun("type", _type);
 }
 
 // -- end your funcs

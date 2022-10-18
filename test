@@ -1,5 +1,9 @@
 clang minisquel.c && {
 
+# header/formatting
+./a.out 'select 1234567, 42' 
+./a.out 'select 12345678, 42'
+
 ./a.out 'select 42'
 ./a.out 'select 3+4*2'
 ./a.out 'select 3+x, x+3'
@@ -37,6 +41,9 @@ clang minisquel.c && {
 # aggregates
 ./a.out 'select count(i) from int(1,10) i'
 
+# system
+./a.out 'select type(NULL) as tnull, type(foo) as tstr, type(3.3) as tnumber, type(3) as tint'
+
 # (workaround)
 ./a.out 'select 1 as foo, sum(foo) from int(1,10) i'
 ./a.out 'select count(i), sum(i), min(i), avg(i), max(i), stdev(i) from int(1,10) i'
@@ -54,5 +61,7 @@ clang minisquel.c && {
 ./a.out 'select 42 where ((1)=1)'
 ./a.out 'select count(42)'
 ./a.out 'select count(1) from int(1,10) i'
+# should give error parsing 123 456, but just quit?	
+./a.out 'select 123 456, 42'
 
 }

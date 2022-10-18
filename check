@@ -1,7 +1,7 @@
 # regression testing, compares output
 ./test > test.new 2>/dev/null
 
-(diff -U10 -I".* ms" -F"SQL>" test.new test.out && echo "OK - all tests passed") || {
+(diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new && echo "OK - all tests passed") || {
 diff=$?
 
 echo
