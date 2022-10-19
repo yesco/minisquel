@@ -76,7 +76,7 @@ int sreadCSV(char** f, char* s, int max, double* d) {
       { q= c; typ= RSTRING; continue; }
     if (!typ && isspace(c)) continue;
     if (c=='\\') if ('\n'==(c= *(*f)++)) {
-	printf("QUOTE");
+	//printf("QUOTE");
 	c= *(*f)++;
       }
     if (max>0) {
@@ -125,6 +125,8 @@ char* csvgetline(FILE* f) {
   char* r= NULL;
   size_t l= 0;
   getline(&r, &l, f);
+  //printf(">>>%s<<<\n", r);
+  if (!r) return NULL;
 
   char inquote= 0;
   do {
@@ -161,18 +163,18 @@ char* csvgetline(FILE* f) {
       char* a= NULL;
       size_t ll= 0;
       getline(&a, &ll, f);
-      printf("\nREAD>%s< %lu\n", a, strlen(a));
-      printf("BEFORE>>>%s<<< %lu\n", r, strlen(r));
+      //printf("\nREAD>%s< %lu\n", a, strlen(a));
+      //printf("BEFORE>>>%s<<< %lu\n", r, strlen(r));
       r= strdupncat(r, -1, a);
       free(a);
-      printf("INQUOTE>>>%s<<< %lu\n\n", r, strlen(r));
+      //printf("INQUOTE>>>%s<<< %lu\n\n", r, strlen(r));
     }
   } while (inquote);
   return r;
 }
 
 int main(int argc, char** argv) {
-  if (1) {
+  if (0) {
     {
       char* s= strdupncat(strdup("foo"), -1, "bar");
       printf(">%s<\n", s);
@@ -197,37 +199,86 @@ int main(int argc, char** argv) {
     printf("\n==================\n\n\n");
   }
 
-  {
-    FILE* f= fopen("nl.csv", "r");
-    char v[1024];
-    double d;
-    int r;
-    while((r= freadCSV(f, v, sizeof(v), &d))) {
-      if (r==RNULL) printf("NULL   ");
-      if (r==RNUM) printf("%lg   ", d);
-      if (r==RSTRING) printf(">%s<   ", v);
-      if (r==RNEWLINE) printf("\n");
-    }
-    fclose(f);
-  }
-
-  {
-    FILE* f= fopen("nl.csv", "r");
-    char* s= csvgetline(f);
-    printf("\n>>>%s<<<\n\n", s);
-
-    char v[1024];
-    double d;
-    int r;
-    char* ss= s;
-    while((r= sreadCSV(&ss, v, sizeof(v), &d))) {
-      if (r==RNULL) printf("NULL   ");
-      if (r==RNUM) printf("%lg   ", d);
-      if (r==RSTRING) printf(">%s<   ", v);
-      if (r==RNEWLINE) printf("\n");
+  if (0) {
+    {
+      FILE* f= fopen("nl.csv", "r");
+      char v[1024];
+      double d;
+      int r;
+      while((r= freadCSV(f, v, sizeof(v), &d))) {
+	if (r==RNULL) printf("NULL   ");
+	if (r==RNUM) printf("%lg   ", d);
+	if (r==RSTRING) printf(">%s<   ", v);
+	if (r==RNEWLINE) printf("\n");
+      }
+      fclose(f);
     }
 
-    free(s);
-    fclose(f);
+    if (0) {
+      {
+	FILE* f= fopen("nl.csv", "r");
+	char* s= csvgetline(f);
+	printf("\n>>>%s<<<\n\n", s);
+
+	char v[1024];
+	double d;
+	int r;
+	char* ss= s;
+	while((r= sreadCSV(&ss, v, sizeof(v), &d))) {
+	  if (r==RNULL) printf("NULL   ");
+	  if (r==RNUM) printf("%lg   ", d);
+	  if (r==RSTRING) printf(">%s<   ", v);
+	  if (r==RNEWLINE) printf("\n");
+	}
+
+	free(s);
+	fclose(f);
+      }
+    }
   }
+
+  if (1) {
+    // reading csv lines and then parsing
+    // values is faster than
+    // setlinebuf, setbuffer and fgetc!
+    // 
+    // 0.45s for happy, getc.c 0.8s!
+    //
+    // 0.136s if remove sreadCSV!
+    //
+    
+    FILE* f= fopen("happy.csv", "r");
+
+for(int i=10; i; i--){ rewind(f);
+
+    int lines= 0;
+    while(!feof(f)) {
+      char* s= csvgetline(f);
+      if (!s) break;
+      lines++;
+      //printf("\n>>>%s<<<\n\n", s);
+      
+      char v[1024];
+      double d;
+      int r;
+      char* ss= s;
+    if (0)
+      while((r= sreadCSV(&ss, v, sizeof(v), &d))) {
+	if (0) {
+	  if (r==RNULL) printf("NULL   ");
+	  if (r==RNUM) printf("%lg   ", d);
+	  if (r==RSTRING) printf(">%s<   ", v);
+	  if (r==RNEWLINE) printf("\n");
+	}
+      }
+
+      free(s);
+    }
+    printf("lines=%d\n", lines);
+
+}  // rewwind
+
+    fclose(f);
+
+  }    
 }

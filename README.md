@@ -110,7 +110,8 @@ select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
 ## TODO:
 - LIKE/REGEXP
 - select *,tab.*
-- CREATEF FUNCTION Bigtable UDF:s - https://cloud.google.com/bigquery/docs/reference/standard-sql/user-defined-functions
+- sql allows names to be quoted!
+- CREATE FUNCTION Bigtable UDF:s - https://cloud.google.com/bigquery/docs/reference/standard-sql/user-defined-functions
 - val with altname/num/table.col
 - upper/lower-case for "sql"
 - where not/and/or...

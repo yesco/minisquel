@@ -208,6 +208,7 @@ void printval(val* v, int quot, int delim) {
   else if (v->s) fprintquoted(stdout, v->s, quot, delim);
   //else printf("%.15lg", v->d);
   else {
+    // TODO: use "%lg" if not "pretty"
     if (v->d > 0 && v->d < 1e7) {
       printf("%7.7lg", v->d);
     } else if (v->d > 0 && v->d < 1e10) {
@@ -226,8 +227,12 @@ void printval(val* v, int quot, int delim) {
 
 // no measurable overhead!
 void updatestats(val *v) {
+  // TODO: capute number of findvar?
+  
   if (v->s) {
-    // TODO: string values, min/max
+    // TODO: string values, asc/desc?
+    //   can compare last value if not clean!
+    //   maybe set .not_value=1 even if str
     v->nstr++;
   } else if (!v->not_null) {
     v->nnull++;
@@ -284,6 +289,8 @@ val* findvar(char* table, char* name) {
 
 FILE* dataf= NULL;
 
+// TODO:setnum/setstr?
+// returns variable's &val
 val* setvar(char* table, char* name, val* s) {
   val* v= findvar(table, name);
   // TODO: deallocate duped name...
@@ -326,6 +333,7 @@ int getval(char* table, char* name, val* v) {
   return 0;
 }
 	   
+// TODO: sql allows names to be quoted!
 int getname(char name[NAMELEN]) {
   spcs();
   ZERO(*name);
@@ -770,6 +778,8 @@ int INT(char* selexpr) {
 
   char* saved= ps;
   for(double i= start; i<stop; i+= step) {
+    // handle coded setvar
+    // TODO:setnum/setstr?
     v.d= i;
     v.not_null= 1;
     updatestats(&v);
@@ -911,10 +921,15 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
 
   col= 0;
   // TODO: consider caching whole line in order to not allocate small string fragments, then can point/modify that string
+  // TODO: use csvgetline !
   foffset= 0; long fprev= ftell(f);
-  while((r= freadCSV(f, s, sizeof(s), &d))) {
-    clearval(&vals[col]);
 
+  // TODO: if we know we don't access any
+  //   columns (for this table) can we
+  //   avoid parsing? just count!
+  //   happy.csv: 136ms csvgetline;
+  //              450ms with freadCSV !
+  while((r= freadCSV(f, s, sizeof(s), &d))) {
     if (r==RNEWLINE) {
       // store offset of start of row
       // TODO: ovehead? not measurable
@@ -928,6 +943,8 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
 	else
 	  where(selexpr);
 
+	// TODO: consider not clearing here
+	//   can use current str as last!
 	for(int i=0; i<MAXCOLS; i++)
 	  clearval(&vals[col]);
 	if (col) row++;
@@ -936,8 +953,11 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
       continue;
     }
 
-    // have col
+    // -- have col value
     // TODO: move to setval?
+    // TODO: use setnum, setstr,setvartype?
+    clearval(&vals[col]);
+
     vals[col].not_null= (r != RNULL);
     if (r==RNULL) ;
     else if (r==RNUM) vals[col].d= d;
