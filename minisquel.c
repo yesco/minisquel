@@ -6,6 +6,9 @@
 #include <math.h>
 #include <time.h>
 
+#include "malloc-count.c"
+//#include "malloc-simple.c"
+
 char* isotime() {
   // from: jml project
   static char iso[sizeof "2011-10-08T07:07:09Z"];
@@ -34,7 +37,10 @@ int parse_only= 0;
 #define MAXCOLS 32
 
 char* ps= NULL;
-long lineno= 0, foffset= 0;
+long foffset= 0;
+
+// stats
+long lineno= 0, readrows= 0, nfiles= 0;
 
 // TODO: generalize output formats:
 //
@@ -512,19 +518,19 @@ char* print_expr_list(char* e) {
 
     // set column name as 1,2,3...
     char name[NAMELEN]= {0};
-    sprintf(name, "%d", col);
-    // TODO: link name? (not copy!)
-    // TODO: can we use same val below?
-    // the string will be used twice!
-
-    //if (!parse_only) setvar(name, &v);
-    ZERO(*name);
 
     // select 42 AS foo
     if (got("as")) {
       if (!getname(name)) expected("name");
       if (!parse_only) setvar(NULL, name, &v);
       // TODO: "header" print state?
+    } else {
+      sprintf(name, "%d", col);
+      // TODO: link name? (not copy!)
+      // TODO: can we use same val below?
+      // the string will be used twice!
+
+      if (!parse_only) setvar(NULL, name, &v);
     }
 
     // use name, or find header name
@@ -931,6 +937,7 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
   //              450ms with freadCSV !
   while((r= freadCSV(f, s, sizeof(s), &d))) {
     if (r==RNEWLINE) {
+      readrows++;
       // store offset of start of row
       // TODO: ovehead? not measurable
       foffset= fprev;
@@ -1019,6 +1026,7 @@ int from_list(char* selexpr) {
     
     // fallback, assume filename!
     FILE* f= fopen(spec, "r");
+    nfiles++;
     // TODO: "no such file");
     if (!f) error(spec);
 
@@ -1109,8 +1117,8 @@ void testread() {
 // TODO: this doesn't feel minimal, lol
 
 // TODO: first call (sql, "start", NULL...)
-//   after query (sql, "end", "error", "msg", readlines, rows, ms)
-void sqllog(char* sql, char* state, char* err, char* msg, long readlines, long rows, long ms) {
+//   after query (sql, "end", "error", "msg", readrows, rows, ms)
+void sqllog(char* sql, char* state, char* err, char* msg, long readrows, long rows, long ms) {
   static FILE* f= NULL;
   if (!f) {
     f= fopen("sql.log.csv", "a+");
@@ -1122,7 +1130,7 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readlines, long r
   // if new file, create header
   // ISO-TIME,"query"
   if (!pos) {
-    fprintf(f, "time,state,sql,error,msg,readlines,rows,ms\n");
+    fprintf(f, "time,state,sql,error,msg,readrows,rows,ms,nfiles,nalloc,nfree,leak,nbytes\n");
   }
 
   if (sql) {
@@ -1130,15 +1138,16 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readlines, long r
     fprintquoted(f, sql, '"', 0);
   }
 
-  if (err || msg || readlines || rows || ms) {
+  if (err || msg || readrows || rows || ms) {
     fputc(',', f);
     fprintquoted(f, err?err:"", '"', 0);
     fputc(',', f);
     fprintquoted(f, msg?msg:"", '"', 0);
     fputc(',', f);
-    fprintf(f, "%ld,%ld,%ld", readlines, rows, ms);
+    fprintf(f, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld",
+      readrows, rows, ms, nfiles, nalloc, nfree, nalloc-nfree, nbytes);
   } else {
-    fprintf(f, ",,,,,");
+    fprintf(f, ",,,,,,,");
   }
 
   fputc('\n', f);
@@ -1157,20 +1166,24 @@ int main(int argc, char** argv) {
   // log and time
   sqllog(cmd, "start", NULL, NULL, 0, 0, 0);
 
+  mallocsreset();
+
   long startms= timems();
   parse(cmd);
   int r= sql();
   long ms= timems()-startms;
 
-  printf("\n%ld rows in %ld ms\n", lineno-1, ms);
-  if (r!=1) printf("%%result=%d\n", r);
+  printf("\n%ld rows in %ld ms (read %ld lines)\n\n", lineno-1, ms, readrows);
+  fprintmallocs(stdout);
+
+  // TODO: catch/report parse errors
+  if (r!=1) printf("\n%%result=%d\n", r);
+
   //if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
 
   // log and time
-  // TODO: readlines
-  long readlines= -1;
-  sqllog(cmd, "end", NULL, NULL, readlines, lineno-1, ms);
+  sqllog(cmd, "end", NULL, NULL, readrows, lineno-1, ms);
 
   return 0;
 }
