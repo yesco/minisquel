@@ -36,6 +36,14 @@ int parse_only= 0;
 char* ps= NULL;
 long lineno= 0, foffset= 0;
 
+// TODO: generalize output formats:
+//
+//   maybe use external formatter?
+//     popen("| formacmd");
+//
+//   - sqlite3(ascii box column csv html insert json line list markdown qbox quote table tabs tcl)
+//   - DuckDB(ascii, box, column, csv, (no)header, html, json, line, list, markdown, newline SEP, quote, separator SEP, table)
+
 char format[30]= {0};
 
 char formatdelim() {
@@ -729,6 +737,21 @@ void printstats() {
 // called to do next table
 int from_list(char* selexpr);
 
+// sqlite3: virtual tables
+// - https://www.sqlite.org/vtablist.html
+
+// dir(): CREATE TABLE dir(path) FROM popen("ls -Q -l --time-style=long-iso path |")
+//    or --full-time
+
+// DuckDB:
+//   CREATE TABLE t1(x FLOAT, two_x AS (2 * x))
+//   CREATE TABLE t1(x FLOAT, two_x FLOAT GENERATED ALWAYS AS (2 * x) VIRTUAL)
+//   https://duckdb.org/docs/sql/statements/create_view
+
+
+
+// TODO: add (start,stop,STEP)
+//   https://duckdb.org/docs/sql/statements/create_sequence
 int INT(char* selexpr) {
   int nvars= varcount;
 
@@ -923,7 +946,7 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
 
     // reading index special value
     // TODO: move more generic place
-    if (0==strcmp("$foffset", cols[col])) {
+    if (cols[col] && 0==strcmp("$foffset", cols[col])) {
       foffset= d;
       printf("FOFFSET=%ld\n", foffset);
       if (!dataf) dataf= fopen("foo.csv", "r");
@@ -1070,7 +1093,7 @@ void testread() {
 void sqllog(char* sql, char* state, char* err, char* msg, long readlines, long rows, long ms) {
   static FILE* f= NULL;
   if (!f) {
-    f= fopen("minisquel.log.csv", "a+");
+    f= fopen("sql.log.csv", "a+");
     setlinebuf(f);
   }
   if (!f) error("can't open/create logfile");
@@ -1079,7 +1102,7 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readlines, long r
   // if new file, create header
   // ISO-TIME,"query"
   if (!pos) {
-    fprintf(f, "time,state,sql,error,rows,ms\n");
+    fprintf(f, "time,state,sql,error,msg,readlines,rows,ms\n");
   }
 
   if (sql) {
