@@ -525,12 +525,16 @@ char* print_expr_list(char* e) {
       if (!parse_only) setvar(NULL, name, &v);
       // TODO: "header" print state?
     } else {
-      sprintf(name, "%d", col);
+      // TODO: this gives error???? why?
+      // - double dealloc?
+      //
+      //sprintf(name, "%d", col);
       // TODO: link name? (not copy!)
       // TODO: can we use same val below?
       // the string will be used twice!
 
-      if (!parse_only) setvar(NULL, name, &v);
+      //if (!parse_only) setvar(NULL, name, &v);
+      //ZERO(name);
     }
 
     // use name, or find header name
