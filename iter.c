@@ -93,6 +93,7 @@ int DOUBLE2x(doubleiter2* f) {
   f->cur= (f->n==5 || f->n==3 || 
 	   f->n==0) ? f->cur :
     f->cur + f->step;
+  f->n++;
   return f->cur <= f->end;
 }
 
@@ -188,53 +189,54 @@ void MJOIN() {
 }
 
 // if equal and duplicates, it does cross product for that section!
+void mjoin(doubleiter2* a, doubleiter2* b, doubleiter2* saved) {
+  int bsaved= 0;
+  
+  if (!DOUBLE2x(a)) return;
+
+  if (!DOUBLE2x(b)) return;
+  
+  while(1) {
+    printf("(%lg, %lg)\n", a->cur, b->cur);
+    if (a->cur==b->cur) {
+      printf("-->RESULT: %lg\n", a->cur);
+      if (!bsaved) {
+	printf("\t\tSaving b\n");
+	// save
+	bsaved= 1;
+	*saved= *b;
+      }
+    }
+    
+    if (a->cur < b->cur) {
+      printf("\tadvance A\n");
+      int pcur= a->cur;
+      if (!DOUBLE2x(a)) break;
+      // only restore if a not change
+      if (bsaved) {
+	bsaved= 0;
+	if (pcur==a->cur) {
+	  printf("\t\tRestoring b\n");
+	  // restore
+	  *b= *saved;
+	}
+      }
+      // >= inner right join
+      // TODO: doesn't handle duplicate in a!
+    } else if (a->cur >= b->cur) {
+      printf("\tadvance B\n");
+      if (!DOUBLE2x(b)) break;
+    }
+  }
+}
+
 void MJOIN2() {
   doubleiter2 a= {0, 1, 10, 1};
   doubleiter2 b= {0, 3, 9, 0.5};
 
   doubleiter2 saved= {};
-  int bsaved= 0;
-  
-  if (!DOUBLE2x(&a)) return;
-  a.n++;
 
-  if (!DOUBLE2x(&b)) return;
-  b.n++;
-  
-  while(1) {
-    printf("(%lg, %lg)\n", a.cur, b.cur);
-    if (a.cur==b.cur) {
-      printf("-->RESULT: %lg\n", a.cur);
-      if (!bsaved) {
-	printf("\t\tSaving b\n");
-	// save
-	bsaved= 1;
-	saved= b;
-      }
-    }
-    
-    if (a.cur<b.cur) {
-      printf("\tadvance A\n");
-      int pcur= a.cur;
-      if (!DOUBLE2x(&a)) break;
-      a.n++;
-      // only restore if a not change
-      if (bsaved) {
-	bsaved= 0;
-	if (pcur==a.cur) {
-	  printf("\t\tRestoring b\n");
-	  // restore
-	  b= saved;
-	}
-      }
-      // >= inner right join
-      // TODO: doesn't handle duplicate in a!
-    } else if (a.cur>=b.cur) {
-      printf("\tadvance B\n");
-      if (!DOUBLE2x(&b)) break;
-      b.n++;
-    }
-  }
+  mjoin(&a, &b, &saved);
 }
 
 int main(int argc, char** argv) {
