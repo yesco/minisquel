@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 // fib := [0, 1, -1.fib, -2.fib]
 
@@ -78,8 +79,72 @@ int DOUBLE1b(doubleiter1* f) {
   return f->cur <= f->end;
 }
 
-typedef struct doubleiter2 {
+// Minimal Iterator
+// ======================
+// (c) 2022 jsk@yesco.org
+//
+
+// must be head of every iterator
+typedef struct iterator {
+  void* next; // assignment easy
   long n;
+} iterator;
+
+typedef int (*nextf)(void* it);
+
+// general iterator
+//
+// returns 1 if have result
+//   0 if none
+int iter(void* it) {
+  iterator* i= it;
+  nextf f= i->next;
+  int r= f(i);
+  if (r>0) i->n++;
+  return r;
+}
+
+// - double iterator example
+typedef struct double_iter {
+  // inline "struct iterator"
+  void* next;
+  long n;
+  
+  double cur, end, step;
+} double_iter;
+
+int double_next(double_iter* it) {
+  it->cur= it->n==0 ? it->cur :
+    it->cur + it->step;
+  return it->cur <= it->end;
+}
+		
+double_iter* doubles(double start, double stop, double step) {
+  double_iter* it= malloc(sizeof(*it));
+  if (!it) return it;
+  *it= (double_iter){double_next, 0,
+    start, stop, step};
+  return it;
+}
+
+// 1 1.33333 1.66667 2 2.33333 2.66667 3
+void example_doubles() {
+  double_iter* it= doubles(1.0, 3.0, 1.0/3);
+  while(iter(it)) {
+    printf("%lg ", it->cur);
+  }
+  free(it);
+}
+// end iterator
+
+
+
+
+typedef struct doubleiter2 {
+  // basically inline iterator=for init
+  void* next;
+  long n;
+
   double cur, end, step;
 } doubleiter2;
 
@@ -90,6 +155,7 @@ int DOUBLE2(doubleiter2* f) {
 }
 
 int DOUBLE2x(doubleiter2* f) {
+  // make it repeat itself to test mjoin!
   f->cur= (f->n==5 || f->n==3 || 
 	   f->n==0) ? f->cur :
     f->cur + f->step;
@@ -178,8 +244,6 @@ void MJOIN() {
 	  bt= bsaved_t;
 	}
       }
-      // >= inner right join
-      // TODO: doesn't handle duplicate in a!
     } else if (acur>=bcur) {
       printf("\tadvance B\n");
       if (!DOUBLE3x(&bn, &bs, &bcur, &be, &bt)) return;
@@ -192,9 +256,8 @@ void MJOIN() {
 void mjoin(doubleiter2* a, doubleiter2* b, doubleiter2* saved) {
   int bsaved= 0;
   
-  if (!DOUBLE2x(a)) return;
-
-  if (!DOUBLE2x(b)) return;
+  if (!iter(a)) return;
+  if (!iter(b)) return;
   
   while(1) {
     printf("(%lg, %lg)\n", a->cur, b->cur);
@@ -211,7 +274,7 @@ void mjoin(doubleiter2* a, doubleiter2* b, doubleiter2* saved) {
     if (a->cur < b->cur) {
       printf("\tadvance A\n");
       int pcur= a->cur;
-      if (!DOUBLE2x(a)) break;
+      if (!iter(a)) break;
       // only restore if a not change
       if (bsaved) {
 	bsaved= 0;
@@ -221,18 +284,16 @@ void mjoin(doubleiter2* a, doubleiter2* b, doubleiter2* saved) {
 	  *b= *saved;
 	}
       }
-      // >= inner right join
-      // TODO: doesn't handle duplicate in a!
     } else if (a->cur >= b->cur) {
       printf("\tadvance B\n");
-      if (!DOUBLE2x(b)) break;
+      if (!iter(b)) break;
     }
   }
 }
 
 void MJOIN2() {
-  doubleiter2 a= {0, 1, 10, 1};
-  doubleiter2 b= {0, 3, 9, 0.5};
+  doubleiter2 a= {DOUBLE2x, 0, 1, 10, 1};
+  doubleiter2 b= {DOUBLE2x, 0, 3, 9, 0.5};
 
   doubleiter2 saved= {};
 
@@ -240,6 +301,7 @@ void MJOIN2() {
 }
 
 int main(int argc, char** argv) {
+  example_doubles(); exit(0);
   MJOIN(); 
   printf("--------------------22222222222222\n");
   MJOIN2(); exit(0);
