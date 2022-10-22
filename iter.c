@@ -85,31 +85,73 @@ int DOUBLE1b(doubleiter1* f) {
 //
 
 // must be head of every iterator
-typedef struct iterator {
-  void* next; // assignment easy
-  long n;
+typedef struct iterator_type {
+  char* name;
+  size_t size;
+  void* next; // void* assignment easy
+  void* dup;
+  void* release;
 } iterator;
 
+// template for iterator/copy!
+typdef struct iterator {
+  iterator_type type;
+  long n;
+};
+
 typedef int (*nextf)(void* it);
+typedef void* (*dupf)(void* it, void* to);
+typedef void (*releasef)(void* it);
 
 // general iterator
 //
 // returns 1 if have result
 //   0 if none
 int iter(void* it) {
-  iterator* i= it;
-  nextf f= i->next;
+  iterator* t= it->type;
+  nextf f= t->next;
   int r= f(i);
   if (r>0) i->n++;
   return r;
 }
 
+void* iternew(iterator_type* it) {
+  if (!to) to= malloc(i->size);
+}
+  
+// Duplicate ITerator storing in TO if
+// provided, or allocate it.
+void* iterdup(void* it, void* to) {
+  iterator_type* t= it->type;
+  dupf dup= t->dup;
+  // alloc if needed
+  if (!to) to= malloc(t->size);
+  if (!to) return NULL;
+  // default impl: copy
+  if (!dup) {
+    return memcpy(it, to, t->size);
+  }
+  return dup? dup(it, to): NULL;
+}
+
+void iterrelease(void* it) {
+  iterator* i= it;
+  dupf release= i->release;
+  if (release) release(it);
+}
+
+void iterfree(void* it) {
+  iterrelease(it);
+  free(it);
+}
+
+  
+
 // - double iterator example
 typedef struct double_iter {
-  // inline "struct iterator"
-  void* next;
+  iterator_type* type;
   long n;
-  
+
   double cur, end, step;
 } double_iter;
 
@@ -119,11 +161,14 @@ int double_next(double_iter* it) {
   return it->cur <= it->end;
 }
 		
-double_iter* doubles(double start, double stop, double step) {
-  double_iter* it= malloc(sizeof(*it));
+iterator DOUBLES= (iterator){"doubles", sizeof(double_iter), double_next, NULL, NULL};
+  
+double_iter* doubles(double start, double end, double step) {
+  double_iter* it= iternew(DOUBLES);
   if (!it) return it;
-  *it= (double_iter){double_next, 0,
-    start, stop, step};
+  it->start= start;
+  it->end= end;
+  it->step= step;
   return it;
 }
 
@@ -133,6 +178,73 @@ void example_doubles() {
   while(iter(it)) {
     printf("%lg ", it->cur);
   }
+  iterfree(it);
+}
+
+// - filelines iterator example
+typedef struct flines_iter {
+  // inline "struct iterator"
+  void* next;
+  void* dup;
+  void* release;
+  long n;
+  
+  FILE* f;
+  long offset; // where to read
+
+  char* cur; // don't forget to free!
+  size_t len;
+} flines_iter;
+
+int flines_next(flines_iter* it) {
+  long o= ftell(it->f); // no cost
+  // reset if "rewinded"
+  if (it->offset != o)
+    if (fseek(it->f, it->offset, SEEK_SET) < 0)
+      return 0;
+  if (getline(&it->cur, &it->len, it->f) < 0)
+    return 0;
+  it->offset= ftell(it->f);
+  return 1;
+}
+		
+flines_iter* flines_dup(flines_iter* it) {
+  flines_iter* nw= malloc(sizeof(*it));
+  if (!nw) return NULL; // fclose?
+  *nw= *it;
+  nw->cur= NULL; nw->len= 0;
+  return nw;
+}
+
+void flines_release(flines_iter* it) {
+  free(it->cur); it->cur= NULL;
+}
+
+flines_iter* flines(char* filename) {
+  FILE* f= fopen(filename, "r");
+  if (!f) return NULL;
+  // resetable!
+  flines_iter* it= malloc(sizeof(*it));
+  if (!it) return NULL; // fclose?
+  *it= (flines_iter){flines_next, flines_dup, flines_release,
+    f, 0, NULL, 0};
+  return it;
+}
+
+// 1 a/2 b/3 c/4 d/5 e/5 f/6 g/7 h/8 i
+void example_flines() {
+  flines_iter* it= flines("count.txt");
+  flines_iter* clone= NULL;
+  int n= 20;
+  while(n-- && iter(it)) {
+    printf("%2d: %s", n, it->cur);
+    if (it->n==4) clone= flines_clone(it);
+    if (it->n==6 && clone) {
+      free(it->cur);
+      *it= *clone;
+    }
+  }
+  free(it->cur);
   free(it);
 }
 // end iterator
@@ -217,6 +329,7 @@ void MJOIN() {
       if (!bsaved) {
 	printf("\t\tSaving b\n");
 	// save
+// TODO: too late to save after action!
 	bsaved= 1;
 	bsaved_n= bn;
 	bsaved_s= bs;
@@ -301,6 +414,7 @@ void MJOIN2() {
 }
 
 int main(int argc, char** argv) {
+  example_flines(); exit(0);
   example_doubles(); exit(0);
   MJOIN(); 
   printf("--------------------22222222222222\n");
