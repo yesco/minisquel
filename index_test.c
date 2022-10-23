@@ -89,6 +89,7 @@ int main(int argc, char** argv) {
       }
     }
     printf("join %ld s=%ld\n", n, s);
+    free(ix);
     exit(0);
   }
   
@@ -145,6 +146,8 @@ int main(int argc, char** argv) {
       a++;
     }
     printf("join < abba === %ld\n", n);
+
+    free(ix);
     exit(1);
   } else if (1) {
     // linear
@@ -206,10 +209,15 @@ int main(int argc, char** argv) {
 	//else printf("NOT FOUND!\n");
       }
   }
+
+  // Statistics/estamtes mem-usage
+  //
+  // 8 is the average waste in malloc ?
   printf("nstrdup=%ld bstrdup=%ld\n", nstrdup, bstrdup);
   printf("BYTES: %ld\n", bstrdup + ix->n*sizeof(keyoffset) + nstrdup*8);
   printf("ARRAY: %ld\n", rbytes + ix->n*(sizeof(char*)+sizeof(int)+8));
-  // 8 is the average waste in malloc
+
+  free(ix);
 }
 
 // 11 chars or 7 chars?

@@ -89,6 +89,13 @@ memindex* newindex(char* name, int max) {
   return ix;
 }
 
+void freeindex(memindex* ix) {
+  if (!ix) return;
+  free(ix->kos); ix->kos= NULL;
+  ix->max= 0;
+  free(ix);
+}
+
 int ensurix(memindex* ix, int n) {
   if (!ix) return 0;
   if (ix->max - ix->n > n) return 1;
