@@ -1,0 +1,13 @@
+a, b,  c   ,   d'd, "dddd
+foobar", "one,two", ONE\,TWO, 'STARTSTRING
+fish, "barf", 99
+ENDSTRING', 33, "foo\
+bar", 42, fie\
+fum, 444,\
+ENDFIRSTLINE
+next line, don't read
+,
+,,
+,,,
+"foo""
+bar", "fie'fum"

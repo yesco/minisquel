@@ -4,11 +4,13 @@
 (diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new && echo "OK - all tests passed") || {
 diff=$?
 
+diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new > test.diff
+
 echo
 echo
 echo
 echo "============================="
 echo "%%%%%% ERROR!"
-echo "check the diff!"
+echo "check the diff! ( test.diff )" 
 echo "(if it's ok: cp test.new test.out)"
 }

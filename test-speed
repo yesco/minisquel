@@ -1,3 +1,5 @@
+clang -O3 minisquel.c -o sql || exit 33
+
 echo "--- 1x then 10x happy file ---"
 #   download from:
 #   - https://raw.githubusercontent.com/megagonlabs/HappyDB/master/happydb/data/cleaned_hm.csv

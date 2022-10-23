@@ -1,0 +1,12 @@
+a,b,c,d,e,f,g,h
+QA-Q000630115728222,QA-A0926511569122067,"In 1687 John Phillips, Miltons nephew, produced a Don Quixote made English.",2017-03-07T00:00:00.000Z ,99, 999 ,9999,24h, 24h ,3,24, 24 ,    24     ,     24h          ,7
+99 x
+"foo" bar, "foo ", "bar " ,
+"foo""bar", 'foo"bar', "foo'bar", 'foo''bar'
+"foo\"bar", "fie\'fum", 'fie\'fum'
+" leading 1 space", "  leading 2 spaces"
+" 1 leading one later ","  two  before  and  after  "
+99,"99", 99, 99 , " 99 "
+a, a, a ,  a  ,a
+'a',' a',' a ','  a  ','a'
+foo\\bar\

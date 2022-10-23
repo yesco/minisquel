@@ -5,7 +5,7 @@
 #include <strings.h>
 #include <ctype.h>
 
-
+#include "utils.c"
 
 // freadCSV reads from FILE a STRING of MAXLEN
 // and sets a DOUBLE if it's a number.
@@ -103,24 +103,6 @@ int sreadCSV(char** f, char* s, int max, double* d) {
   return typ?typ:RNULL;
 }
 
-int min(int a, int b) { return a<b?a:b; }
-int max(int a, int b) { return a>b?a:b; }
-
-// To malloced string S
-// append N characters from ADD.
-//
-// Returns: realloced string, non-NULL.
-//
-// inputs can be NULL
-// n>=0 appends n chars
-// n<0 appends whole ADD
-char* strdupncat(char* s, int n, char* add) {
-  int l= min(n>=0?n:INT_MAX, add?strlen(add):0);
-  return strncat(
-    realloc(s?s:strdup(""), l+1+(s?strlen(s):1)),
-    add?add:"", l);
-}
-
 char* csvgetline(FILE* f) {
   char* r= NULL;
   size_t l= 0;
@@ -173,112 +155,26 @@ char* csvgetline(FILE* f) {
   return r;
 }
 
-int main(int argc, char** argv) {
-  if (0) {
-    {
-      char* s= strdupncat(strdup("foo"), -1, "bar");
-      printf(">%s<\n", s);
-      free(s);
-      s= NULL;
-    }
-    {
-      char* s= strdupncat(strdup("foo"), 2, "bar");
-      printf(">%s<\n", s);
-      free(s);
-    }
-    {
-      char* s= strdupncat(NULL, 2, NULL);
-      printf(">%s<  %p\n", s, s);
-      free(s);
-    }
-    {
-      char* s= strdupncat(strdup("fie\\\n"), -1, "fum");
-      printf(">%s<  %p\n", s, s);
-      free(s);
-    }
-    printf("\n==================\n\n\n");
-  }
+// TODO: https://en.m.wikipedia.org/wiki/Flat-file_database
+// - flat-file
+// - ; : TAB (modify below?)
 
-  if (0) {
-    {
-      FILE* f= fopen("nl.csv", "r");
-      char v[1024];
-      double d;
-      int r;
-      while((r= freadCSV(f, v, sizeof(v), &d))) {
-	if (r==RNULL) printf("NULL   ");
-	if (r==RNUM) printf("%lg   ", d);
-	if (r==RSTRING) printf(">%s<   ", v);
-	if (r==RNEWLINE) printf("\n");
-      }
-      fclose(f);
-    }
+//CSV: 2, 3x, 4, 5y , 6 , 7y => n,s,n,s,n,s
+//CSV: "foo", foo, "foo^Mbar"
+//CSV: "fooo""bar", "foo\"bar"
 
-    if (0) {
-      {
-	FILE* f= fopen("nl.csv", "r");
-	char* s= csvgetline(f);
-	printf("\n>>>%s<<<\n\n", s);
+// TODO: separator specified in file
+//   Sep=^    (excel)
+//   - https://en.m.wikipedia.org/wiki/Comma-separated_values
 
-	char v[1024];
-	double d;
-	int r;
-	char* ss= s;
-	while((r= sreadCSV(&ss, v, sizeof(v), &d))) {
-	  if (r==RNULL) printf("NULL   ");
-	  if (r==RNUM) printf("%lg   ", d);
-	  if (r==RSTRING) printf(">%s<   ", v);
-	  if (r==RNEWLINE) printf("\n");
-	}
+// TODO: mime/csv
+//   https://datatracker.ietf.org/doc/html/rfc4180
 
-	free(s);
-	fclose(f);
-      }
-    }
-  }
-
-  if (1) {
-    // reading csv lines and then parsing
-    // values is faster than
-    // setlinebuf, setbuffer and fgetc!
-    // 
-    // 0.45s for happy, getc.c 0.8s!
-    //
-    // 0.136s if remove sreadCSV!
-    //
-    
-    FILE* f= fopen("happy.csv", "r");
-
-for(int i=10; i; i--){ rewind(f);
-
-    int lines= 0;
-    while(!feof(f)) {
-      char* s= csvgetline(f);
-      if (!s) break;
-      lines++;
-      //printf("\n>>>%s<<<\n\n", s);
-      
-      char v[1024];
-      double d;
-      int r;
-      char* ss= s;
-    if (0)
-      while((r= sreadCSV(&ss, v, sizeof(v), &d))) {
-	if (0) {
-	  if (r==RNULL) printf("NULL   ");
-	  if (r==RNUM) printf("%lg   ", d);
-	  if (r==RSTRING) printf(">%s<   ", v);
-	  if (r==RNEWLINE) printf("\n");
-	}
-      }
-
-      free(s);
-    }
-    printf("lines=%d\n", lines);
-
-}  // rewwind
-
-    fclose(f);
-
-  }    
-}
+// TODO: extract cols/fields/rows from URL
+//   http://example.com/data.csv#row=4-7
+//   http://example.com/data.csv#col=2-*
+//   http://example.com/data.csv#cell=4,1
+//
+//   - https://datatracker.ietf.org/doc/html/rfc7111
+// TODO: null?
+//   - https://docs.snowflake.com/en/user-guide/data-unload-considerations.html

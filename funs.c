@@ -150,14 +150,14 @@ int sum(val* r, int n, val* a) {
   return 1;
 }
 
-int min(val* r, int n, val* a) {
+int _min(val* r, int n, val* a) {
   if (n!=1) return -1;
   agg_check("min", r, a);
   r->d= a->min;
   return 1;
 }
 
-int max(val* r, int n, val* a) {
+int _max(val* r, int n, val* a) {
   if (n!=1) return -1;
   agg_check("max", r, a);
   r->d= a->max;
@@ -218,8 +218,8 @@ void register_funcs() {
   // aggregators
   registerfun("count", count);
   registerfun("sum", sum);
-  registerfun("min", min);
-  registerfun("max", max);
+  registerfun("min", _min);
+  registerfun("max", _max);
   registerfun("avg", avg);
   registerfun("stdev", stdev);
 

@@ -1,0 +1,53 @@
+*~
+diff
+diff.c
+WWW
+Cache
+fil
+fil.c
+test.c
+stderr
+stdout
+wget-log*
+index.html*
+package-lock.json
+node_modules
+
+# - binaries
+*.x
+a.out
+Graphics/font8x8/render
+
+# - temp files
+*#*
+
+# - copyrighted can't checkin
+Tests/tables-advanced.moz
+Tests/html.com.tables
+
+Tests/*.com
+Tests/*.org
+Tests/*.se
+Tests/*.simple
+
+# - data files
+.wlog
+.whistory
+.wlinks
+.*.c
+.stdout
+.stderr
+#.*  # hmm ignores .gitignore?
+
+Graphics/*.pnm
+Graphics/*.gif
+Graphics/*.ico
+Graphics/*.jpeg
+Graphics/*.jpg
+Graphics/*.pbm
+Graphics/*.png
+Graphics/*.ANSI
+
+
+
+
