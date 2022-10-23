@@ -240,9 +240,18 @@ int main(int argc, char** argv) {
 
   // words
   nix= 0;
-  if (1) readwords("wordlist-1.1M.txt");
+  if (0) readwords("wordlist-1.1M.txt");
   else if (1) readwords("1.1million word list.txt");
   else readwords("wordlist-8K.txt");
+
+  printf("\n==WORDS! %ld\n\n", nix);
+
+  // on already sorted 67ms
+  // on 1.1mil.. 499ms
+  long sortms= timems();
+  printf("sorting...\n");
+  qsort(ix, nix, sizeof(keyoffset), cmpko);
+  printf("  sorting took %ld ms\n", timems()-sortms);
 
   printf("\n==WORDS! %ld\n\n", nix);
 
