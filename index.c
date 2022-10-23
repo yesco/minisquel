@@ -232,6 +232,8 @@ void readwords(char* filename) {
   printf("read %ld words from %s in %ld ms\n", n, filename, ms);
 }
 
+// ENDWCOUNT
+
 // - wget https://raw.githubusercontent.com/openethereum/wordlist/master/res/wordlist.txt
 // - wget https://download.weakpass.com/wordlists/1239/1.1million%20word%20list.txt.gz
 
