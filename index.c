@@ -199,11 +199,12 @@ keyoffset* searchix(char* s) {
   return NULL;
 }
 
-double drand(double min, double max) {
-  double range = (max - min); 
-  double div = RAND_MAX / range;
-  return min + (rand() / div);
-}
+// ENDWCOUNT
+
+// - wget https://raw.githubusercontent.com/openethereum/wordlist/master/res/wordlist.txt
+// - wget https://download.weakpass.com/wordlists/1239/1.1million%20word%20list.txt.gz
+
+#include <assert.h>
 
 #include "mytime.c"
 
@@ -231,13 +232,6 @@ void readwords(char* filename) {
   ms= timems()-ms;
   printf("read %ld words from %s in %ld ms\n", n, filename, ms);
 }
-
-// ENDWCOUNT
-
-// - wget https://raw.githubusercontent.com/openethereum/wordlist/master/res/wordlist.txt
-// - wget https://download.weakpass.com/wordlists/1239/1.1million%20word%20list.txt.gz
-
-#include <assert.h>
 
 int main(int argc, char** argv) {
   assert(sizeof(keyoffset)==16);
