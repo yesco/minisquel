@@ -32,12 +32,28 @@ typedef struct keyoffset {
   unsigned int o;  // 4 bytes
 } keyoffset;
 
+typedef struct lskeyoffset {
+  char* s; // heap allocated
+
+  char x[3];       // unused 3 bytes
+  char type;       // 1 byte type==1
+  unsigned int o;  // bytes
+} lskeyoffset;
+
 typedef struct dkeyoffset {
   double d;     // 8 bytes
   char x[3];    // unused 3 bytes
   char type;    // see keyoffset struct
   unsigned int o;  // 4 bytes
 } dkeyoffset;
+
+char* strix(keyoffset* a) {
+  if (!a->type) return &a->s;
+  if (a->type!=1) return "";
+  // long string
+  lskeyoffset* lsk= a;
+  return lsk->s;
+}
 
 #define IX_MAX 15*1024*1024
 keyoffset ix[IX_MAX]= {0};
@@ -46,11 +62,13 @@ int nix= 0;
 void printko(keyoffset* ko) {
   if (!ko) return;
   switch(ko->type) {
-  case 0: // string
-    if (*ko->s)
-      printf("IX> '%-16s' %3d  @%5d\n", ko->s, ko->type, ko->o);
+  case 1: // lstring
+  case 0: { // string
+    char *s= strix(ko);
+    if (*s) 
+      printf("IX> '%-16s' %3d  @%5d\n", s, ko->type, ko->o);
     else printf("IX> NULL\n");
-    break;
+    break; }
   case 16: { // double
     dkeyoffset* kd= (void*)ko;
     printf("IX> %18lg %3d  @%5d\n", kd->d, kd->type, kd->o); break; }
@@ -64,20 +82,24 @@ keyoffset* addix() {
     fprintf(stderr, "%% ERROR: INDEX FULL\n");
     exit(66);
   }
-  if (strlen(ko->s) > 11) {
-    // TODO:
-    fprintf(stderr, "%% ERROR: INDEX: str too long\n");
-    exit(33);
-  }
+
   return ko;
 }
   
+// is the string copied?
+// TODO: already allocated?
+//    take char** s !! set null!
 void sadd(char* s, int offset) {
   keyoffset* ko= addix();
-    
-  strncpy(ko->s, s, 12); // fills w zeros
-  ko->type= 0; // zeero-terminate/trunc
   ko->o= offset;
+  if (strlen(s) > 11) {
+    lskeyoffset* kls= (void*)ko;
+    kls->s= strdup(s);
+    kls->type= 1;
+  } else {
+    strncpy(ko->s, s, 12); // fills w zeros
+    ko->type= 0; // zeero-terminate/trunc
+  }
 }
     
 void dadd(double d, int offset) {
@@ -93,11 +115,6 @@ void printix() {
   for(int i=0; i<nix; i++)
     printko(ix + i);
   printf("--- %ld\n", nix);
-}
-
-char* strix(keyoffset* a) {
-  // TODO: handle different strings
-  return a;
 }
 
 long ncmpko= 0;
@@ -120,6 +137,7 @@ int cmpko(const void* a, const void* b) {
   if (ta != tb) return (tb > ta) - (ta > tb);
   // same type/compat
   switch(ta) {
+    // lstring and inline string
   case  0: return strncmp(strix(a), strix(b), 11);
   case 16: return (da > db) - (db > da);
   default: return 1;
@@ -247,13 +265,16 @@ int main(int argc, char** argv) {
     // - 32.8s          strcmp
     keyoffset* kf= findix("yoyo");
     if (!kf) kf= findix("york");
+    kf= findix("ABOVEGROUND-BULLETINS");
+    printf("FISH: ");
+    printko(kf);
     if (!kf) { printf("%%: ERROR no yoyo/york!\n"); exit(33); }
 
     long f= 0;
     //for(int i=0; i<10000000; i++) {
     //for(int i=0; i<100000; i++) {
     int n= 0;
-    for(int i=0; i<1000; i++) {
+    for(int i=0; i<10; i++) {
       keyoffset* end= ix+nix;
       keyoffset* p= ix;
       //fprintf(stderr, ".");
