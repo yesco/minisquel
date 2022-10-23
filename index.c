@@ -17,9 +17,7 @@
 #include <stdlib.h>
 
 typedef struct skeyoffset {
-  // TODO: make union so overlap w 
   char s[11];      // 11 chars
-  // TDOO: handle long strings
   // type 0 inline string/zero terminate!
   //      1 pointer tostring
   //      2 offset to string
@@ -52,6 +50,27 @@ typedef union keyoffset {
   lskeyoffset lstr;
   dkeyoffset dbl;
 } keyoffset;
+
+typedef struct newkeyoffset {
+  union choice {
+    char s[8];   // it's "really s[12];
+    char* lstr;  // to free
+    double d;
+  } val;
+  // overwritten by type=0: string
+  // TODO: used for other types
+  char x[3];
+  // type 0 & "\0" for inline string s[12]
+  //      0 NULL If all s[] == 0
+  //      1 pointer to string
+  //    ( 2 reserved - str )
+  //    ( 3 reserved - str )
+  //    ( 4 reserved - str )
+  //     16 double
+  // (  255 NULL 12 bytes 255! )
+  char type;
+  int o;
+} newkeyoffset;
 
 char* strix(const skeyoffset* a) {
   if (!a->type) return &a->s[0];
@@ -226,6 +245,16 @@ void readwords(char* filename) {
 // - wget https://download.weakpass.com/wordlists/1239/1.1million%20word%20list.txt.gz
 
 int main(int argc, char** argv) {
+  newkeyoffset nk= {0};
+  printf("newkeyoffset bytes=%lu\n", sizeof(newkeyoffset));
+
+  strcpy(nk.val.s, "foo");
+  nk.type= 0;
+
+  printko(&nk);
+  exit(1);
+
+  
   printf("pointer bytes=%lu\n", sizeof(argv));
   printf("skeyoffset bytes=%lu\n", sizeof(skeyoffset));
   printf("dkeyoffset bytes=%lu\n", sizeof(dkeyoffset));
