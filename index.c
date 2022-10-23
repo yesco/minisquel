@@ -13,6 +13,8 @@ typedef struct keyoffset {
   // type 0 inline string/zero terminate!
   //      1 pointer tostring
   //      2 offset to string
+  //      3 (str)
+  //      4 (str)
   //     16 double
   //    255 NULL 12 bytes 255!
   //  alt 0 NULL 12 bytes all null! (=="")
@@ -78,7 +80,14 @@ void printix() {
     printko(ix + i);
 }
 
+char* strix(keyoffset* a) {
+  // TODO: handle different strings
+  return a;
+}
+
+// NULL, '' <<< double <<< string
 int cmpkeyoffset(const void* a, const void* b) {
+  // TODO: too complicated
   keyoffset  *ka= a, *kb= b;
   int ta= ka->type, tb= kb->type;
   dkeyoffset *kda= a, *kdb= b;
@@ -86,11 +95,14 @@ int cmpkeyoffset(const void* a, const void* b) {
   // null? - smallest
   if (!ta && !*(ka->s)) ta= 255;
   if (!tb && !*(kb->s)) tb= 255;
+  // different strings
+  if (ta < 4) ta= 0;
+  if (tb < 4) tb= 0;
   // differnt type cmp typenumber!
   if (ta != tb) return (tb > ta) - (ta > tb);
   // same type/compat
   switch(ta) {
-  case  0: return strncmp(a, b, 11);
+  case  0: return strncmp(strix(a), strix(b), 11);
   case 16: return (da > db) - (db > da);
   default: return 1;
   }
