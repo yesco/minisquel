@@ -86,14 +86,23 @@ keyoffset* addix() {
   return ko;
 }
   
+long nstrdup= 0, bstrdup= 0;
+
 // is the string copied?
 // TODO: already allocated?
 //    take char** s !! set null!
 void sadd(char* s, int offset) {
   keyoffset* ko= addix();
   ko->o= offset;
+  // 1.1M word
+  // - 11 chars  99s
+  // -  7 chars 169s
+  
   if (strlen(s) > 11) {
+  //if (strlen(s) > 7) {
     lskeyoffset* kls= (void*)ko;
+    nstrdup++;
+    bstrdup+= strlen(s);
     kls->s= strdup(s);
     kls->type= 1;
   } else {
@@ -179,6 +188,8 @@ double drand(double min, double max) {
 
 #include "mytime.c"
 
+long rbytes= 0;
+
 void readwords(char* filename) {
   long ms= timems();
   FILE* f= fopen(filename, "r");
@@ -189,6 +200,7 @@ void readwords(char* filename) {
   while(getline(&w, &l, f)!=EOF) {
     n++;
     int l= strlen(w);
+    rbytes+= l;
     //printf("c=%d\n", w[l-1]);
     // stupid!
     if (l && w[l-1]==10) w[l---1]= 0;
@@ -238,10 +250,35 @@ int main(int argc, char** argv) {
     else printf("NOT FOUND!\n");
   }
 
+  // join counting
+  if (0) {
+    const long N= 1100000; // 1.1M
+    // const long N= 108000; // 108K
+
+    int* arr= malloc(N*sizeof(*arr));
+    for(long a=0; a<N; a++) {
+      arr[a]= a;
+    }
+
+    long n= 0;
+    long s= 0;
+    for(long a= 0; a<N; a++) {
+      for(long b=0; b<N; b++) {
+	if (a==b) {
+	  s+= arr[a]+arr[b];
+	  n++;
+	}
+      }
+    }
+    printf("join %ld s=%ld\n", n, s);
+    exit(0);
+  }
+  
   // words
   nix= 0;
   if (0) readwords("wordlist-1.1M.txt");
-  else if (1) readwords("1.1million word list.txt");
+  else if (1)
+readwords("1.1million word list.txt");
   else readwords("wordlist-8K.txt");
 
   printf("\n==WORDS! %ld\n\n", nix);
@@ -253,11 +290,45 @@ int main(int argc, char** argv) {
   qsort(ix, nix, sizeof(keyoffset), cmpko);
   printf("  sorting took %ld ms\n", timems()-sortms);
 
+
   printf("\n==WORDS! %ld\n\n", nix);
 
   //printix();
   
-  if (1) {
+  if (1) { // < 'abba' xproduct!
+    keyoffset* abba= findix("abba");
+    if (!abba) exit(11);
+
+    long n= 0;
+    keyoffset* a= ix;
+    while(a <= abba) {
+      keyoffset* b= ix;
+      while(b <= abba) {
+	// index.c - 2m15
+	//   join < abba === 8007892418
+	//   real  99s user  99s sys 0.258s
+	// DuckDB:
+	//   join < abba === 8007260837
+	//   real 119s user 299s sys 2s
+
+	// - 99s
+	// if (cmpko(a, b) < 0) { 
+	// - 67s strcmp...
+	//if (strcmp(strix(a), strix(b)) < 0) { 
+	// - 0.73s !!!
+	//   (DudkDB: 6.145s LOL)
+	if (1) {
+	// - 50s
+	//if (strcmp(strix(a), strix(abba)) < 0) {
+	  n++;
+	}
+	b++;
+      }
+      a++;
+    }
+    printf("join < abba === %ld\n", n);
+    exit(1);
+  } else if (1) {
     // linear
 
     // 11.83s 100K linear 7.7K words
@@ -285,6 +356,7 @@ int main(int argc, char** argv) {
     int n= 0;
     for(int i=0; i<10; i++) {
       keyoffset* end= ix+nix;
+
       keyoffset* p= ix;
       //fprintf(stderr, ".");
       while(p<end) {
@@ -302,7 +374,7 @@ int main(int argc, char** argv) {
     printf("Linear found %ld\n", f);
     printf("ncmpko=%ld\n", ncmpko);
     printf("neqko=%ld\n", neqko);
-    printf("n=%ld\n", n);
+    printf("n=%d\n", n);
   } else {
   // search
   // 10M times == 2.27s (8K words)
@@ -316,4 +388,60 @@ int main(int argc, char** argv) {
     //else printf("NOT FOUND!\n");
   }
   }
+  printf("nstrdup=%ld bstrdup=%ld\n", nstrdup, bstrdup);
+  printf("BYTES: %ld\n", bstrdup + nix*sizeof(keyoffset) + nstrdup*8);
+  printf("ARRAY: %ld\n", rbytes + nix*(sizeof(char*)+sizeof(int)+8));
+  // 8 is the average waste in malloc
 }
+
+// 11 chars or 7 chars?
+// 1111111111:
+// -----------
+// ==WORDS! 1049938
+/*
+
+read 1049938 words from 1.1million word list.txt in 453 ms
+
+==WORDS! 1049938
+
+sorting...
+  sorting took 270 ms
+
+==WORDS! 1049938
+
+FISH: IX> 'ABOVEGROUND-MISC'   1  @8686040
+Linear found 10
+ncmpko=22319090
+neqko=0
+n=1575970
+nstrdup=116029 bstrdup=1605328
+BYTES: 19332568
+ARRAY: 31388379
+
+(/ 19.33 31.389) = 0.61   39% better!
+*/
+
+
+/* 777777777777777777
+
+read 1049938 words from 1.1million word list.txt in 486 ms
+
+==WORDS! 1049938
+
+sorting...
+  sorting took 584 ms
+
+==WORDS! 1049938
+
+FISH: IX> 'ABOVEGROUND-MISC'   1  @8686040
+Linear found 10
+ncmpko=22319090
+neqko=0
+n=1575970
+nstrdup=535835 bstrdup=5371271
+BYTES: 26456959
+ARRAY: 31388379
+
+(/ 26.46 31.39) = 0.84   16% better...
+
+ */
