@@ -39,7 +39,7 @@ typedef struct dkeyoffset {
   unsigned int o;  // 4 bytes
 } dkeyoffset;
 
-#define IX_MAX 10*1024
+#define IX_MAX 15*1024*1024
 keyoffset ix[IX_MAX]= {0};
 int nix= 0;
 
@@ -61,12 +61,12 @@ void printko(keyoffset* ko) {
 keyoffset* addix() {
   keyoffset* ko= ix + nix++;
   if (nix >= IX_MAX) {
-    fprintf(stderr, "INDEX FULL\n");
+    fprintf(stderr, "%% ERROR: INDEX FULL\n");
     exit(66);
   }
   if (strlen(ko->s) > 11) {
     // TODO:
-    fprintf(stderr, "INDEX: str too long\n");
+    fprintf(stderr, "%% ERROR: INDEX: str too long\n");
     exit(33);
   }
   return ko;
@@ -100,9 +100,11 @@ char* strix(keyoffset* a) {
   return a;
 }
 
+long ncmpko= 0;
 // NULL, '' <<< double <<< string
 int cmpko(const void* a, const void* b) {
   //printf("CMD "); printko(a); printf("     "); printko(b); printf("\n");
+  ncmpko++;
   // TODO: too complicated!
   keyoffset  *ka= a, *kb= b;
   int ta= ka->type, tb= kb->type;
@@ -124,7 +126,9 @@ int cmpko(const void* a, const void* b) {
   }
 }
 
+long neqko= 0;
 int eqko(keyoffset* a, keyoffset* b) {
+  neqko++;
   if (a==b) return 1;
   unsigned long la= *(unsigned long*)a;
   unsigned long lb= *(unsigned long*)b;
@@ -155,19 +159,32 @@ double drand(double min, double max) {
   return min + (rand() / div);
 }
 
+#include "mytime.c"
+
 void readwords(char* filename) {
+  long ms= timems();
   FILE* f= fopen(filename, "r");
   if (!f) exit(66);
   char* w= NULL;
   size_t l= 0;
+  long n= 0;
   while(getline(&w, &l, f)!=EOF) {
+    n++;
     int l= strlen(w);
-    if (l && w[l-1]=='\n') w[l-1]= 0;
+    //printf("c=%d\n", w[l-1]);
+    // stupid!
+    if (l && w[l-1]==10) w[l---1]= 0;
+    if (l && w[l-1]==13) w[l---1]= 0;
     sadd(w, ftell(f));
   }
   fclose(f);
   free(w);
+  ms= timems()-ms;
+  printf("read %ld words from %s in %ld ms\n", n, filename, ms);
 }
+
+// - wget https://raw.githubusercontent.com/openethereum/wordlist/master/res/wordlist.txt
+// - wget https://download.weakpass.com/wordlists/1239/1.1million%20word%20list.txt.gz
 
 int main(int argc, char** argv) {
   printf("pointer bytes=%lu\n", sizeof(argv));
@@ -205,9 +222,14 @@ int main(int argc, char** argv) {
 
   // words
   nix= 0;
-  readwords("wordlist-8K.txt");
-  //printix();
+  if (1) readwords("wordlist-1.1M.txt");
+  else if (1) readwords("1.1million word list.txt");
+  else readwords("wordlist-8K.txt");
 
+  printf("\n==WORDS! %ld\n\n", nix);
+
+  //printix();
+  
   if (1) {
     // linear
 
@@ -216,17 +238,31 @@ int main(int argc, char** argv) {
     // 3.34s 100K eqko !
     // 3.00s 100K strcmp (break f ptr)
     // = 100K * 7.7K= 770M tests
+    //
+    // 1.1M words
+    // - 5.67s 1000x linear cmpko
+    //   -0#: 6.34s
+    // - 7.2s 10K linear eqko
+    //   (63s if no opt 3!)
+    // - 32.8s          strcmp
     keyoffset* kf= findix("yoyo");
+    if (!kf) kf= findix("york");
+    if (!kf) { printf("%%: ERROR no yoyo/york!\n"); exit(33); }
 
     long f= 0;
     //for(int i=0; i<10000000; i++) {
-    for(int i=0; i<100000; i++) {
+    //for(int i=0; i<100000; i++) {
+    int n= 0;
+    for(int i=0; i<1000; i++) {
       keyoffset* end= ix+nix;
       keyoffset* p= ix;
-      while(ix<end) {
-	//if (0==cmpko(kf, p)) break;
+      //fprintf(stderr, ".");
+      while(p<end) {
+	n++;
+	n+= i;
+	if (0==cmpko(kf, p)) break;
 	//if (eqko(kf, p)) break;
-	if (0==strcmp(kf, p)) break;
+	//if (0==strcmp(kf, p)) break;
 	p++;
       }
       if (ix>=end) p= NULL;
@@ -234,6 +270,9 @@ int main(int argc, char** argv) {
       f++;
     }
     printf("Linear found %ld\n", f);
+    printf("ncmpko=%ld\n", ncmpko);
+    printf("neqko=%ld\n", neqko);
+    printf("n=%ld\n", n);
   } else {
   // search
   // 10M times == 2.27s (8K words)
