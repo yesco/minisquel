@@ -3,6 +3,16 @@
 //    2022 (c) jsk@yesco.org
 //
 
+// an idea for in-mmeory index storage
+// - keyoffset entries: string/double
+// - double inline in 8 bytes + type
+// - null is an empty string = 0...0
+// - strings <11 chars inline
+// - longer strings, is pointed to
+//
+// - hashstrings/atoms for longer strs
+// - reference counting
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -37,10 +47,13 @@ void printko(keyoffset* ko) {
   if (!ko) return;
   switch(ko->type) {
   case 0: // string
-    printf("IX> %-16s'  %d3  @%5d\n", ko->s, ko->type, ko->o); break;
+    if (*ko->s)
+      printf("IX> '%-16s' %3d  @%5d\n", ko->s, ko->type, ko->o);
+    else printf("IX> NULL\n");
+    break;
   case 16: { // double
     dkeyoffset* kd= (void*)ko;
-    printf("IX>  %16lg %3d  @%5d\n", kd->d, kd->type, kd->o); break; }
+    printf("IX> %18lg %3d  @%5d\n", kd->d, kd->type, kd->o); break; }
   default: printf("IX> Unknown type=%d\n", ko->type);
   }
 }
@@ -52,6 +65,7 @@ keyoffset* addix() {
     exit(66);
   }
   if (strlen(ko->s) > 11) {
+    // TODO:
     fprintf(stderr, "INDEX: str too long\n");
     exit(33);
   }
@@ -87,6 +101,7 @@ char* strix(keyoffset* a) {
 
 // NULL, '' <<< double <<< string
 int cmpkeyoffset(const void* a, const void* b) {
+  //printf("CMD "); printko(a); printf("     "); printko(b); printf("\n");
   // TODO: too complicated
   keyoffset  *ka= a, *kb= b;
   int ta= ka->type, tb= kb->type;
@@ -110,7 +125,10 @@ int cmpkeyoffset(const void* a, const void* b) {
 
 // returns NULL or found keyoffset
 keyoffset* findix(char* s) {
-  return bsearch(s, ix, nix, sizeof(keyoffset), cmpkeyoffset);
+  keyoffset ks= {0};
+  strncpy(ks.s, s, 12);
+  ks.type= 0;
+  return bsearch(&ks, ix, nix, sizeof(keyoffset), cmpkeyoffset);
 }
 
 // return -1, or index position where >= s
@@ -118,6 +136,13 @@ keyoffset* findix(char* s) {
 keyoffset* searchix(char* s) {
   return NULL;
 }
+
+double drand(double min, double max) {
+  double range = (max - min); 
+  double div = RAND_MAX / range;
+  return min + (rand() / div);
+}
+
 
 int main(int argc, char** argv) {
   printf("pointer bytes=%lu\n", sizeof(argv));
@@ -147,7 +172,7 @@ int main(int argc, char** argv) {
   // search
   char *f= "fum";
   printf("\nFIND '%s' \n  ", f);
-  keyoffset* ks= findix(f);
-  if (ks) printko(ks);
+  keyoffset* kf= findix(f);
+  if (kf) printko(kf);
   else printf("NOT FOUND!\n");
 }
