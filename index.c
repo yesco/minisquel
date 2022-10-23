@@ -15,6 +15,7 @@ typedef struct keyoffset {
   //      2 offset to string
   //      3 double
   //    255 NULL 12 bytes 255!
+  //  alt 0 NULL 12 bytes all null! (=="")
   char type;       // 1 type/zero terminator
   unsigned int o;  // 4 bytes
 } keyoffset;
@@ -57,7 +58,13 @@ void printix() {
 }
 
 int cmpkeyoffset(const void* a, const void* b) {
+  // implement for all types!
   return memcmp(a, b, sizeof(((keyoffset*)0)->s));
+}
+
+// return -1, or index position where >= s
+keyoffset* searchix(char* s) {
+  return bsearch(s, ix, nix, sizeof(keyoffset), cmpkeyoffset);
 }
 
 int main(int argc, char** argv) {
@@ -68,7 +75,7 @@ int main(int argc, char** argv) {
   keyoffset ko= {.type= 77, .o=4711};
   printf("%-16s %d %d\n", ko.s, ko.type, ko.o);
   strncpy(ko.s, "ABCDEFGHIJKLMNO", 12);
-  ko.type= 0;
+  ko.typezero= 0;
   printf("%-16s %d %d\n", ko.s, ko.type, ko.o);
   add("foo", 2);
   add("bar", 3);
@@ -81,4 +88,7 @@ int main(int argc, char** argv) {
   //qsort(ix, sizeof(ix)/sizeof(*ix), sizeof(*ix), cmpkeyoffset);
   qsort(ix, nix, sizeof(keyoffset), cmpkeyoffset);
   printix();
+
+  keyoffset* ks= searchix("fum");
+  printko(ks);
 }
