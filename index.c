@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define GROWIX 1000
+
 typedef struct keyoffset {
   union choice {
     char s[8];   // it's "really s[12];
@@ -63,29 +65,53 @@ void printko(keyoffset* ko) {
   }
 }
 
+// Indexing
+///////////
 
+typedef struct memindex {
+  char* name;
+  int n;
+  int max;
+  keyoffset *kos;
+} memindex;
 
+memindex* newindex(char* name, int max) {
+  if (max < 100) max= 100;
+  keyoffset* kos= calloc(max, sizeof(keyoffset));
+  if (!kos) return NULL;
+  memindex* ix= calloc(1, sizeof(memindex));
+  if (!ix) { free(kos); return NULL; }
 
-#define IX_MAX 15*1024*1024
-keyoffset ix[IX_MAX]= {0};
-int nix= 0;
+  ix->name= name;
+  ix->n= 0;
+  ix->max= max;
+  ix->kos= kos;
+  return ix;
+}
 
+int ensurix(memindex* ix, int n) {
+  if (!ix) return 0;
+  if (ix->max - ix->n > n) return 1;
+  int max= ix->max + n + GROWIX;
+  // potentially big allocation, can fail!
+  keyoffset* kos= realloc(ix->kos, max * sizeof(keyoffset));
+  if (!kos) {
+    fprintf(stderr, "%% WARNING: ensurix - Allocation failed!\n)"); return 0; }
+  ix->kos= kos;
+  ix->max= max;
+  return 1;
+}
 
-keyoffset* addix() {
-  keyoffset* ko= ix + nix++;
-  if (nix >= IX_MAX) {
-    fprintf(stderr, "%% ERROR: INDEX FULL\n");
-    exit(66);
-  }
-
-  return ko;
+keyoffset* addix(memindex* ix) {
+  if (!ensurix(ix, 1)) return NULL;
+  return ix->kos + ix->n++;
 }
   
 long nstrdup= 0, bstrdup= 0;
 
 void setstrko(keyoffset* ko, char* s) {
-  // 1.1M word
-  // - 11 chars  99s
+  // 1.1M words
+  // - 11 chars  99s  <--- !
   // -  7 chars 169s
   size_t len= strlen(s);
   if (len > 11) {
@@ -113,8 +139,8 @@ void cleanko(keyoffset* ko) {
 // is the string copied?
 // TODO: already allocated?
 //    take char** s !! set null!
-keyoffset* sixadd(char* s, int offset) {
-  keyoffset* ko= addix();
+keyoffset* sixadd(memindex* i, char* s, int offset) {
+  keyoffset* ko= addix(i);
   if (!ko) return NULL;
   ko->o= offset;
 
@@ -122,8 +148,8 @@ keyoffset* sixadd(char* s, int offset) {
   return ko;
 }
     
-keyoffset* dixadd(double d, int offset) {
-  keyoffset* ko= (void*) addix();
+keyoffset* dixadd(memindex* i, double d, int offset) {
+  keyoffset* ko= addix(i);
   if (!ko) return NULL;
   ko->o= offset;
 
@@ -133,27 +159,30 @@ keyoffset* dixadd(double d, int offset) {
   return ko;
 }
     
-void printix() {
+void printix(memindex* ix) {
   printf("\n==========\n");
-  for(int i=0; i<nix; i++)
-    printko(ix + i);
-  printf("--- %d\n", nix);
+  for(int i=0; i<ix->n; i++)
+    printko(ix->kos + i);
+  printf("--- %d\n", ix->n);
 }
 
 long ncmpko= 0;
 
 // ORDER: null=='' <<< double <<< string
 int cmpko(const void* va, const void* vb) {
-  //printf("CMD "); printko(a); printf("     "); printko(b); printf("\n");
-  ncmpko++;
-  // TODO: too complicated!
   const keyoffset *a= va, *b= vb;
-  int ta= a->type, tb= b->type;
+  ncmpko++;
 
+  //printf("CMD "); printko(a); printf("     "); printko(b); printf("\n");
+
+  // TODO: too complicated!
+
+  // - TYPE comparisons
+  int ta= a->type, tb= b->type;
   // null? - smallest
   if (!ta && !*(a->val.s)) ta= 255;
   if (!tb && !*(b->val.s)) tb= 255;
-  // different strings
+  // different string types
   if (ta < 4) ta= 0;
   if (tb < 4) tb= 0;
   // differnt type cmp typenumber!
@@ -182,11 +211,11 @@ int eqko(keyoffset* a, keyoffset* b) {
 }
 
 // returns NULL or found keyoffset
-keyoffset* sfindix(char* s) {
+keyoffset* sfindix(memindex* i, char* s) {
   keyoffset ko= {0};
   setstrko(&ko, s);
 
-  keyoffset* r= bsearch(&ko, ix, nix, sizeof(keyoffset), cmpko);
+  keyoffset* r= bsearch(&ko, i->kos, i->n, sizeof(keyoffset), cmpko);
 
   cleanko(&ko);
   return r;
@@ -199,6 +228,8 @@ keyoffset* searchix(char* s) {
   return NULL;
 }
 
+
+
 // ENDWCOUNT
 
 // - wget https://raw.githubusercontent.com/openethereum/wordlist/master/res/wordlist.txt
@@ -210,7 +241,7 @@ keyoffset* searchix(char* s) {
 
 long rbytes= 0;
 
-void readwords(char* filename) {
+void readwords(memindex* i, char* filename) {
   long ms= timems();
   FILE* f= fopen(filename, "r");
   if (!f) exit(66);
@@ -225,7 +256,7 @@ void readwords(char* filename) {
     // stupid!
     if (l && w[l-1]==10) w[l---1]= 0;
     if (l && w[l-1]==13) w[l---1]= 0;
-    sixadd(w, ftell(f));
+    sixadd(i, w, ftell(f));
   }
   fclose(f);
   free(w);
@@ -233,35 +264,41 @@ void readwords(char* filename) {
   printf("read %ld words from %s in %ld ms\n", n, filename, ms);
 }
 
+void sortix(memindex* i) {
+  if (!i) return;
+  qsort(i->kos, i->n, sizeof(keyoffset), cmpko);
+}
+
 int main(int argc, char** argv) {
+  memindex* ix= newindex("test", 0);
+  
   assert(sizeof(keyoffset)==16);
-  printf("newkeyoffset bytes=%lu\n", sizeof(keyoffset));
+  printf("keyoffset bytes=%lu\n", sizeof(keyoffset));
 
   keyoffset ko= {.type= 77, .o=4711};
   printf("%-16s %d %d\n", ko.val.s, ko.type, ko.o);
   strncpy(ko.val.s, "ABCDEFGHIJKLMNO", 12);
   ko.type= 0;
   printf("%-16s %d %d\n", ko.val.s, ko.type, ko.o);
-  (void)dixadd(-99, 23);
-  (void)sixadd("foo", 2);
-  (void)sixadd("bar", 3);
-  (void)sixadd("fie", 5);
-  (void)sixadd("fum", 7);
-  (void)sixadd("foobar", 11);
-  (void)sixadd("abba", 13);
-  (void)dixadd(111, 17);
-  (void)dixadd(22, 19);
-  (void)sixadd("", 23);
-  printix();
+  (void)dixadd(ix, -99, 23);
+  (void)sixadd(ix, "foo", 2);
+  (void)sixadd(ix, "bar", 3);
+  (void)sixadd(ix, "fie", 5);
+  (void)sixadd(ix, "fum", 7);
+  (void)sixadd(ix, "foobar", 11);
+  (void)sixadd(ix,"abba", 13);
+  (void)dixadd(ix, 111, 17);
+  (void)dixadd(ix, 22, 19);
+  (void)sixadd(ix, "", 23);
+  printix(ix);
 
-  qsort(ix, nix, sizeof(keyoffset), cmpko);
-  printix();
-
+  sortix(ix);
+  
   // search
   {
     char *f= "fum";
     printf("\nFIND '%s' \n  ", f);
-    keyoffset* kf= sfindix(f);
+    keyoffset* kf= sfindix(ix, f);
     if (kf) printko(kf);
     else printf("NOT FOUND!\n");
   }
@@ -291,34 +328,34 @@ int main(int argc, char** argv) {
   }
   
   // words
-  nix= 0;
-  if (0) readwords("wordlist-1.1M.txt");
+  ix->n= 0;
+  if (0) readwords(ix, "wordlist-1.1M.txt");
   else if (1)
-readwords("1.1million word list.txt");
-  else readwords("wordlist-8K.txt");
+    readwords(ix, "1.1million word list.txt");
+  else readwords(ix, "wordlist-8K.txt");
 
-  printf("\n==WORDS! %d\n\n", nix);
+  printf("\n==WORDS! %d\n\n", ix->n);
 
   // on already sorted 67ms
   // on 1.1mil.. 499ms
   long sortms= timems();
   printf("sorting...\n");
-  qsort(ix, nix, sizeof(keyoffset), cmpko);
+  sortix(ix);
   printf("  sorting took %ld ms\n", timems()-sortms);
 
 
-  printf("\n==WORDS! %d\n\n", nix);
+  printf("\n==WORDS! %d\n\n", ix->n);
 
   //printix();
   
   if (1) { // < 'abba' xproduct!
-    keyoffset* abba= sfindix("abba");
+    keyoffset* abba= sfindix(ix, "abba");
     if (!abba) exit(11);
 
     long n= 0;
-    keyoffset* a= ix;
+    keyoffset* a= ix->kos;
     while(a <= abba) {
-      keyoffset* b= ix;
+      keyoffset* b= ix->kos;
       while(b <= abba) {
 	// index.c - 2m15
 	//   join < abba === 8007892418
@@ -334,8 +371,8 @@ readwords("1.1million word list.txt");
 	// - 0.73s !!!
 	//   (DudkDB: 6.145s LOL)
 	if (1) {
-	// - 50s
-	//if (strcmp(strix(a), strix(abba)) < 0) {
+	  // - 50s
+	  //if (strcmp(strix(a), strix(abba)) < 0) {
 	  n++;
 	}
 	b++;
@@ -359,9 +396,9 @@ readwords("1.1million word list.txt");
     // - 7.2s 10K linear eqko
     //   (63s if no opt 3!)
     // - 32.8s          strcmp
-    keyoffset* kf= sfindix("yoyo");
-    if (!kf) kf= sfindix("york");
-    kf= sfindix("ABOVEGROUND-BULLETINS");
+    keyoffset* kf= sfindix(ix, "yoyo");
+    if (!kf) kf= sfindix(ix, "york");
+    kf= sfindix(ix, "ABOVEGROUND-BULLETINS");
     printf("FISH: ");
     printko(kf);
     if (!kf) { printf("%%: ERROR no yoyo/york!\n"); exit(33); }
@@ -371,9 +408,9 @@ readwords("1.1million word list.txt");
     //for(int i=0; i<100000; i++) {
     int n= 0;
     for(int i=0; i<10; i++) {
-      keyoffset* end= ix + nix;
+      keyoffset* end= ix->kos + ix->n;
 
-      keyoffset* p= ix;
+      keyoffset* p= ix->kos;
       //fprintf(stderr, ".");
       while(p<end) {
 	n++;
@@ -383,7 +420,7 @@ readwords("1.1million word list.txt");
 	//if (0==strcmp(kf, p)) break;
 	p++;
       }
-      if (ix >= end) p= NULL;
+      if (p >= end) p= NULL;
       if (!p) { printf("ERROR\n"); exit(33); }
       f++;
     }
@@ -392,21 +429,21 @@ readwords("1.1million word list.txt");
     printf("neqko=%ld\n", neqko);
     printf("n=%d\n", n);
   } else {
-  // search
-  // 10M times == 2.27s (8K words)
-  for(int i=0; i<10000000; i++)
-  {
-    char *f= "yoyo";
-    //printf("\nFIND '%s' \n  ", f);
-    keyoffset* kf= sfindix(f);
-    if (!kf) { printf("ERROR"); exit(3); }
-    //if (kf) printko(kf);
-    //else printf("NOT FOUND!\n");
-  }
+    // search
+    // 10M times == 2.27s (8K words)
+    for(int i=0; i<10000000; i++)
+      {
+	char *f= "yoyo";
+	//printf("\nFIND '%s' \n  ", f);
+	keyoffset* kf= sfindix(ix, f);
+	if (!kf) { printf("ERROR"); exit(3); }
+	//if (kf) printko(kf);
+	//else printf("NOT FOUND!\n");
+      }
   }
   printf("nstrdup=%ld bstrdup=%ld\n", nstrdup, bstrdup);
-  printf("BYTES: %ld\n", bstrdup + nix*sizeof(keyoffset) + nstrdup*8);
-  printf("ARRAY: %ld\n", rbytes + nix*(sizeof(char*)+sizeof(int)+8));
+  printf("BYTES: %ld\n", bstrdup + ix->n*sizeof(keyoffset) + nstrdup*8);
+  printf("ARRAY: %ld\n", rbytes + ix->n*(sizeof(char*)+sizeof(int)+8));
   // 8 is the average waste in malloc
 }
 
@@ -416,48 +453,48 @@ readwords("1.1million word list.txt");
 // ==WORDS! 1049938
 /*
 
-read 1049938 words from 1.1million word list.txt in 453 ms
+  read 1049938 words from 1.1million word list.txt in 453 ms
 
-==WORDS! 1049938
+  ==WORDS! 1049938
 
-sorting...
+  sorting...
   sorting took 270 ms
 
-==WORDS! 1049938
+  ==WORDS! 1049938
 
-FISH: IX> 'ABOVEGROUND-MISC'   1  @8686040
-Linear found 10
-ncmpko=22319090
-neqko=0
-n=1575970
-nstrdup=116029 bstrdup=1605328
-BYTES: 19332568
-ARRAY: 31388379
+  FISH: IX> 'ABOVEGROUND-MISC'   1  @8686040
+  Linear found 10
+  ncmpko=22319090
+  neqko=0
+  n=1575970
+  nstrdup=116029 bstrdup=1605328
+  BYTES: 19332568
+  ARRAY: 31388379
 
-(/ 19.33 31.389) = 0.61   39% better!
+  (/ 19.33 31.389) = 0.61   39% better!
 */
 
 
 /* 777777777777777777
 
-read 1049938 words from 1.1million word list.txt in 486 ms
+   read 1049938 words from 1.1million word list.txt in 486 ms
 
-==WORDS! 1049938
+   ==WORDS! 1049938
 
-sorting...
-  sorting took 584 ms
+   sorting...
+   sorting took 584 ms
 
-==WORDS! 1049938
+   ==WORDS! 1049938
 
-FISH: IX> 'ABOVEGROUND-MISC'   1  @8686040
-Linear found 10
-ncmpko=22319090
-neqko=0
-n=1575970
-nstrdup=535835 bstrdup=5371271
-BYTES: 26456959
-ARRAY: 31388379
+   FISH: IX> 'ABOVEGROUND-MISC'   1  @8686040
+   Linear found 10
+   ncmpko=22319090
+   neqko=0
+   n=1575970
+   nstrdup=535835 bstrdup=5371271
+   BYTES: 26456959
+   ARRAY: 31388379
 
-(/ 26.46 31.39) = 0.84   16% better...
+   (/ 26.46 31.39) = 0.84   16% better...
 
- */
+*/
