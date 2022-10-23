@@ -874,16 +874,18 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
 
 // TODO: take delimiter as argument?
 // TODO: too big!
-int TABCSV(FILE* f, char* table, char* selexpr) {
+//
+// header, if given, is free:d
+int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   int nvars= varcount;
   char* saved= ps;
 
   char* cols[MAXCOLS]= {0};
 
   // parse header col names
-  char* header= NULL;
+  //char* header= NULL;
   size_t hlen= 0;
-  getline(&header, &hlen, f);
+  if (!header) getline(&header, &hlen, f);
 
   char* h= header;
   // TODO: read w freadCSV()
@@ -924,6 +926,7 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
   //   happy.csv: 136ms csvgetline;
   //              450ms with freadCSV !
   while((r= freadCSV(f, s, sizeof(s), &d))) {
+    //printf("---CSV: %d %lg >%s<\n", r, d, s);
     if (r==RNEWLINE) {
       readrows++;
       // store offset of start of row
@@ -953,6 +956,7 @@ int TABCSV(FILE* f, char* table, char* selexpr) {
     // TODO: use setnum, setstr,setvartype?
     clearval(&vals[col]);
 
+    //printf("GOTVALUE col=%s\n", cols[col]);
     vals[col].not_null= (r != RNULL);
     if (r==RNULL) ;
     else if (r==RNUM) vals[col].d= d;
@@ -1007,7 +1011,22 @@ int from_list(char* selexpr) {
   // dispatch to named iterator
   if (0==strcmp("int", spec)) INT(selexpr);
   else {
-    // foo.csv foo
+    // Parse header:
+    // - foo.csv(COL, COL..) foo
+    char* header= NULL;
+    if (gotc('(')) {
+      spcs();
+      header= ps;
+      while(!end()) {
+	char col[NAMELEN]= {0};
+	if (!getname(col)) expected("colname");
+	spcs();
+	if (gotc(')')) break;
+	if (!gotc(',')) expected("colname list");
+      }
+      header= strndup(header, ps-header-1);
+    }
+    // - foo.csv TABALIAS
     char table[NAMELEN]= {0};
     // TODO: how NOT to read "where"
     if (!getname(table)) expected2("table alias", spec);
@@ -1019,7 +1038,8 @@ int from_list(char* selexpr) {
     if (!f) error(spec);
 
     // TODO: fil.csv("a,b,c") == header
-    TABCSV(f, table, selexpr);
+    TABCSV(f, table, header, selexpr);
+
     // TODO: json
     // TODO: xml
     // TODO: passwd styhle "foo:bar:fie"
