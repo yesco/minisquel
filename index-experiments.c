@@ -4,7 +4,7 @@
 //
 
 // an idea for in-mmeory index storage
-// - skeyoffset entries: string/double
+// - keyoffset entries: string/double
 // - double inline in 8 bytes + type
 // - null is an empty string = 0...0
 // - strings <11 chars inline
@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct skeyoffset {
+typedef struct keyoffset {
   // TODO: make union so overlap w 
   char s[11];      // 11 chars
   // TDOO: handle long strings
@@ -30,7 +30,7 @@ typedef struct skeyoffset {
   //  alt 0 NULL 12 bytes all null! (=="")
   char type;       // 1 type/zero terminator
   unsigned int o;  // 4 bytes
-} skeyoffset;
+} keyoffset;
 
 typedef struct lskeyoffset {
   char* s; // heap allocated
@@ -43,47 +43,38 @@ typedef struct lskeyoffset {
 typedef struct dkeyoffset {
   double d;     // 8 bytes
   char x[3];    // unused 3 bytes
-  char type;    // see skeyoffset struct
+  char type;    // see keyoffset struct
   unsigned int o;  // 4 bytes
 } dkeyoffset;
 
-typedef union keyoffset {
-  skeyoffset str;
-  lskeyoffset lstr;
-  dkeyoffset dbl;
-} keyoffset;
-
-char* strix(const skeyoffset* a) {
-  if (!a->type) return &a->s[0];
+char* strix(keyoffset* a) {
+  if (!a->type) return &a->s;
   if (a->type!=1) return "";
   // long string
-  return ((lskeyoffset*)a)->s;
+  lskeyoffset* lsk= a;
+  return lsk->s;
 }
-
-void printko(keyoffset* ko) {
-  if (!ko) return;
-  switch(ko->str.type) {
-  case 1: // lstring
-  case 0: { // string
-    char *s= strix(&(ko->str));
-    if (*s) 
-      printf("IX> '%-16s' %3d  @%5d\n", s, ko->str.type, ko->str.o);
-    else printf("IX> NULL\n");
-    break; }
-  case 16: { // double
-    dkeyoffset* kd= (void*)ko;
-    printf("IX> %18lg %3d  @%5d\n", kd->d, kd->type, kd->o); break; }
-  default: printf("IX> Unknown type=%d\n", ko->str.type);
-  }
-}
-
-
-
 
 #define IX_MAX 15*1024*1024
 keyoffset ix[IX_MAX]= {0};
 int nix= 0;
 
+void printko(keyoffset* ko) {
+  if (!ko) return;
+  switch(ko->type) {
+  case 1: // lstring
+  case 0: { // string
+    char *s= strix(ko);
+    if (*s) 
+      printf("IX> '%-16s' %3d  @%5d\n", s, ko->type, ko->o);
+    else printf("IX> NULL\n");
+    break; }
+  case 16: { // double
+    dkeyoffset* kd= (void*)ko;
+    printf("IX> %18lg %3d  @%5d\n", kd->d, kd->type, kd->o); break; }
+  default: printf("IX> Unknown type=%d\n", ko->type);
+  }
+}
 
 keyoffset* addix() {
   keyoffset* ko= ix + nix++;
@@ -101,7 +92,7 @@ long nstrdup= 0, bstrdup= 0;
 // TODO: already allocated?
 //    take char** s !! set null!
 void sadd(char* s, int offset) {
-  skeyoffset* ko= addix();
+  keyoffset* ko= addix();
   ko->o= offset;
   // 1.1M word
   // - 11 chars  99s
@@ -132,7 +123,7 @@ void printix() {
   printf("\n==========\n");
   for(int i=0; i<nix; i++)
     printko(ix + i);
-  printf("--- %d\n", nix);
+  printf("--- %ld\n", nix);
 }
 
 long ncmpko= 0;
@@ -141,7 +132,7 @@ int cmpko(const void* a, const void* b) {
   //printf("CMD "); printko(a); printf("     "); printko(b); printf("\n");
   ncmpko++;
   // TODO: too complicated!
-  skeyoffset  *ka= a, *kb= b;
+  keyoffset  *ka= a, *kb= b;
   int ta= ka->type, tb= kb->type;
   dkeyoffset *kda= a, *kdb= b;
   double da= kda->d, db= kdb->d;
@@ -163,7 +154,7 @@ int cmpko(const void* a, const void* b) {
 }
 
 long neqko= 0;
-int eqko(skeyoffset* a, skeyoffset* b) {
+int eqko(keyoffset* a, keyoffset* b) {
   neqko++;
   if (a==b) return 1;
   unsigned long la= *(unsigned long*)a;
@@ -175,17 +166,17 @@ int eqko(skeyoffset* a, skeyoffset* b) {
   return 0==cmpko(a, b);
 }
 
-// returns NULL or found skeyoffset
-skeyoffset* findix(char* s) {
-  skeyoffset ks= {0};
+// returns NULL or found keyoffset
+keyoffset* findix(char* s) {
+  keyoffset ks= {0};
   strncpy(ks.s, s, 12);
   ks.type= 0;
-  return bsearch(&ks, ix, nix, sizeof(skeyoffset), cmpko);
+  return bsearch(&ks, ix, nix, sizeof(keyoffset), cmpko);
 }
 
 // return -1, or index position where >= s
 // TODO: this only finds exact match!
-skeyoffset* searchix(char* s) {
+keyoffset* searchix(char* s) {
   return NULL;
 }
 
@@ -227,10 +218,10 @@ void readwords(char* filename) {
 
 int main(int argc, char** argv) {
   printf("pointer bytes=%lu\n", sizeof(argv));
-  printf("skeyoffset bytes=%lu\n", sizeof(skeyoffset));
+  printf("keyoffset bytes=%lu\n", sizeof(keyoffset));
   printf("dkeyoffset bytes=%lu\n", sizeof(dkeyoffset));
 
-  skeyoffset ko= {.type= 77, .o=4711};
+  keyoffset ko= {.type= 77, .o=4711};
   printf("%-16s %d %d\n", ko.s, ko.type, ko.o);
   strncpy(ko.s, "ABCDEFGHIJKLMNO", 12);
   ko.type= 0;
@@ -247,14 +238,14 @@ int main(int argc, char** argv) {
   sadd("", 23);
   printix();
 
-  qsort(ix, nix, sizeof(skeyoffset), cmpko);
+  qsort(ix, nix, sizeof(keyoffset), cmpko);
   printix();
 
   // search
   {
     char *f= "fum";
     printf("\nFIND '%s' \n  ", f);
-    skeyoffset* kf= findix(f);
+    keyoffset* kf= findix(f);
     if (kf) printko(kf);
     else printf("NOT FOUND!\n");
   }
@@ -290,28 +281,28 @@ int main(int argc, char** argv) {
 readwords("1.1million word list.txt");
   else readwords("wordlist-8K.txt");
 
-  printf("\n==WORDS! %d\n\n", nix);
+  printf("\n==WORDS! %ld\n\n", nix);
 
   // on already sorted 67ms
   // on 1.1mil.. 499ms
   long sortms= timems();
   printf("sorting...\n");
-  qsort(ix, nix, sizeof(skeyoffset), cmpko);
+  qsort(ix, nix, sizeof(keyoffset), cmpko);
   printf("  sorting took %ld ms\n", timems()-sortms);
 
 
-  printf("\n==WORDS! %d\n\n", nix);
+  printf("\n==WORDS! %ld\n\n", nix);
 
   //printix();
   
   if (1) { // < 'abba' xproduct!
-    skeyoffset* abba= findix("abba");
+    keyoffset* abba= findix("abba");
     if (!abba) exit(11);
 
     long n= 0;
-    skeyoffset* a= ix;
+    keyoffset* a= ix;
     while(a <= abba) {
-      skeyoffset* b= ix;
+      keyoffset* b= ix;
       while(b <= abba) {
 	// index.c - 2m15
 	//   join < abba === 8007892418
@@ -352,7 +343,7 @@ readwords("1.1million word list.txt");
     // - 7.2s 10K linear eqko
     //   (63s if no opt 3!)
     // - 32.8s          strcmp
-    skeyoffset* kf= findix("yoyo");
+    keyoffset* kf= findix("yoyo");
     if (!kf) kf= findix("york");
     kf= findix("ABOVEGROUND-BULLETINS");
     printf("FISH: ");
@@ -364,9 +355,9 @@ readwords("1.1million word list.txt");
     //for(int i=0; i<100000; i++) {
     int n= 0;
     for(int i=0; i<10; i++) {
-      skeyoffset* end= ix+nix;
+      keyoffset* end= ix+nix;
 
-      skeyoffset* p= ix;
+      keyoffset* p= ix;
       //fprintf(stderr, ".");
       while(p<end) {
 	n++;
@@ -391,14 +382,14 @@ readwords("1.1million word list.txt");
   {
     char *f= "yoyo";
     //printf("\nFIND '%s' \n  ", f);
-    skeyoffset* kf= findix(f);
+    keyoffset* kf= findix(f);
     if (!kf) { printf("ERROR"); exit(3); }
     //if (kf) printko(kf);
     //else printf("NOT FOUND!\n");
   }
   }
   printf("nstrdup=%ld bstrdup=%ld\n", nstrdup, bstrdup);
-  printf("BYTES: %ld\n", bstrdup + nix*sizeof(skeyoffset) + nstrdup*8);
+  printf("BYTES: %ld\n", bstrdup + nix*sizeof(keyoffset) + nstrdup*8);
   printf("ARRAY: %ld\n", rbytes + nix*(sizeof(char*)+sizeof(int)+8));
   // 8 is the average waste in malloc
 }
