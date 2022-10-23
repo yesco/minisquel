@@ -45,20 +45,20 @@ typedef struct dkeyoffset {
   unsigned int o;  // 4 bytes
 } dkeyoffset;
 
-typedef union keyoffset {
+typedef union oldkeyoffset {
   skeyoffset str;
   lskeyoffset lstr;
   dkeyoffset dbl;
-} keyoffset;
+} oldkeyoffset;
 
-typedef struct newkeyoffset {
+typedef struct keyoffset {
   union choice {
     char s[8];   // it's "really s[12];
     char* lstr;  // to free
     double d;
   } val;
   // overwritten by type=0: string
-  // TODO: used for other types
+  //   TODO: use for other types
   char x[3];
   // type 0 & "\0" for inline string s[12]
   //      0 NULL If all s[] == 0
@@ -70,10 +70,10 @@ typedef struct newkeyoffset {
   // (  255 NULL 12 bytes 255! )
   char type;
   int o;
-} newkeyoffset;
+} keyoffset;
 
-char* strix(const skeyoffset* a) {
-  if (!a->type) return &a->s[0];
+char* strix(const keyoffset* a) {
+  if (!a->type) return (const char*)&a->s[0];
   if (a->type!=1) return "";
   // long string
   return ((lskeyoffset*)a)->s;
