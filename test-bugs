@@ -3,6 +3,10 @@
 ./sql 'select 42 where ((1)=1)'
 ./sql 'select count(42)'
 ./sql 'select count(1) from int(1,10) i'
+
 # should give error parsing 123 456, but just quit?	
 ./sql 'select 123 456, 42'
 ./sql 'select 42, 1e-9, 99'
+
+# should be 100, 100
+./sql 'select count(i), count(j), count() from int(1,10) i, int(1,10) j'

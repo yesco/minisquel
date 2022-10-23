@@ -779,10 +779,7 @@ int INT(char* selexpr) {
     updatestats(&v);
 
     ps= saved;
-    if (gotc(','))
-      from_list(selexpr);
-    else
-      where(selexpr);
+    next_from_list(selexpr);
   }
 
   // restore "state"
@@ -833,10 +830,6 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
     linkval(table, cols[i], &vals[i]);
   }
 
-  double d;
-  char s[1024]= {0};
-  int r;
-
   col= 0;
   // TODO: consider caching whole line in order to not allocate small string fragments, then can point/modify that string
   // TODO: use csvgetline !
@@ -847,6 +840,12 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   //   avoid parsing? just count!
   //   happy.csv: 136ms csvgetline;
   //              450ms with freadCSV !
+
+
+  double d;
+  char s[1024]= {0}; // TODO: limited
+  int r;
+  
   while((r= freadCSV(f, s, sizeof(s), &d))) {
     //printf("---CSV: %d %lg >%s<\n", r, d, s);
     if (r==RNEWLINE) {
@@ -858,10 +857,7 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
       if (col) {
 
 	ps= saved;
-	if (gotc(','))
-	  from_list(selexpr);
-	else
-	  where(selexpr);
+	next_from_list(selexpr);
 
 	// TODO: consider not clearing here
 	//   can use current str as last!
@@ -980,6 +976,14 @@ int from_list(char* selexpr) {
   return 1;
 }
 
+int next_from_list(char* selexpr) {
+  if (gotc(','))
+    from_list(selexpr);
+  else
+    where(selexpr);
+}
+
+		   
 int from(char* selexpr) {
   if (!got("from")) {
     where(selexpr);
