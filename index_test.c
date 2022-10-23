@@ -1,3 +1,5 @@
+#include "malloc-count.c"
+
 #include "index.c"
 
 // ENDWCOUNT
@@ -89,7 +91,8 @@ int main(int argc, char** argv) {
       }
     }
     printf("join %ld s=%ld\n", n, s);
-    free(ix);
+    freeindex(ix);
+    fprintmallocs(stderr);
     exit(0);
   }
   
@@ -147,7 +150,8 @@ int main(int argc, char** argv) {
     }
     printf("join < abba === %ld\n", n);
 
-    free(ix);
+    freeindex(ix);
+    fprintmallocs(stderr);
     exit(1);
   } else if (1) {
     // linear
@@ -217,7 +221,8 @@ int main(int argc, char** argv) {
   printf("BYTES: %ld\n", bstrdup + ix->n*sizeof(keyoffset) + nstrdup*8);
   printf("ARRAY: %ld\n", rbytes + ix->n*(sizeof(char*)+sizeof(int)+8));
 
-  free(ix);
+  freeindex(ix);
+  fprintmallocs(stderr);
 }
 
 // 11 chars or 7 chars?

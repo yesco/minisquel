@@ -89,8 +89,23 @@ memindex* newindex(char* name, int max) {
   return ix;
 }
 
+void cleanko(keyoffset* ko) {
+  if (!ko) return;
+  if (ko->type==1) {
+    free(ko->val.lstr);
+    ko->val.lstr= NULL;
+  }
+}
+
 void freeindex(memindex* ix) {
   if (!ix) return;
+  // clear all allocated strings
+  keyoffset* kos= ix->kos;
+  keyoffset* end= kos + ix->n;
+  while(kos <end) {
+    if (kos->type==1) cleanko(kos);
+    kos++;
+  }
   free(ix->kos); ix->kos= NULL;
   ix->max= 0;
   free(ix);
@@ -132,14 +147,6 @@ void setstrko(keyoffset* ko, char* s) {
     // fills w zeros, overwrites x & type!
     strncpy(ko->val.s, s, 12);
     ko->type= 0; // zero-terminate/trunc
-  }
-}
-
-void cleanko(keyoffset* ko) {
-  if (!ko) return;
-  if (ko->type==1) {
-    free(ko->val.lstr);
-    ko->val.lstr= NULL;
   }
 }
 
