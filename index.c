@@ -39,7 +39,7 @@ typedef struct dkeyoffset {
   unsigned int o;  // 4 bytes
 } dkeyoffset;
 
-#define IX_MAX 1024
+#define IX_MAX 10*1024
 keyoffset ix[IX_MAX]= {0};
 int nix= 0;
 
@@ -92,6 +92,7 @@ void printix() {
   printf("\n==========\n");
   for(int i=0; i<nix; i++)
     printko(ix + i);
+  printf("--- %ld\n", nix);
 }
 
 char* strix(keyoffset* a) {
@@ -100,9 +101,9 @@ char* strix(keyoffset* a) {
 }
 
 // NULL, '' <<< double <<< string
-int cmpkeyoffset(const void* a, const void* b) {
+int cmpko(const void* a, const void* b) {
   //printf("CMD "); printko(a); printf("     "); printko(b); printf("\n");
-  // TODO: too complicated
+  // TODO: too complicated!
   keyoffset  *ka= a, *kb= b;
   int ta= ka->type, tb= kb->type;
   dkeyoffset *kda= a, *kdb= b;
@@ -123,12 +124,23 @@ int cmpkeyoffset(const void* a, const void* b) {
   }
 }
 
+int eqko(keyoffset* a, keyoffset* b) {
+  if (a==b) return 1;
+  unsigned long la= *(unsigned long*)a;
+  unsigned long lb= *(unsigned long*)b;
+  //if (a<b) return -1;
+  //if (a>b) return +1;
+  if (a!=b) return 0; // sure
+  // still not sure equal
+  return 0==cmpko(a, b);
+}
+
 // returns NULL or found keyoffset
 keyoffset* findix(char* s) {
   keyoffset ks= {0};
   strncpy(ks.s, s, 12);
   ks.type= 0;
-  return bsearch(&ks, ix, nix, sizeof(keyoffset), cmpkeyoffset);
+  return bsearch(&ks, ix, nix, sizeof(keyoffset), cmpko);
 }
 
 // return -1, or index position where >= s
@@ -143,6 +155,19 @@ double drand(double min, double max) {
   return min + (rand() / div);
 }
 
+void readwords(char* filename) {
+  FILE* f= fopen(filename, "r");
+  if (!f) exit(66);
+  char* w= NULL;
+  size_t l= 0;
+  while(getline(&w, &l, f)!=EOF) {
+    int l= strlen(w);
+    if (l && w[l-1]=='\n') w[l-1]= 0;
+    sadd(w, ftell(f));
+  }
+  fclose(f);
+  free(w);
+}
 
 int main(int argc, char** argv) {
   printf("pointer bytes=%lu\n", sizeof(argv));
@@ -166,13 +191,60 @@ int main(int argc, char** argv) {
   sadd("", 23);
   printix();
 
-  qsort(ix, nix, sizeof(keyoffset), cmpkeyoffset);
+  qsort(ix, nix, sizeof(keyoffset), cmpko);
   printix();
 
   // search
-  char *f= "fum";
-  printf("\nFIND '%s' \n  ", f);
-  keyoffset* kf= findix(f);
-  if (kf) printko(kf);
-  else printf("NOT FOUND!\n");
+  {
+    char *f= "fum";
+    printf("\nFIND '%s' \n  ", f);
+    keyoffset* kf= findix(f);
+    if (kf) printko(kf);
+    else printf("NOT FOUND!\n");
+  }
+
+  // words
+  nix= 0;
+  readwords("wordlist-8K.txt");
+  //printix();
+
+  if (1) {
+    // linear
+
+    // 11.83s 100K linear 7.7K words
+    // ^ cmpok
+    // 3.34s 100K eqko !
+    // 3.00s 100K strcmp (break f ptr)
+    // = 100K * 7.7K= 770M tests
+    keyoffset* kf= findix("yoyo");
+
+    long f= 0;
+    //for(int i=0; i<10000000; i++) {
+    for(int i=0; i<100000; i++) {
+      keyoffset* end= ix+nix;
+      keyoffset* p= ix;
+      while(ix<end) {
+	//if (0==cmpko(kf, p)) break;
+	//if (eqko(kf, p)) break;
+	if (0==strcmp(kf, p)) break;
+	p++;
+      }
+      if (ix>=end) p= NULL;
+      if (!p) { printf("ERROR\n"); exit(33); }
+      f++;
+    }
+    printf("Linear found %ld\n", f);
+  } else {
+  // search
+  // 10M times == 2.27s (8K words)
+  for(int i=0; i<10000000; i++)
+  {
+    char *f= "yoyo";
+    //printf("\nFIND '%s' \n  ", f);
+    keyoffset* kf= findix(f);
+    if (!kf) { printf("ERROR"); exit(3); }
+    //if (kf) printko(kf);
+    //else printf("NOT FOUND!\n");
+  }
+  }
 }
