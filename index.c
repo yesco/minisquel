@@ -13,7 +13,7 @@ typedef struct keyoffset {
   // type 0 inline string/zero terminate!
   //      1 pointer tostring
   //      2 offset to string
-  //      3 double
+  //     16 double
   //    255 NULL 12 bytes 255!
   //  alt 0 NULL 12 bytes all null! (=="")
   char type;       // 1 type/zero terminator
@@ -32,10 +32,18 @@ keyoffset ix[IX_MAX]= {0};
 int nix= 0;
 
 void printko(keyoffset* ko) {
-  printf("IX> %-16s' %d %d\n", ko->s, ko->type, ko->o);
+  if (!ko) return;
+  switch(ko->type) {
+  case 0: // string
+    printf("IX> %-16s'  %d3  @%5d\n", ko->s, ko->type, ko->o); break;
+  case 16: { // double
+    dkeyoffset* kd= (void*)ko;
+    printf("IX>  %16lg %3d  @%5d\n", kd->d, kd->type, kd->o); break; }
+  default: printf("IX> Unknown type=%d\n", ko->type);
+  }
 }
 
-void add(char* s, int offset) {
+keyoffset* addix() {
   keyoffset* ko= ix + nix++;
   if (nix >= IX_MAX) {
     fprintf(stderr, "INDEX FULL\n");
@@ -45,10 +53,23 @@ void add(char* s, int offset) {
     fprintf(stderr, "INDEX: str too long\n");
     exit(33);
   }
+  return ko;
+}
+  
+void sadd(char* s, int offset) {
+  keyoffset* ko= addix();
     
   strncpy(ko->s, s, 12); // fills w zeros
   ko->type= 0; // zeero-terminate/trunc
   ko->o= offset;
+}
+    
+void dadd(double d, int offset) {
+  dkeyoffset* kd= (void*) addix();
+
+  kd->d= d;
+  kd->type= 16; // double
+  kd->o= offset;
 }
     
 void printix() {
@@ -58,13 +79,32 @@ void printix() {
 }
 
 int cmpkeyoffset(const void* a, const void* b) {
-  // implement for all types!
-  return memcmp(a, b, sizeof(((keyoffset*)0)->s));
+  keyoffset  *ka= a, *kb= b;
+  int ta= ka->type, tb= kb->type;
+  dkeyoffset *kda= a, *kdb= b;
+  double da= kda->d, db= kdb->d;
+  // null? - smallest
+  if (!ta && !*(ka->s)) ta= 255;
+  if (!tb && !*(kb->s)) tb= 255;
+  // differnt type cmp typenumber!
+  if (ta != tb) return (tb > ta) - (ta > tb);
+  // same type/compat
+  switch(ta) {
+  case  0: return strncmp(a, b, 11);
+  case 16: return (da > db) - (db > da);
+  default: return 1;
+  }
+}
+
+// returns NULL or found keyoffset
+keyoffset* findix(char* s) {
+  return bsearch(s, ix, nix, sizeof(keyoffset), cmpkeyoffset);
 }
 
 // return -1, or index position where >= s
+// TODO: this only finds exact match!
 keyoffset* searchix(char* s) {
-  return bsearch(s, ix, nix, sizeof(keyoffset), cmpkeyoffset);
+  return NULL;
 }
 
 int main(int argc, char** argv) {
@@ -75,20 +115,27 @@ int main(int argc, char** argv) {
   keyoffset ko= {.type= 77, .o=4711};
   printf("%-16s %d %d\n", ko.s, ko.type, ko.o);
   strncpy(ko.s, "ABCDEFGHIJKLMNO", 12);
-  ko.typezero= 0;
+  ko.type= 0;
   printf("%-16s %d %d\n", ko.s, ko.type, ko.o);
-  add("foo", 2);
-  add("bar", 3);
-  add("fie", 5);
-  add("fum", 7);
-  add("foobar", 11);
-  add("abba", 13);
+  dadd(-99, 23);
+  sadd("foo", 2);
+  sadd("bar", 3);
+  sadd("fie", 5);
+  sadd("fum", 7);
+  sadd("foobar", 11);
+  sadd("abba", 13);
+  dadd(111, 17);
+  dadd(22, 19);
+  sadd("", 23);
   printix();
 
-  //qsort(ix, sizeof(ix)/sizeof(*ix), sizeof(*ix), cmpkeyoffset);
   qsort(ix, nix, sizeof(keyoffset), cmpkeyoffset);
   printix();
 
-  keyoffset* ks= searchix("fum");
-  printko(ks);
+  // search
+  char *f= "fum";
+  printf("\nFIND '%s' \n  ", f);
+  keyoffset* ks= findix(f);
+  if (ks) printko(ks);
+  else printf("NOT FOUND!\n");
 }
