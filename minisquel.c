@@ -282,8 +282,9 @@ val* findvar(char* table, char* name) {
 // returns variable's &val
 val* setvar(char* table, char* name, val* s) {
   val* v= findvar(table, name);
-  // TODO: deallocate duped name...
+  // TODO: deallocate duped name,val...
   //   - or not, only "alloc once"
+  //   memory-leak
   if (!v) v= linkval(table, strdup(name), calloc(1, sizeof(*v)));
   // copy only value (not stats)
   clearval(v);
