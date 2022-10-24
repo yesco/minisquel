@@ -9,46 +9,74 @@ typedef struct slambda {
   void *a1, *a2, *a3, *a4, *a5;
 } slambda;
 
-typedef void(**lambda)();
+typedef void(**xlambda)();
   
 typedef void(**ilambda)(void*,void*,void*,void*,void*);
 
-#define LAMBDA(...) (lambda)&(slambda){__VA_ARGS__}
+#define OLAMBDA(...) (xlambda)&(slambda){__VA_ARGS__}
+
+#define LAMBDA(...) tramp((xlambda)&(slambda){__VA_ARGS__})
+
 #define LARG(F, I) ((slambda*)F)->I
 
 #define CALL(F) (**((ilambda)F))(LARG(F, a1),LARG(F,a2),LARG(F,a3),LARG(F,a4),LARG(F,a5))
 
 typedef struct trampline {
   void* f;
-  lambda l;
+  xlambda l;
 } trampoline;
 
-void* tramp1(void* _l) {
-  printf("tramp1 a\n");
-  static lambda l= NULL;
-  printf("tramp1 b\n");
-  if (!l) {
-    printf("tramp1   1\n");
-    l= malloc(sizeof(slambda));
-    printf("tramp1   2\n");
-    memcpy(l, (void*)*(void**)_l, sizeof(slambda));
-    printf("tramp1   3\n");
-    return l;
-  }
-  printf("tramp1 c\n");
-  CALL(l);
-  printf("tramp1 d\n");
-  return l;
-}
+void tramp0();
+void tramp1();
+void tramp2();
+void tramp3();
+void tramp4();
 
-void tramp2() {
-  //tramps[2].f(tramps[2].);
-}
-
-trampoline tramps[2] = {
+trampoline tramps[] = {
+  {tramp0, NULL},
   {tramp1, NULL},
   {tramp2, NULL},
+  {tramp3, NULL},
+  {tramp4, NULL},
 };  
+
+#define TRAMP(N) void tramp##N(){ xlambda l= tramps[N].l; CALL(l); }
+
+TRAMP(0)
+TRAMP(1)
+TRAMP(2)
+TRAMP(3)
+TRAMP(4)
+
+typedef void*(*lambda)();
+
+trampoline* curtramp= &tramps[0];
+const int TRAMPCOUNT= sizeof(tramps)/sizeof(trampoline);
+
+lambda tramp(xlambda l) {
+  for(int i=0; i<TRAMPCOUNT; i++) {
+    if (++curtramp >= tramps + TRAMPCOUNT)
+      curtramp= &tramps[0];
+
+    if (!curtramp->l) {
+      curtramp->l= l;
+      return curtramp->f;
+    }
+  }
+  fprintf(stderr, "ERROR: run out of tramps!\n");
+  exit(66);
+  return NULL;
+}
+
+void releasetramp(lambda f) {
+  for(int i=0; i<TRAMPCOUNT; i++) {
+    if (tramps[i].f== f) {
+      tramps[i].l= NULL;
+      return;
+    }
+  }
+}
+
 
 // Examples
 void print(char* s) {
@@ -64,17 +92,36 @@ void inc(int* i) {
 }
 
 int main(){
-  //lambda h= tramp1(LAMBDA(printhello));
+  lambda f= LAMBDA(print, "Lambda");
+  f(); f();
+  printf("\n");
+  releasetramp(f);
+  
+  lambda g = LAMBDA(print, "FOOBAR\n");
+  g();
+  releasetramp(g);
+  //g(); // dumps core
 
+  g= tramp(OLAMBDA(print, "SECOND\n"));
+  g(); g();
+  releasetramp(g);
+  
+  // OLD STYLE
+  printf("\n-------------\n");
+  
   lambda h= LAMBDA(printhello);
   lambda w= LAMBDA(print, "world!\n");
 
   int i= 7;
   lambda n= LAMBDA(inc, &i);
 	 
-  CALL(n); printf("%d\n", i);
-  CALL(n); printf("%d\n", i);
-  CALL(h); CALL(h); CALL(w);
-  CALL(n); printf("%d\n", i);
-  CALL(n); printf("%d\n", i);
+  n(); printf("%d\n", i);
+  n(); printf("%d\n", i);
+  h(); h(); w();
+  n(); printf("%d\n", i);
+  n(); printf("%d\n", i);
+
+  releasetramp(h);
+  releasetramp(w);
+  releasetramp(n);
 }
