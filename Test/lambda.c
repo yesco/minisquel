@@ -31,6 +31,11 @@ void tramp1();
 void tramp2();
 void tramp3();
 void tramp4();
+void tramp5();
+void tramp6();
+void tramp7();
+void tramp8();
+void tramp9();
 
 trampoline tramps[] = {
   {tramp0, NULL},
@@ -38,6 +43,11 @@ trampoline tramps[] = {
   {tramp2, NULL},
   {tramp3, NULL},
   {tramp4, NULL},
+  {tramp5, NULL},
+  {tramp6, NULL},
+  {tramp7, NULL},
+  {tramp8, NULL},
+  {tramp9, NULL},
 };  
 
 #define TRAMP(N) void tramp##N(){ xlambda l= tramps[N].l; CALL(l); }
@@ -47,6 +57,11 @@ TRAMP(1)
 TRAMP(2)
 TRAMP(3)
 TRAMP(4)
+TRAMP(5)
+TRAMP(6)
+TRAMP(7)
+TRAMP(8)
+TRAMP(9)
 
 typedef void*(*lambda)();
 
@@ -91,7 +106,28 @@ void inc(int* i) {
   (*i)++;
 }
 
+void loop(lambda l, int n, int* x) {
+  for(int i=0; i<n; i++) {
+    l(); printf("%d\n", *x);
+  }
+  releasetramp(l);
+}
+
+void recurse(lambda l, int n) {
+  if (!n) return;
+  l(); l(); l();
+  //  int j= n;
+  //  lambda x;
+  //recurse((x= LAMBDA(recurse, &j)), n-1);
+  //releasetramp(x);
+  l();
+}
+
 int main(){
+  // TODO: have them take more functions
+  // or at least vararg?
+
+  // TODO: maybe allocate on heap, as now, may forget to releasetramp, 
   lambda f= LAMBDA(print, "Lambda");
   f(); f();
   printf("\n");
@@ -123,5 +159,17 @@ int main(){
 
   releasetramp(h);
   releasetramp(w);
+
+  int k= 100;
+  printf("RECURSE:\n");
+  //recurse(LAMBDA(inc, &k), 4);
+  // TODO: need to be allocated!!! LOL
+  n(); printf("%d\n", i);
+  loop(LAMBDA(inc, &k), 4, &k);
+  printf("--END\n");
+	  
   releasetramp(n);
+  
+  printf("%d tramps, %d bytes each\n", TRAMPCOUNT, (int)((void*)tramp9-(void*)tramp0)/TRAMPCOUNT);
+
 }
