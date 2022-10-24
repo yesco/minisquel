@@ -15,6 +15,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "utils.c"
+
 
 #define GROWIX 1000
 
@@ -32,37 +34,54 @@ typedef struct keyoffset {
   // TODO: unify type names/constants?
   // type 0 & "\0" for inline string s[12]
   //      0 NULL If all s[] == 0
-  //      1 pointer to string
-  //    ( 2 reserved - str )
-  //    ( 3 reserved - str )
-  //    ( 4 reserved - str )
+  //      1 pointer to string (owned)
+  //      2 pointer to string (dup)
+  //    ( 3 TODO: hashstring )
+  //    ( 4 TODO: offset local heap )
+  //    ( 5 reserved - str )
+  //          "     "
+  //   ( 15 reserved - str )
   //     16 double
   // (  255 NULL 12 bytes 255! )
   char type;
+  // offset
+  //   >= 0 file offset to datafile
+  //     -N TODO: group index to offset[]
   int o;
 } keyoffset;
 
 const char* strix(const keyoffset* a) {
-  if (!a->type) return (const char*)&a->val.s[0];
-  if (a->type!=1) return "";
-  // long string
-  return a->val.lstr;
+  // type 0 - inline
+  if (a->type == 0) return (const char*)&a->val.s[0];
+
+  // TODO: not string => NULL or ""
+  if (a->type >= 16) return "";
+
+  // long strings (ptr)
+  //   malloced, shared, hash-string
+  if (a->type < 4) return a->val.lstr;
+
+  fprintf(stderr, "%% Undefined index.type=%d\n", a->type);
+  exit(1);
 }
 
 void printko(keyoffset* ko) {
   if (!ko) return;
   switch(ko->type) {
-  case 1: // lstring
+  case 1: // lstr (allocated)
+  case 2: // lstr (shared)
+  case 3: // lstr (hash string)
   case 0: { // string
     const char *s= strix(ko);
     if (*s) 
-      printf("IX> '%-16s' %3d  @%5d\n", s, ko->type, ko->o);
-    else printf("IX> NULL           %3d  @%5d\n", ko->type, ko->o);
+      printf("IX> '%-16s' ", s);
+    else printf("IX> NULL            ");
     break; }
   case 16: { // double
-    printf("IX> %18lg %3d  @%5d\n", ko->val.d, ko->type, ko->o); break; }
-  default: printf("IX> Unknown type=%d\n", ko->type);
+    printf("IX> %18lg ", ko->val.d); break; }
+  default: printf("IX> Unknown type=%d\n", ko->type); error("printko");
   }
+  printf("%3d  @%5d\n", ko->type, ko->o);
 }
 
 // Indexing
@@ -119,8 +138,7 @@ int ensurix(memindex* ix, int n) {
   int max= ix->max + n + GROWIX;
   // potentially big allocation, can fail!
   keyoffset* kos= realloc(ix->kos, max * sizeof(keyoffset));
-  if (!kos) {
-    fprintf(stderr, "%% WARNING: ensurix - Allocation failed!\n)"); return 0; }
+  if (!kos) error("index: ensurix - Allocation failed!)");
   ix->kos= kos;
   ix->max= max;
   return 1;
@@ -199,8 +217,8 @@ int cmpko(const void* va, const void* vb) {
   if (!ta && !*(a->val.s)) ta= 255;
   if (!tb && !*(b->val.s)) tb= 255;
   // different string types
-  if (ta < 4) ta= 0;
-  if (tb < 4) tb= 0;
+  if (ta < 16) ta= 0;
+  if (tb < 16) tb= 0;
   // differnt type cmp typenumber!
   if (ta != tb) return (tb > ta) - (ta > tb);
 
@@ -214,13 +232,21 @@ int cmpko(const void* va, const void* vb) {
 }
 
 // very fast eq (dismissal), 1 if equal
+
+// TODO: ERROR, faulty!
+
 int eqko(keyoffset* a, keyoffset* b) {
   neqko++;
-  if (a==b) return 1; // lol
-  unsigned long la= *(unsigned long*)a;
-  unsigned long lb= *(unsigned long*)b;
-  if (a!=b) return 0; // sure NE
-  // still not sure equal
+  // - first cheap tests
+  if (a==b) return 1; 
+  // non-strings type mis-match
+  if (a->type > 15 && b->type > 15 &&
+      a->type != b->type) return 0;
+  // same type, compare doubles
+  if (a->type == 16) // number
+    if (a->val.d != b->val.d) return 0;
+
+  // still not sure equal, do real
   return 0==cmpko(a, b);
 }
 
@@ -282,7 +308,7 @@ keyoffset* sfindix(memindex* ix, char* s) {
 // return pos where s would be inserted
 // TODO: implement
 keyoffset* searchix(char* s) {
-  fprintf(stderr, "searchix: not implemented\n"); exit(1);
+  error("searchix: not implemented");
   return NULL;
 }
 

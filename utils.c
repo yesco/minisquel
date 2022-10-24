@@ -4,6 +4,10 @@
 
 #ifndef JSK_INCLUDED_UTILS
 
+#include <ctype.h>
+#include <stdlib.h>
+#include <math.h>
+
 int min(int a, int b) { return a<b?a:b; }
 int max(int a, int b) { return a>b?a:b; }
 
@@ -29,6 +33,34 @@ char* strdupncat(char* s, int n, char* add) {
     realloc(s?s:strdup(""), l+1+(s?strlen(s):1)),
     add?add:"", l);
 }
+
+
+// -- Error handling/fatal, exit
+
+void error(char* msg) {
+  fprintf(stdout, "Error: %s\n", msg);
+  fprintf(stderr, "Error: %s\n", msg);
+  // TODO: return 1 for shortcut?
+  //fprintf(stderr, "At>%s<\n", ps);
+  exit(1);
+}
+
+// TODO: I had a errorf?
+
+void expected2(char* msg, char* param) {
+  fprintf(stdout, "Error: expected %s\n", msg);
+  fprintf(stderr, "Error: expected %s\n", msg);
+  if (param) printf("  %s\n", param);
+  //fprintf(stderr, "At>%s<\n", ps);
+  exit(1);
+}
+
+void expected(char* msg) {
+  expected2(msg, NULL);
+}
+
+// TODO: warningf
+
 
 #define JSK_INCLUDED_UTILS
 

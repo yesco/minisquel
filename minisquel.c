@@ -2,13 +2,12 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include <math.h>
 
 #include "malloc-count.c"
 //#include "malloc-simple.c"
-
 #include "mytime.c"
+#include "utils.c"
 
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
 // TODO: change to enum(disable_call, disable_print, print_header)
@@ -135,26 +134,6 @@ int str(char** s) {
     a++;
   }
   return 1;
-}
-
-void error(char* msg) {
-  fprintf(stdout, "Error: %s\n", msg);
-  fprintf(stderr, "Error: %s\n", msg);
-  // TODO: return 1 for shortcut?
-  fprintf(stderr, "At>%s<\n", ps);
-  exit(1);
-}
-
-void expected2(char* msg, char* param) {
-  fprintf(stdout, "Error: expected %s\n", msg);
-  fprintf(stderr, "Error: expected %s\n", msg);
-  if (param) printf("  %s\n", param);
-  fprintf(stderr, "At>%s<\n", ps);
-  exit(1);
-}
-
-void expected(char* msg) {
-  expected2(msg, NULL);
 }
 
 // variable values
