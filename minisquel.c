@@ -858,12 +858,15 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   if (!header) getline(&header, &hlen, f);
 
   // TODO: read w freadCSV()
+  // extract ','-delimited names
+  // reads and modifies headers
   char* h= header;
   int col= 0, row= 0;
   cols[0]= h;
   while(*h && *h!='\n') {
     if (isspace(*h)) ;
     else if (*h==',' || *h=='\t' || *h=='|' || *h==';') {
+      while(*h && isspace(h[1])) h++;
       *h= 0;
       cols[++col]= h+1;
     }
@@ -872,6 +875,7 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   *h= 0;
 
   // link column as variables
+  // TODO: dynamically allocate/use darr
   val vals[MAXCOLS]={0};
   for(int i=0; i<=col; i++)
     linkval(table, cols[i], &vals[i]);
@@ -886,7 +890,7 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   //              450ms with freadCSV !
 
   double d;
-  // TODO: WRONG, fix too limited!
+  // TODO: WRONG, fix: too limited! dstr?
   char s[1024]= {0}; 
   int r;
   
