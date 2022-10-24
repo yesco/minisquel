@@ -818,6 +818,17 @@ void hack_foffset(char* col, FILE** dataf, long* foffset, double d) {
   }
 }
 
+void process_result(int col, val* vals, int* row, char* parse_after, char* selexpr) {
+  if (!col) return;
+  ps= parse_after;
+  next_from_list(selexpr);
+  // TODO: consider not clearing here
+  //   can use current str as last!
+  for(int i=0; i<col; i++)
+    clearval(&vals[col]);
+  (*row)++;
+}
+
 #include "csv.c"
 
 // TODO: take delimiter as argument?
@@ -830,13 +841,11 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   char* cols[MAXCOLS]= {0};
 
   // parse header col names
-  //char* header= NULL;
   size_t hlen= 0;
   if (!header) getline(&header, &hlen, f);
 
-  char* h= header;
   // TODO: read w freadCSV()
-  // TODO: prefix with table name?
+  char* h= header;
   int col= 0, row= 0;
   cols[0]= h;
   while(*h && *h!='\n') {
@@ -869,7 +878,6 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   //   happy.csv: 136ms csvgetline;
   //              450ms with freadCSV !
 
-
   double d;
   char s[1024]= {0}; // TODO: limited
   int r;
@@ -877,27 +885,20 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   char* parse_after= ps;
   
   col= 0;
-  while((r= freadCSV(f, s, sizeof(s), &d))) {
+  while(1) {
+    r= freadCSV(f, s, sizeof(s), &d);
     //printf("---CSV: %d %lg >%s<\n", r, d, s);
-    if (r==RNEWLINE) {
+    if (r==RNEWLINE || !r) {
       readrows++;
+
       // store offset of start of row
-      // TODO: ovehead? not measurable
-      foffset= fprev;
-      fprev= ftell(f);
-      if (col) {
+      // (ovehead? not measurable)
+      foffset= fprev; fprev= ftell(f);
 
-	ps= parse_after;
-	next_from_list(selexpr);
+      process_result(col, vals, &row, parse_after, selexpr);
 
-	// TODO: consider not clearing here
-	//   can use current str as last!
-	for(int i=0; i<MAXCOLS; i++)
-	  clearval(&vals[col]);
-	if (col) row++;
-	col= 0;
-      }
-      continue;
+      col= 0;
+      if (!r) break; else continue;
     }
 
     // -- have col value
@@ -918,9 +919,6 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
     updatestats(&vals[col]);
     col++;
   }
-  // no newline at end
-  // TODO: shouldn't it be from_list???
-  if (col) where(selexpr);
 
   // deallocate values
   for(int i=0; i<varcount; i++)
