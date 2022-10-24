@@ -917,6 +917,7 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   }
 
   // deallocate values
+  // TODO: all??? correct ?
   for(int i=0; i<varcount; i++)
     clearval(varvals[i]);
   
