@@ -1020,9 +1020,13 @@ int from(char* selexpr) {
 //   JOIN tab (|AS t)
 //   (ON (a=b AND ...) | USING (col, col, col))
 // simplify:
-//   from (|MERGE) JOIN from USING(col, ...)
+//   from a (|MERGE) JOIN b USING(col, ...)
+//   from a NATURAL JOIN b 
 //
 // 1. implemnt as nested loop
+//    a. create index
+//    b. lookup from outer loop
+//    c. read matching/lines
 // 2. merge join if sorted
 //    a. analyze file -> create link if sorted:
 //        FILTAB.index:a,b,c
