@@ -831,6 +831,18 @@ void process_result(int col, val* vals, int* row, char* parse_after, char* selex
 
 #include "csv.c"
 
+void setval(val* v, int r, double d, char* s) {
+  clearval(v);
+  v->not_null= (r != RNULL);
+  switch(r) {
+  case RNULL: break;
+  case RNUM: v->d= d; break;
+  case RSTRING: v->dealloc= v->s= strdup(s); break;
+  default: error("Unknown freadCSV ret val");
+  }
+  updatestats(v);
+}
+
 // TODO: take delimiter as argument?
 // TODO: too big!
 //
@@ -901,28 +913,16 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
       if (!r) break; else continue;
     }
 
-    // -- have col value
-    // TODO: move to setval?
-    // TODO: use setnum, setstr,setvartype?
-    clearval(&vals[col]);
-
-    //printf("GOTVALUE col=%s\n", cols[col]);
-    vals[col].not_null= (r != RNULL);
-    if (r==RNULL) ;
-    else if (r==RNUM) vals[col].d= d;
-    else if (r==RSTRING) vals[col].dealloc= vals[col].s= strdup(s);
-    else error("Unknown freadCSV ret val");
-
+    setval(&vals[col], r, d, s);
 
     hack_foffset(cols[col], &dataf, &foffset, d);
 
-    updatestats(&vals[col]);
     col++;
   }
 
   // deallocate values
   for(int i=0; i<varcount; i++)
-      clearval(varvals[i]);
+    clearval(varvals[i]);
   
   free(header); // column names
   fclose(f);
