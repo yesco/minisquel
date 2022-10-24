@@ -59,7 +59,7 @@ i	+3	1/3
       4	      3	0.3333333
       5	      3	0.3333333
 
-5 rows in 0 ms (read 0 lines)
+5 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select a,b,c,d from foo.csv as foo
@@ -70,7 +70,7 @@ a	b	c	d
       3	fie	    333	    222
       4	fum	   4444	   1111
 
-4 rows in 0 ms (read 4 lines)
+4 rows in 0 ms (read 5 lines)
 [5 malloc 6 free (leak -1) 4112 bytes]
 
 SQL> select fish from count.txt(fish) f
@@ -84,7 +84,7 @@ fish
 5 F
 6 g
 
-7 rows in 0 ms (read 7 lines)
+7 rows in 0 ms (read 8 lines)
 [9 malloc 9 free (leak +0) 4129 bytes]
 
 SQL> select 12345, 123456, 1234567, 12345678, 123456789
@@ -92,7 +92,7 @@ SQL> select 12345, 123456, 1234567, 12345678, 123456789
 ======= ======= ======= ======= ======= 
   12345	 123456	1234567	1.235e7	1.235e8
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 0.1, 0.02, 0.003, 0.0004, 0.00005, 1.2e5 , 1.2e5, 9.9e99, 9.9e100, 1.2e5, 3
@@ -100,7 +100,7 @@ SQL> select 0.1, 0.02, 0.003, 0.0004, 0.00005, 1.2e5 , 1.2e5, 9.9e99, 9.9e100, 1
 ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= 
     0.1	   0.02	  0.003	 0.0004	  5e-05	 120000	 120000	 9.9e+99	 9.9e+100	 120000	      3
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 == negatives, can be improved
@@ -232,7 +232,7 @@ add(1
 ======= 
       6
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select add(3,foo,bar,fie,4)
@@ -240,7 +240,7 @@ add(3
 ======= 
       7
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select foo as f, upper(f) as F, lower(F)
@@ -248,7 +248,7 @@ f	F	lower..
 ======= ======= ======= 
 NULL	NULL	NULL
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [2 malloc 0 free (leak +2) 4 bytes]
 
 SQL> select "A" as f, char(ascii(lower(f)))
@@ -315,7 +315,7 @@ count..	sum(i)	min(i)	avg(i)	max(i)	stdev..
       9	     45	      1	      5	      9	2.738613
      10	     55	      1	    5.5	     10	3.02765
 
-10 rows in 0 ms (read 0 lines)
+10 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42 as foo,null,1234567890,i+333333333 from int(1,3) as i
@@ -325,7 +325,7 @@ foo	null	12345..	i+333..
      42	NULL	1.235e9	NULL
      42	NULL	1.235e9	NULL
 
-3 rows in 0 ms (read 0 lines)
+3 rows in 1 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> select ta.a, tb.a from foo.csv ta, foo.csv tb where ta.a=tb.a
@@ -336,9 +336,10 @@ ta.a	tb.a
       3	      3
       4	      4
 
-4 rows in 0 ms (read 20 lines)
+4 rows in 1 ms (read 25 lines)
 [25 malloc 30 free (leak -5) 20560 bytes]
 
+before
 SQL> select i,j,i*j from int(1,20) i, int(1,10) j where i=j
 i	j	i*j
 ======= ======= ======= 
@@ -355,6 +356,28 @@ i	j	i*j
 
 10 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> select t1.a, t2.a, b from foo.csv t1, foo.csv t2 where t1.a=t2.a
+t1.a	t2.a	b
+======= ======= ======= 
+      1	      1	foo
+      2	      2	bar
+      3	      3	fie
+      4	      4	fum
+
+4 rows in 1 ms (read 25 lines)
+[25 malloc 30 free (leak -5) 20560 bytes]
+
+SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
+t1.a	t2.a	b
+======= ======= ======= 
+      1	      1	foo
+      2	      2	bar
+      3	      3	fie
+      4	      4	fum
+
+4 rows in 1 ms (read 10 lines)
+[11 malloc 12 free (leak -1) 8235 bytes]
 
 ========== BUGS ===========
 SQL> select 42 where (1)=1
@@ -380,7 +403,7 @@ SQL> select 123 456, 42
 ======= 
     123
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42, 1e-9, 99
@@ -495,7 +518,32 @@ count..	count..	count()
      10	      9	     99
      10	     10	    100
 
-100 rows in 2 ms (read 0 lines)
+100 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where
+t1.a	t2.a	b
+======= ======= ======= 
+      1	      1	foo
+      1	      2	bar
+      1	      3	fie
+      1	      4	fum
+      2	      2	bar
+      3	      3	fie
+      4	      4	fum
+
+7 rows in 1 ms (read 10 lines)
+[11 malloc 12 free (leak -1) 8235 bytes]
+
+SQL> select t1.a, t2.a, t2.b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
+t1.a	t2.a	t2.b
+======= ======= ======= 
+      1	      1	foo
+      2	      2	NULL
+      3	      3	NULL
+      4	      4	NULL
+
+4 rows in 0 ms (read 10 lines)
+[11 malloc 12 free (leak -1) 8235 bytes]
 
 ^^^^^^^^^^ BUGS ^^^^^^^^^^^

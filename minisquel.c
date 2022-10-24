@@ -177,11 +177,7 @@ void printval(val* v, int quot, int delim) {
   if (!v) { printf("(null)"); return; }
   if (!v->not_null) printf("NULL");
   else if (v->s) fprintquoted(stdout, v->s, quot, delim);
-  //else printf("%.15lg", v->d);
   else {
-    // TODO: "csv" don't get fancy!
-    
-    // TODO: use "%lg" if not "pretty"
     if (delim==',') {
       printf("%.15lg", v->d);
     } else if (v->d > 0 && v->d < 1e7) {
