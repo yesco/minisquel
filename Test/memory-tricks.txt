@@ -1,0 +1,36 @@
+posted as comment to a GC in facebook:
+- comment: https://m.facebook.com/comment/replies/?ctoken=780286823061448_781615049595292&ft_ent_identifier=780286823061448&eav=AfbLdxUPkGDQbdFQP8EV8nZ9XQGKUS-80JJ7SMFJ7NDkqAOlJNNtVz0q2dyFhKVCDH0&gfid=AQC_ChNLr5Lwfb_d5LQ&paipv=0&notif_t=group_comment&notif_id=1666580711292239&ref=opera_for_android_speed_dial
+- post: https://m.facebook.com/groups/minimalistcomputing/permalink/780286823061448/?ref=opera_for_android_speed_dial&notif_t=group_comment&paipv=0&eav=AfY062G81C97bMg5_xMA5yibT9OTHiD8wOGJoG787PI35fxozaUPAMNvjpLiwCp2adE
+
+
+Great!
+
+Building a garbage collector and memory system is a fun endeavour.
+
+My last one, for esp-lisp, I used a lot of different tricks to save memory on the eso8266 that typically had less than 64K available:
+
+Type information in pointers, you know that most mallocs (on 32/64 bit systems) return pointers at 16 byte boundaries. So, basically in those 4 lower bits that are 0000 one can put lots of your information! Also, as Robbert mentioned, heap allocations has at least (?) 4 bytes overhead, at least.
+
+On a system with 32-bit pointers:
+
+Tricks I used:
+- 0000 is heap allocated pointer w type header. The type info helps how to follow pointers for that datatype.
+- x001  is 31 bit integers, overflow/underflow 32/64 bits can be stored heap-allocated.
+- xx10 is symbols/atoms/strings stored inside the pointer of small enough. 
+30 bits can store 4 full ASCII chars, or 6 limited (32: a-z012-_) or a pointer to a heap allocated one (hash strings). For a lisp/forth most words can fit within such limitations.
+- x100 cons-cells: pair of pointers. 2*32=64 bits. Most common in lisp-system. These are allocated chunkwise, as an array with an "array of bits" one for each "cell", meaning some bits determine which arena chunk, and the others are index into it. Overhead approx 1 bit per 64 bit cell. The scheme even allows for single heap allocated ponters, if one uses x as 0. (as they typically are will be on 16-bit bounaries)
+- various other (internal) types, functions, thunks...
+
+I just wrote an temporary in-memory index structure, meant for up to MBs of data stored in memory; It's an sorted array of key,offset pointers. Key can be 11 bytes char inline, 12 byte==0 means it's an actual string. If byte 12 ==1 then the first 4 bytes is a heap allocated string.
+
+if byte 12 (it's really a type number byte, overlapped with 0 being string-terminator and type info for inline 11 byte string, haha). if the type is 16 the first 8 bytes stores a 64 bit double, which is the numeric type.  It stores 32-bit intergers precisely.
+
+Some are going to scoff at it, but consider a database, typically an index column of strings is going to have many repeated short strings (cities/zipcodes/countries) - most are going to be short (<11 chars). If just using a pointer to a heap-allocated string, we're talking about 4+ avg 8 bytes overhead (16 byte boundary), PLUS storage of the actual pointer 8 bytes. So an avergage overhead of 20 byts!
+
+Indeed, storing a dictionary of 1M1 words as index takes 32MB using only heap allocated strings, where as using they key,offset scheme 22MB. That's 32-bit savings.
+
+That's not even taking into account duplicates of short strings that are allocated several times.
+
+Another trick tha could be used, is to store a prefix-counter, that tells you how many bytes this entry shares w previous string, and then not store those bytes if the string is longer than 11 chars. Remember they are sorted, so similar strings will be next to each-other. But that's maybe a degenerate scenario.
+
+For the heap-allocated strings one could use "hash-strings" to avoid duplicates. They probably should be reference counted. 
