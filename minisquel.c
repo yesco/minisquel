@@ -112,6 +112,7 @@ int num(double* d) {
   return 1;
 }
 
+// mallocates string to be free:d
 int str(char** s) {
   spcs();
   char q= gotcs("\"'");
@@ -872,15 +873,9 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
 
   // link column as variables
   val vals[MAXCOLS]={0};
-  for(int i=0; i<=col; i++) {
-    vals[i].d= i;
-    vals[i].not_null = 1;
-    //printf("===col %d %s\n", i, cols[i]);
+  for(int i=0; i<=col; i++)
     linkval(table, cols[i], &vals[i]);
-  }
 
-  // TODO: consider caching whole line in order to not allocate small string fragments, then can point/modify that string
-  // TODO: use csvgetline !
   foffset= 0; long fprev= ftell(f);
   FILE* dataf= NULL;
 
@@ -891,11 +886,13 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   //              450ms with freadCSV !
 
   double d;
-  char s[1024]= {0}; // TODO: limited
+  // TODO: WRONG, fix too limited!
+  char s[1024]= {0}; 
   int r;
   
   char* parse_after= ps;
   
+  // TODO: use csvgetline !
   col= 0;
   while(1) {
     r= freadCSV(f, s, sizeof(s), &d);
@@ -913,10 +910,9 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
       if (!r) break; else continue;
     }
 
+    // got new value
     setval(&vals[col], r, d, s);
-
     hack_foffset(cols[col], &dataf, &foffset, d);
-
     col++;
   }
 
