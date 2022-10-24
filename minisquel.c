@@ -741,12 +741,14 @@ void printstats() {
 }
 
 // called to do next table
-int from_list(char* selexpr);
+int from_list(char* selexpr, int is_join);
 
 int next_from_list(char* selexpr) {
   char* backtrack= ps;
-  if (gotc(','))
-    return from_list(selexpr);
+  if (got("join")) {
+    return from_list(selexpr, 1);
+  } else if (gotc(','))
+    return from_list(selexpr, 0);
   else
     return where(selexpr);
   ps= backtrack;
@@ -820,9 +822,15 @@ void hack_foffset(char* col, FILE** dataf, long* foffset, double d) {
   }
 }
 
-void process_result(int col, val* vals, int* row, char* parse_after, char* selexpr) {
+#include "index.c"
+
+typedef void(*action)(memindex* ix, char* table, char* joincol);
+
+void process_result(int col, val* vals, int* row, char* parse_after, char* selexpr,
+    action act, memindex* ix,  char* table, char* joincol) {
   if (!col) return;
   ps= parse_after;
+  if (act) act(ix, table, joincol);
   next_from_list(selexpr);
   // TODO: consider not clearing here
   //   can use current str as last!
@@ -845,16 +853,49 @@ void setval(val* v, int r, double d, char* s) {
   updatestats(v);
 }
 
+keyoffset* vixadd(memindex* ix, val* v, int offset) {
+  // TODO: add null?
+  //if (!v) return NULL;
+  keyoffset* k= NULL;
+  if (!v || !v->not_null) // NULL
+    k= sixadd(ix, "", offset);
+  else if (v->s)
+    k= sixadd(ix, v->s, offset);
+  else
+    k= dixadd(ix, v->d, offset);
+  return k;
+}
+
+void action_insert_into_index(memindex* ix, char* table, char* joincol) {
+  //printf("\t(add %s.%s=", table, joincol);
+  val* v= findvar(table, joincol);
+  if (!vixadd(ix, v, foffset))
+    fprintf(stderr, "\n%% Insert into index failed!\n");
+}
+
 // TODO: take delimiter as argument?
 // TODO: too big!
 //
 // header, if given, is free:d
-int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
+int TABCSV(FILE* f, char* table, char* header, int is_join, char* joincol, char* selexpr) {
   int nvars= varcount;
 
-  char* cols[MAXCOLS]= {0};
+  action act= NULL;
+  
+  // create index?
+  memindex* ix= NULL;
+  if (is_join) {
+    char ixname[NAMELEN]= {0};
+    snprintf(ixname, sizeof(ixname), "index.%s.%s", table, joincol);
+    ix= newindex(ixname, 0);
+    fprintf(stderr, "! CREATE INDEX %s ON %s(%s)\n", ixname, table, joincol);
+    act= action_insert_into_index;
+  }
+
 
   // parse header col names
+  char* cols[MAXCOLS]= {0};
+
   size_t hlen= 0;
   if (!header) getline(&header, &hlen, f);
 
@@ -909,7 +950,9 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
       // (ovehead? not measurable)
       foffset= fprev; fprev= ftell(f);
 
-      process_result(col, vals, &row, parse_after, selexpr);
+      process_result(
+        col, vals, &row, parse_after, selexpr,
+        act, ix, table, joincol);
 
       col= 0;
       if (!r) break; else continue;
@@ -921,6 +964,13 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
     col++;
   }
 
+  if (ix) {
+    sortix(ix);
+    printix(ix);
+    // TODO: retain somewhere!
+    free(ix); // pretty stupid...
+  }
+  
   // deallocate values
   // TODO: all??? correct ?
   for(int i=0; i<varcount; i++)
@@ -962,7 +1012,7 @@ FILE* expectfile(char* spec) {
   if (!f) {
     char fname[NAMELEN]= {0};
     snprintf(fname, sizeof(fname), "Test/%s", spec);
-    fprintf(stderr, "%% Couldn't find '%s' trying in %s\n", spec, fname);
+    //fprintf(stderr, "%% Couldn't find '%s' trying in %s\n", spec, fname);
     f= fopen(fname, "r");
   }
   nfiles++;
@@ -970,7 +1020,7 @@ FILE* expectfile(char* spec) {
   return f;
 }
 
-int from_list(char* selexpr) {
+int from_list(char* selexpr, int is_join) {
   char* backtrack= ps;
 
   char spec[NAMELEN]= {0};
@@ -979,16 +1029,26 @@ int from_list(char* selexpr) {
   // dispatch to named iterator
   if (0==strcmp("int", spec)) {
     INT(selexpr);
+    // TODO: is_join?
   } else {
     // - foo.csv(COL, COL..) foo
     char* header= getcollist();
 
-    // - foo.csv TABALIAS
+    // - foo.csv ... TABALIAS
     char table[NAMELEN]= {0};
     expectname(table, "table alias name");
     
+    // - JOIN foo.csv ... tab ON
+    char joincol[NAMELEN]= {0};
+    if (is_join) {
+      if (!got("on")) expected("on joincol");
+      // ON "foo"
+      expectname(joincol, "join column name");
+      printf("JOIN ON: %s\n", joincol);
+    }
+    
     FILE* f= expectfile(spec);
-    TABCSV(f, table, header, selexpr);
+    TABCSV(f, table, header, is_join, joincol, selexpr);
 
     // TODO: json
     // TODO: xml
@@ -1007,7 +1067,7 @@ int from(char* selexpr) {
     where(selexpr);
     return 0;
   } else {
-    from_list(selexpr);
+    from_list(selexpr, 0);
     return 1;
   }
 }

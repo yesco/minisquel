@@ -57,7 +57,7 @@ void printko(keyoffset* ko) {
     const char *s= strix(ko);
     if (*s) 
       printf("IX> '%-16s' %3d  @%5d\n", s, ko->type, ko->o);
-    else printf("IX> NULL\n");
+    else printf("IX> NULL           %3d  @%5d\n", ko->type, ko->o);
     break; }
   case 16: { // double
     printf("IX> %18lg %3d  @%5d\n", ko->val.d, ko->type, ko->o); break; }
@@ -72,6 +72,7 @@ typedef struct memindex {
   char* name;
   int n;
   int max;
+  int sorted;
   keyoffset *kos;
 } memindex;
 
@@ -85,6 +86,7 @@ memindex* newindex(char* name, int max) {
   ix->name= name;
   ix->n= 0;
   ix->max= max;
+  ix->sorted= 0;
   ix->kos= kos;
   return ix;
 }
@@ -125,10 +127,15 @@ int ensurix(memindex* ix, int n) {
 }
 
 keyoffset* addix(memindex* ix) {
+  // TODO: update in each Xaddix
+  //   if already ordered, no need sort!
+  ix->sorted= 0;
+  
   if (!ensurix(ix, 1)) return NULL;
   return ix->kos + ix->n++;
 }
   
+// TODO: make stats per index?
 long nstrdup= 0, bstrdup= 0;
 
 void setstrko(keyoffset* ko, char* s) {
@@ -153,8 +160,8 @@ void setstrko(keyoffset* ko, char* s) {
 // is the string copied?
 // TODO: already allocated?
 //    take char** s !! set null!
-keyoffset* sixadd(memindex* i, char* s, int offset) {
-  keyoffset* ko= addix(i);
+keyoffset* sixadd(memindex* ix, char* s, int offset) {
+  keyoffset* ko= addix(ix);
   if (!ko) return NULL;
   ko->o= offset;
 
@@ -162,8 +169,8 @@ keyoffset* sixadd(memindex* i, char* s, int offset) {
   return ko;
 }
     
-keyoffset* dixadd(memindex* i, double d, int offset) {
-  keyoffset* ko= addix(i);
+keyoffset* dixadd(memindex* ix, double d, int offset) {
+  keyoffset* ko= addix(ix);
   if (!ko) return NULL;
   ko->o= offset;
 
@@ -173,14 +180,9 @@ keyoffset* dixadd(memindex* i, double d, int offset) {
   return ko;
 }
     
-void printix(memindex* ix) {
-  printf("\n==========\n");
-  for(int i=0; i<ix->n; i++)
-    printko(ix->kos + i);
-  printf("--- %d\n", ix->n);
-}
 
 long ncmpko= 0;
+long neqko= 0;
 
 // ORDER: null=='' <<< double <<< string
 int cmpko(const void* va, const void* vb) {
@@ -211,8 +213,6 @@ int cmpko(const void* va, const void* vb) {
   }
 }
 
-long neqko= 0;
-
 // very fast eq (dismissal), 1 if equal
 int eqko(keyoffset* a, keyoffset* b) {
   neqko++;
@@ -224,12 +224,56 @@ int eqko(keyoffset* a, keyoffset* b) {
   return 0==cmpko(a, b);
 }
 
+// if equal, order in offset order!
+// use for sort...
+int cmpko_offset(const void* va, const void* vb) {
+  int r= cmpko(va, vb);
+  if (r) return r;
+  const keyoffset *a= va, *b= vb;
+  return (a->o > b->o) - (b->o > a->o);
+}
+
+void printix(memindex* ix) {
+  printf("\n\n========== %s\n", ix->name);
+
+  int groups= 0, same= 0;
+
+  for(int i=0; i<ix->n; i++) {
+    keyoffset* ko= ix->kos+i;
+
+    // TODO: FAULTTY!
+    //int eq= i && eqko(ko-1, ko);
+    
+    int eq= i && 0==cmpko(ko-1, ko);
+
+    if (eq) same++;
+    if (i==ix->n-1 || i && !eq && i && same>16) {
+      // TODO: report last group!
+      printf("...\n");
+      printko(ko-1);
+      groups++;
+      printf("-- GROUP %d COUNT: %d ( %3.1f%% )\n\n", groups, same, 100.0*same/ix->n);
+      same= 0;
+    }
+
+    if (same < 16) {
+      printko(ko);
+    } else {
+      //printf(" @%d", ko->o);
+    }
+  }
+  printf("------ %d entries %d groups\n", ix->n, groups);
+  printf("nstrdup=%ld bstrdup=%ld\n", nstrdup, bstrdup);
+  long bytes= bstrdup + ix->n*sizeof(keyoffset) + nstrdup*(16/2+4);
+  printf("Bytes: %ld\n\n\n", bytes);
+}
+
 // returns NULL or found keyoffset
-keyoffset* sfindix(memindex* i, char* s) {
+keyoffset* sfindix(memindex* ix, char* s) {
   keyoffset ko= {0};
   setstrko(&ko, s);
 
-  keyoffset* r= bsearch(&ko, i->kos, i->n, sizeof(keyoffset), cmpko);
+  keyoffset* r= bsearch(&ko, ix->kos, ix->n, sizeof(keyoffset), cmpko);
 
   cleanko(&ko);
   return r;
@@ -242,7 +286,9 @@ keyoffset* searchix(char* s) {
   return NULL;
 }
 
-void sortix(memindex* i) {
-  if (!i) return;
-  qsort(i->kos, i->n, sizeof(keyoffset), cmpko);
+void sortix(memindex* ix) {
+  if (!ix) return;
+  if (ix->sorted) return;
+  qsort(ix->kos, ix->n, sizeof(keyoffset), cmpko_offset);
+  ix->sorted= 1;
 }
