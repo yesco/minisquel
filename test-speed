@@ -16,3 +16,12 @@ echo "--- 100,000 x 1 or 1 x 100,000 ---"
 #   (almost same speed: < 200ms!)
 ./sql 'select i,j from int(1,1) i, int(1,100000) j where i=j' | grep '\(rows\|SQL\)'
 ./sql 'select i,j from int(1,100000) i, int(1,1) j where i=j' | grep '\(rows\|SQL\)'
+
+echo "-- JOIN! ---"
+
+# -- 3-4s with nested loop join
+#    after built index
+time ./run 'select t1.hmid, t2.hmid, predicted_category from happy.csv t1, happy.csv t2 where t1.hmid=t2.hmid'
+
+# -- one result per 1 s!
+time ./run 'select t1.hmid, t2.hmid, predicted_category from happy.csv t1 join happy.csv t2 on hmid where t1.hmid=t2.hmid'

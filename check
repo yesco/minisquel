@@ -1,11 +1,17 @@
 # regression testing, compares output
 ./run || ( echo "%% Compilation error"; exit 1) || exit 1
-./test > test.new 2>/dev/null
+./test > test.new 2>/dev/null || exit 1
+
+rm -f test.diff
+
+diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new > test.diff
+
+echo "------------"
+diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new
+echo "------------"
 
 (diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new && echo "OK - all tests passed") || {
 diff=$?
-
-diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new > test.diff
 
 echo
 echo

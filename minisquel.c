@@ -174,12 +174,17 @@ void fprintquoted(FILE* f, char* s, int quot, int delim) {
 
 // quot: see fprintquoted
 void printval(val* v, int quot, int delim) {
+  if (!v) { printf("(null)"); return; }
   if (!v->not_null) printf("NULL");
   else if (v->s) fprintquoted(stdout, v->s, quot, delim);
   //else printf("%.15lg", v->d);
   else {
+    // TODO: "csv" don't get fancy!
+    
     // TODO: use "%lg" if not "pretty"
-    if (v->d > 0 && v->d < 1e7) {
+    if (delim==',') {
+      printf("%.15lg", v->d);
+    } else if (v->d > 0 && v->d < 1e7) {
       printf("%7.7lg", v->d);
     } else if (v->d > 0 && v->d < 1e10) {
       char s[NAMELEN]= {0};
@@ -852,26 +857,85 @@ void action_insert_into_index(memindex* ix, char* table, char* joincol) {
     fprintf(stderr, "\n%% Insert into index failed!\n");
 }
 
+// TODO: remove
+int jdebug= 0;
+
 // TODO: take delimiter as argument?
 // TODO: too big!
 //
 // header, if given, is free:d
-int TABCSV(FILE* f, char* table, char* header, int is_join, char* joincol, char* selexpr) {
+int TABCSV(FILE* f, char* table, char* header, int is_join, char* joincol, val* joinval, char* selexpr) {
   int nvars= varcount;
 
+  char* parse_after= ps;
+  
   action act= NULL;
   
-  // create index?
+  // - create index?
+
+// TODO: hack for one index!
+static
   memindex* ix= NULL;
-  if (is_join) {
+static
+  int index_complete= 0;
+  // TODO: don't create index first time?
+  //  (save nmatches, fantout,ms)
+  //   1st - scan and analyze join variable
+  //   2nd - create index
+  // 2,3rd - use index, drop/block
+  //            if too many seek / timems
+  // TODO: maybe don't need all cols
+  //    maybe any "findvar" can create entry?
+  //    then can decide if index covers?
+  if (is_join && !index_complete) {
     char ixname[NAMELEN]= {0};
     snprintf(ixname, sizeof(ixname), "index.%s.%s", table, joincol);
     ix= newindex(ixname, 0);
-    fprintf(stderr, "! CREATE INDEX %s ON %s(%s)\n", ixname, table, joincol);
+    if (jdebug) fprintf(stderr, "! CREATE INDEX %s ON %s(%s)\n", ixname, table, joincol);
     act= action_insert_into_index;
   }
+  // use index for JOIN!
+  if (is_join && ix && index_complete && joinval) {
+    // TODO: NULL?
+    keyoffset* f= NULL;
+    if (joinval->s)
+      f= sfindix(ix, joinval->s);
+    else
+      f= dfindix(ix, joinval->d);
+    
+    // set column value
+    // TODO: "joinval"? ok for eq
+    val v= *joinval;
 
+    // TODO;TODO;TODO;TODO;TODO;TODO;
 
+    // TODO: cleanup!!!!
+    linkval(table, joincol, &v);
+
+    // TODO: interval
+    keyoffset* cur= f;
+    // TODO: range
+    keyoffset* end= ix->kos + ix->n;
+    if (jdebug) printf(">>>>JOIN match\n");
+    while(cur && cur<end) {
+      if (eqko(cur, f)) {
+	if (jdebug) printko(f);
+
+	int row= 0;
+	process_result(
+          -1, joinval, &row, parse_after, selexpr,
+	  // no indexing!
+          NULL, NULL, NULL, NULL);
+      } else break;
+      cur++;
+    }
+    if (jdebug) printf("<<<<<<\n\n");
+
+    varcount= nvars;
+    ;
+    return 1;
+  }
+  
   // parse header col names
   char* cols[MAXCOLS]= {0};
 
@@ -915,8 +979,6 @@ int TABCSV(FILE* f, char* table, char* header, int is_join, char* joincol, char*
   char s[1024]= {0}; 
   int r;
   
-  char* parse_after= ps;
-  
   // TODO: use csvgetline !
   col= 0;
   while(1) {
@@ -942,12 +1004,19 @@ int TABCSV(FILE* f, char* table, char* header, int is_join, char* joincol, char*
     hack_foffset(cols[col], &dataf, &foffset, d);
     col++;
   }
+  // end of table
 
+  // post index revolution
   if (ix) {
     sortix(ix);
-    printix(ix);
+    index_complete= 1;
+    if (jdebug) printix(ix);
+
     // TODO: retain somewhere!
-    free(ix); // pretty stupid...
+    if (0) {
+      free(ix); // pretty stupid...
+      ix= NULL;
+    }
   }
   
   // deallocate values
@@ -1019,15 +1088,22 @@ int from_list(char* selexpr, int is_join) {
     
     // - JOIN foo.csv ... tab ON
     char joincol[NAMELEN]= {0};
+    val* joinval= NULL;
     if (is_join) {
       if (!got("on")) expected("on joincol");
       // ON "foo"
       expectname(joincol, "join column name");
-      printf("JOIN ON: %s\n", joincol);
+      if (jdebug) printf("JOIN ON: %s = ", joincol);
+      // TODO: get "last" table here?
+      joinval= findvar(NULL, joincol);
+      if (jdebug) {
+	printval(joinval, 0, 0);
+	printf("\n");
+      }
     }
     
     FILE* f= expectfile(spec);
-    TABCSV(f, table, header, is_join, joincol, selexpr);
+    TABCSV(f, table, header, is_join, joincol, joinval, selexpr);
 
     // TODO: json
     // TODO: xml

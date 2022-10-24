@@ -10,3 +10,9 @@
 
 # should be 100, 100
 ./sql 'select count(i), count(j), count() from int(1,10) i, int(1,10) j'
+
+# bugs: nested loop index-join!
+# - first time need t1.a=t2.b since no index!
+./sql 'select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where'
+# - t2.b not loaded
+./sql 'select t1.a, t2.a, t2.b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a'

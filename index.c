@@ -102,7 +102,7 @@ memindex* newindex(char* name, int max) {
   memindex* ix= calloc(1, sizeof(memindex));
   if (!ix) { free(kos); return NULL; }
 
-  ix->name= name;
+  ix->name= strdup(name);
   ix->n= 0;
   ix->max= max;
   ix->sorted= 0;
@@ -127,6 +127,7 @@ void freeindex(memindex* ix) {
     if (kos->type==1) cleanko(kos);
     kos++;
   }
+  free(ix->name); ix->name= NULL;
   free(ix->kos); ix->kos= NULL;
   ix->max= 0;
   free(ix);
@@ -160,6 +161,7 @@ void setstrko(keyoffset* ko, char* s) {
   // 1.1M words
   // - 11 chars  99s  <--- !
   // -  7 chars 169s
+  if (!s) s= ""; // NULL
   size_t len= strlen(s);
   if (len > 11) {
   //if (strlen(s) > 7) {
@@ -273,7 +275,7 @@ void printix(memindex* ix) {
     int eq= i && 0==cmpko(ko-1, ko);
 
     if (eq) same++;
-    if (i==ix->n-1 || i && !eq && i && same>16) {
+    if (same>1 && (i==ix->n-1 || i && !eq && i)) {
       // TODO: report last group!
       printf("...\n");
       printko(ko-1);
@@ -295,9 +297,22 @@ void printix(memindex* ix) {
 }
 
 // returns NULL or found keyoffset
+// TODO: find first
 keyoffset* sfindix(memindex* ix, char* s) {
   keyoffset ko= {0};
   setstrko(&ko, s);
+
+  keyoffset* r= bsearch(&ko, ix->kos, ix->n, sizeof(keyoffset), cmpko);
+
+  cleanko(&ko);
+  return r;
+}
+
+// TODO: find first
+keyoffset* dfindix(memindex* ix, double d) {
+  keyoffset ko= {0};
+  ko.val.d= d;
+  ko.type= 16; // double
 
   keyoffset* r= bsearch(&ko, ix->kos, ix->n, sizeof(keyoffset), cmpko);
 

@@ -63,7 +63,18 @@ echo "== negatives, can be improved"
 
 # join!
 ./sql 'select ta.a, tb.a from foo.csv ta, foo.csv tb where ta.a=tb.a'
+echo "before"
 ./sql 'select i,j,i*j from int(1,20) i, int(1,10) j where i=j'
+
+echo "after"
+echo "more"
+# nested loop index-join
+echo "more and more"
+
+./sql 'select 42'
+./sql 'select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a' 2>&1
+
+echo "----------FISH"
 
 echo "========== BUGS ==========="
 ./test-bugs
