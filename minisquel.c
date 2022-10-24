@@ -277,8 +277,6 @@ val* findvar(char* table, char* name) {
   return NULL;
 }
 
-FILE* dataf= NULL;
-
 // TODO:setnum/setstr?
 // returns variable's &val
 val* setvar(char* table, char* name, val* s) {
@@ -336,6 +334,10 @@ int getname(char name[NAMELEN]) {
   return p!=&name[0];
 }
 
+void expectname(char name[NAMELEN], char* msg) {
+  if (getname(name)) return;
+  expected(msg? msg: "name");
+}
 
 // functions
 typedef struct func {
@@ -505,7 +507,7 @@ char* print_expr_list(char* e) {
 
     // select 42 AS foo
     if (got("as")) {
-      if (!getname(name)) expected("name");
+      expectname(name, NULL);
       if (!parse_only) setvar(NULL, name, &v);
       // TODO: "header" print state?
     } else {
@@ -739,6 +741,15 @@ void printstats() {
 // called to do next table
 int from_list(char* selexpr);
 
+int next_from_list(char* selexpr) {
+  char* backtrack= ps;
+  if (gotc(','))
+    return from_list(selexpr);
+  else
+    return where(selexpr);
+  ps= backtrack;
+}
+		   
 // sqlite3: virtual tables
 // - https://www.sqlite.org/vtablist.html
 
@@ -764,13 +775,13 @@ int INT(char* selexpr) {
       && num(&stop) && gotc(')')) {
     stop+= 0.5;
     spcs();
-    if (!getname(name)) expected("name");
+    expectname(name, NULL);
   } else return 0;
 
   val v= {};
   linkval("int", name, &v);
 
-  char* saved= ps;
+  char* backtrack= ps;
   for(double i= start; i<stop; i+= step) {
     // handle coded setvar
     // TODO:setnum/setstr?
@@ -778,7 +789,7 @@ int INT(char* selexpr) {
     v.not_null= 1;
     updatestats(&v);
 
-    ps= saved;
+    ps= backtrack;
     next_from_list(selexpr);
   }
 
@@ -789,6 +800,24 @@ int INT(char* selexpr) {
   return 1;
 }
 
+void hack_foffset(char* col, FILE** dataf, long* foffset, double d) {
+  if (!col || strcmp(col, "$foffset")) return;
+
+  // reading index special value
+  // TODO: move more generic place
+  *foffset= d;
+  printf("FOFFSET=%ld\n", *foffset);
+  if (!*dataf) *dataf= fopen("foo.csv", "r");
+  if (*dataf) fseek(*dataf, *foffset, SEEK_SET);
+  if (*dataf) {
+    char* ln= NULL;
+    size_t l= 0;
+    getline(&ln, &l, *dataf);
+    printf("\t%s\n", ln);
+    if (ln) free(ln);
+  }
+}
+
 #include "csv.c"
 
 // TODO: take delimiter as argument?
@@ -797,7 +826,6 @@ int INT(char* selexpr) {
 // header, if given, is free:d
 int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   int nvars= varcount;
-  char* saved= ps;
 
   char* cols[MAXCOLS]= {0};
 
@@ -830,10 +858,10 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
     linkval(table, cols[i], &vals[i]);
   }
 
-  col= 0;
   // TODO: consider caching whole line in order to not allocate small string fragments, then can point/modify that string
   // TODO: use csvgetline !
   foffset= 0; long fprev= ftell(f);
+  FILE* dataf= NULL;
 
   // TODO: if we know we don't access any
   //   columns (for this table) can we
@@ -846,6 +874,9 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
   char s[1024]= {0}; // TODO: limited
   int r;
   
+  char* parse_after= ps;
+  
+  col= 0;
   while((r= freadCSV(f, s, sizeof(s), &d))) {
     //printf("---CSV: %d %lg >%s<\n", r, d, s);
     if (r==RNEWLINE) {
@@ -856,7 +887,7 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
       fprev= ftell(f);
       if (col) {
 
-	ps= saved;
+	ps= parse_after;
 	next_from_list(selexpr);
 
 	// TODO: consider not clearing here
@@ -881,26 +912,14 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
     else if (r==RSTRING) vals[col].dealloc= vals[col].s= strdup(s);
     else error("Unknown freadCSV ret val");
 
-    // reading index special value
-    // TODO: move more generic place
-    if (cols[col] && 0==strcmp("$foffset", cols[col])) {
-      foffset= d;
-      printf("FOFFSET=%ld\n", foffset);
-      if (!dataf) dataf= fopen("foo.csv", "r");
-      if (dataf) fseek(dataf, foffset, SEEK_SET);
-      if (dataf) {
-	char* ln= NULL;
-	size_t l= 0;
-	getline(&ln, &l, dataf);
-	printf("\t%s\n", ln);
-	if (ln) free(ln);
-      }
-    }
+
+    hack_foffset(cols[col], &dataf, &foffset, d);
 
     updatestats(&vals[col]);
     col++;
   }
   // no newline at end
+  // TODO: shouldn't it be from_list???
   if (col) where(selexpr);
 
   // deallocate values
@@ -914,54 +933,61 @@ int TABCSV(FILE* f, char* table, char* header, char* selexpr) {
 
   // restore
   varcount= nvars;
-  ps= saved;
+  ps= parse_after;
 
   return 1;
 }
 
-int from_list(char* selexpr) {
+// Parses a column list (COL, COL..)
+//
+// Returns: strdup:ed string, to be free:d
+
+char* getcollist() {
+  if (!gotc('(')) return NULL;
+
   char* start= ps;
+  spcs();
+  while(!end()) {
+    char col[NAMELEN]= {0};
+    expectname(col, "colname");
+    spcs();
+    if (gotc(')')) break;
+    if (!gotc(',')) expected("colname list");
+  }
+  return strndup(start, ps-start-1);
+}
+
+FILE* expectfile(char* spec) {
+  FILE* f= fopen(spec, "r");
+  if (!f) {
+    char fname[NAMELEN]= {0};
+    snprintf(fname, sizeof(fname), "Test/%s", spec);
+    fprintf(stderr, "%% Couldn't find '%s' trying in %s\n", spec, fname);
+    f= fopen(fname, "r");
+  }
+  nfiles++;
+  if (!f) expected2("File not exist", spec);
+  return f;
+}
+
+int from_list(char* selexpr) {
+  char* backtrack= ps;
 
   char spec[NAMELEN]= {0};
-  if (!getname(spec))
-    error("Unknown from-iterator");
+  expectname(spec, "unkown from-iterator");
 
   // dispatch to named iterator
-  if (0==strcmp("int", spec)) INT(selexpr);
-  else {
-    // Parse header:
+  if (0==strcmp("int", spec)) {
+    INT(selexpr);
+  } else {
     // - foo.csv(COL, COL..) foo
-    char* header= NULL;
-    if (gotc('(')) {
-      spcs();
-      header= ps;
-      while(!end()) {
-	char col[NAMELEN]= {0};
-	if (!getname(col)) expected("colname");
-	spcs();
-	if (gotc(')')) break;
-	if (!gotc(',')) expected("colname list");
-      }
-      header= strndup(header, ps-header-1);
-    }
+    char* header= getcollist();
+
     // - foo.csv TABALIAS
     char table[NAMELEN]= {0};
-    // TODO: how NOT to read "where"
-    if (!getname(table)) expected2("table alias", spec);
+    expectname(table, "table alias name");
     
-    // fallback, assume filename!
-    FILE* f= fopen(spec, "r");
-    if (!f) {
-      char fname[NAMELEN]= {0};
-      snprintf(fname, sizeof(fname), "Test/%s", spec);
-      sprintf(stderr, "Didn't find '%s' trying in Test/ ...\n");
-      f= fopen(fname, "r");
-    }
-    nfiles++;
-    // TODO: "no such file");
-    if (!f) error(spec);
-
-    // TODO: fil.csv("a,b,c") == header
+    FILE* f= expectfile(spec);
     TABCSV(f, table, header, selexpr);
 
     // TODO: json
@@ -971,19 +997,11 @@ int from_list(char* selexpr) {
     
     fclose(f);
   }
-  // restore parse position!
-  ps= start;
+
+  ps= backtrack;
   return 1;
 }
 
-int next_from_list(char* selexpr) {
-  if (gotc(','))
-    from_list(selexpr);
-  else
-    where(selexpr);
-}
-
-		   
 int from(char* selexpr) {
   if (!got("from")) {
     where(selexpr);
@@ -1028,8 +1046,10 @@ int sqlselect() {
 }
 
 int sql() {
+  spcs();
+  if (end()) return 1;
   int r= sqlselect();
-  if (!r) return 0;
+  // TODO: try: create index ...
   return r;
 }
 
@@ -1108,17 +1128,20 @@ int main(int argc, char** argv) {
 
   mallocsreset();
 
-  long startms= timems();
+  long ms= timems();
   parse(cmd);
   int r= sql();
-  long ms= timems()-startms;
-
-  printf("\n%ld rows in %ld ms (read %ld lines)\n\n", lineno-1, ms, readrows);
-  fprintmallocs(stdout);
+  ms= timems()-ms;
+  
+  if (lineno-1 >= 0) {
+    printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno-1, ms, readrows);
+    fprintmallocs(stdout);
+  }
 
   // TODO: catch/report parse errors
   if (r!=1) printf("\n%%result=%d\n", r);
 
+  // TODO: print leftover
   //if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
 

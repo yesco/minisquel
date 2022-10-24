@@ -31,7 +31,7 @@ void mallocsreset() {
 }
 
 void fprintmallocs(FILE* f) {
-  fprintf(f, "%ld malloc %ld free (leak %+ld) %ld bytes\n", nalloc, nfree, nalloc-nfree, nbytes);
+  fprintf(f, "[%ld malloc %ld free (leak %+ld) %ld bytes]\n", nalloc, nfree, nalloc-nfree, nbytes);
 }
 
 #ifdef MAIN
