@@ -1,4 +1,4 @@
-# MiniSQueL - A minimalistic plaintext sql interpreter
+# MiniSQueL - a minimalistic plaintext sql interpreter
 
 This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concept doing an SQL-style interpreter from first principles. It takes the same naive/simple approach to interpretation as early BASICs did: It re-parses and interprets the source code *every* time. Is it efficient? No. Was it easy to write? Yes! So far...
 
@@ -10,14 +10,17 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - "not for professional use" :-D
 - no depencies other than linux/posix
 - limited sql
-        [FORMAT (CSV|TAB|BAR)]
-	SELECT count(money) xxx AS x, ...
-	[FROM fil.csv AS fil
- 	 [JOIN foo.csv AS foo ON fil.id=foo.id]]
-	[WHERE ...
-          AND ...
-	  OR NOT ...
-	  GROUP BY 1,2]
+```
+     [FORMAT (CSV|TAB|BAR)]
+     SELECT count(money) xxx AS x, ...
+     [FROM fil.csv AS fil
+     [JOIN foo.csv AS foo ON fil.id=foo.id]]
+     [WHERE ...
+     AND ...
+     OR NOT ...]
+     [GROUP BY 1,2]
+     [ORDER BY x DESC]
+```
 - sql *INTERPRETER* (means no internal structures/parse-tree/interpreter internal representation)
 - parse text files (csv, tab, plain, json, xml)
 - limited aggregation (full/group by on sorted data)
