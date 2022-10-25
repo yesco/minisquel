@@ -4,7 +4,7 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 
 ## GOALS
 
-- "minimal" in code/complexity (<1000 lines code)
+- "minimal" in code/complexity (~1000 lines code)
 - fast hack for fun
 - do the simplest for the moment to add
 - "not for professional use" :-D
@@ -66,6 +66,30 @@ Joins!
     
 select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
     
+External program quering (EXTENSION!)
+
+     select name from \"ls -1 |\"(name) file\n\
+
+This runs the command ending with a pipe character '|'. The output is parsed as CSV and used for the query. The columns (1 in this case) are named (name).
+
+If this is put in a script it can be queried like this:
+
+     select name from "./sql --batch --init Test/files.sql |"
+
+Here is another short-cut (EXTENDED!)
+
+     File: one2ten.sql
+     ---
+     select i from int(1,10) i
+     ---
+
+     select i from one2ten.sql o2t
+
+Basically, we're saying that a sql script (with one statement) *IS* a table!
+
+This means we have limited subqueries at least in the FROM clause.
+
+
 ## Performance?
 - actually, not too bad!
 - 22MB of csv w 108K records take < 1s to scan!
@@ -76,7 +100,9 @@ select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
 - row by row processing
 - refer to columns by name or table.col
 - plain-text CSV/TAB-file querying
-- cross-product join (no JOIN ... ON)
+- cross-product join
+- rudimentary automatic build of in-memory index 16b/entry
+- LIMITED: tab JOIN tab ON col - speedup is from 30h to 5s! using index on cross-join which becomes nested loop index lookup. 2s is scanning the two (same) tables and building the index ("zero" time)
 - undefined/not present variables are NULL
 - NULL is always null if not set, LOL ("feature")
 - double as only numeric type (print %lg)
@@ -107,7 +133,44 @@ select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
 - count sum min max avg stdev
 - type
 
+## ./minisquel - "help"
+
+```
+$ ./sql --help
+
+Usage: ./sql ( [OPTIONS] [SQL] ) ... 
+
+[OPTIONS]
+--batch
+	(== --csv --no-echo --no-stats --no-interactive)
+--csv
+--echo
+--force
+--format=csv|bar|tab	(tab is default)
+--init FILENAME
+	Loads and runs SQL from file.
+--interactive | -t
+--security
+	Disables potentially dangerious operations.
+	popen: select name from "ls -1 |"(name) file
+--stats
+--verbose | -v
+--verbose
+
+[SQL]	'select 42'
+	'select "foo"'
+
+	If queries are run command line, it'll exit after.
+	To change; add--interactive.
+
+
+Unknown option: --help
+Error: Unkonwn option
+```
+
+
 ## TODO:
+- tab JOIN tab USING(c, ...)
 - LIKE/REGEXP
 - select *,tab.*
 - sql allows names to be quoted!
@@ -127,7 +190,6 @@ select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
 - BEGIN...END transactional over several files?
 - index files=="create view" (auto-invalidate on update)
 - consider connecting with user pipes and external programs like sql_orderby? or for nested queries, at least in "from"
-- tab JOIN tab USING(c, ...)
 - Query 22 Mb external URL
       SELECT ...
       FROM  https://raw.githubusercontent.com/megagonlabs/HappyDB/master/happydb/data/cleaned_hm.csv AS happy

@@ -1,6 +1,24 @@
 #include "csv.c"
 
+void readfile(char* fn) {
+  FILE* f= fopen(fn, "r");
+  char v[1024];
+  double d;
+  int r;
+  while((r= freadCSV(f, v, sizeof(v), &d))) {
+    printf("%2d: ", r);
+    if (r==RNULL) printf("NULL\n");
+    if (r==RNUM) printf("%lg\n", d);
+    if (r==RSTRING) printf("\"%s\"\n", v);
+    if (r==RNEWLINE) printf("NL\n");
+  }
+  fclose(f);
+}
+
 int main(int argc, char** argv) {
+
+  readfile("Test/manynls.csv"); exit(0);
+
   if (0) {
     {
       char* s= strdupncat(strdup("foo"), -1, "bar");
@@ -36,7 +54,7 @@ int main(int argc, char** argv) {
 	if (r==RNULL) printf("NULL   ");
 	if (r==RNUM) printf("%lg   ", d);
 	if (r==RSTRING) printf(">%s<   ", v);
-	if (r==RNEWLINE) printf("\n");
+	if (r==RNEWLINE) printf("NL\n");
       }
       fclose(f);
     }

@@ -3,6 +3,7 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <math.h>
+#include <errno.h>
 
 #include "malloc-count.c"
 //#include "malloc-simple.c"
@@ -253,6 +254,7 @@ int varcount= 0;
 
 val* linkval(char* table, char* name, val* v) {
   if (varcount>=VARCOUNT) error("out of vars");
+  if (debug) printf("linkval %s.%s\n", table, name);
   tablenames[varcount]= table;
   varnames[varcount]= name;
   varvals[varcount]= v;
@@ -944,15 +946,30 @@ static
     return 1;
   }
   
-  // parse header col names
+  // --- parse header col names
   char* cols[MAXCOLS]= {0};
 
   size_t hlen= 0;
-  if (!header) getline(&header, &hlen, f);
+  if (!header) {
+    getline(&header, &hlen, f);
+    if (!header) {
+      perror("getline failed ");
+      printf("ERRNO %d\n", errno);
+    }
+  }
+  
+  // Bad Hack for header: Remove '"'
+  // TODO: use the damn CSV reader instead!
+  while(1) {
+    char* z = strchr(header, '"');
+    if (!z) break;
+    memcpy(z, z+1, strlen(z));
+  }
 
   // TODO: read w freadCSV()
   // extract ','-delimited names
   // reads and modifies headers
+
   char* h= header;
   int col= 0, row= 0;
   cols[0]= h;
@@ -991,6 +1008,9 @@ static
   col= 0;
   while(1) {
     r= freadCSV(f, s, sizeof(s), &d);
+    // TODO: read empty line becomes a NULL value?
+    // TODO: ignore
+    
     //printf("---CSV: %d %lg >%s<\n", r, d, s);
     if (r==RNEWLINE || !r) {
       readrows++;
@@ -1065,23 +1085,50 @@ char* getcollist() {
 
 FILE* expectfile(char* spec) {
   if (!spec || !*spec) expected("filename");
-  int len= strlen(spec);
+
   FILE* f= NULL;
+
+  // popen? see if ends with '|'
+  int len= strlen(spec);
   if (spec[len-1]=='|') {
     if (security) expected2("Security doesn't allow POPEN style queries/tables", spec);
     spec[strlen(spec)-1]= 0;
+    if (debug) printf("! POPEN: %s\n", spec);
     f= popen(spec, "r");
   } else {
+
+    // try open actual FILENAME
     f= fopen(spec, "r");
+
+    // try open Temp/FILENAME
+    if (!f) {
+      char fname[NAMELEN]= {0};
+      snprintf(fname, sizeof(fname), "Test/%s", spec);
+      f= fopen(fname, "r");
+    }
   }
-  if (!f) {
-    char fname[NAMELEN]= {0};
-    snprintf(fname, sizeof(fname), "Test/%s", spec);
-    //fprintf(stderr, "%% Couldn't find '%s' trying in %s\n", spec, fname);
-    f= fopen(fname, "r");
-  }
+
   nfiles++;
   if (!f) expected2("File not exist", spec);
+  
+  return f;
+}
+
+FILE* magicfile(char* spec) {
+  if (!spec || !*spec) expected("filename");
+  spec= strdup(spec); // haha
+
+  // handle foo.sql script -> popen!
+  char* dot= strrchr(spec, '.');
+  if (dot && 0==strcmp(dot, ".sql")) {
+    char fname[NAMELEN]= {0};
+    snprintf(fname, sizeof(fname), "./minisquel --batch --init %s |", spec);
+    free(spec);
+    spec= strdup(fname);
+  }
+  
+  FILE* f= expectfile(spec);
+  free(spec);
   return f;
 }
 
@@ -1126,7 +1173,8 @@ int from_list(char* selexpr, int is_join) {
       }
     }
     
-    FILE* f= expectfile(spec);
+    FILE* f= magicfile(spec);
+
     TABCSV(f, table, header, is_join, joincol, joinval, selexpr);
 
     // TODO: json
@@ -1299,6 +1347,7 @@ int process_arg(char* arg, char* next) {
   int gotit =
     optstr("csv", globalformat, sizeof(globalformat), arg) ||
     optstr("format", globalformat, sizeof(globalformat), arg) ||
+    optint("debug", &debug, arg) ||
     optint("echo", &echo, arg) ||
     optint("security", &security, arg) ||
     optint("stats", &stats, arg) ||
@@ -1337,7 +1386,7 @@ int process_arg(char* arg, char* next) {
 --interactive | -t\n\
 --security\n\
 	Disables potentially dangerious operations.\n\
-	popen: select name from \"ls -1\"(name) file\n\
+	popen: select name from \"ls -1 |\"(name) file\n\
 --stats\n\
 --verbose | -v\n\
 --verbose\n\

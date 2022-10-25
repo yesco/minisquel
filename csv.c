@@ -20,10 +20,14 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
   int c, q= 0, typ= 0;
   char* r= s;
   *r= 0; max--; // zero terminate 1 byte
-  while((c= fgetc(f))!=EOF &&
+  while((c= fgetc(f)) != EOF &&
 	(c!=',' || q>0) && (c!='\n' || q>0)) {
     if (c=='\r') continue; // DOS
-    if (c==0) return RNEWLINE;
+    if (c==0) { // skip NL+NL*
+      while(isspace((c= fgetc(f))));
+      ungetc(c, f);
+      return RNEWLINE;
+    }
     if (c==q) { q= -q; continue; } // "foo" bar, ok!
     if (c==-q) q= c;
     else if (!typ && !q && (c=='"' || c=='\''))

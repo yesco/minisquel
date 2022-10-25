@@ -73,6 +73,10 @@ echo "before"
 # --- popen, subqueries!
 ./sql 'select name from "ls Test/*.csv|"(name) file'
 
+# haha: sql query *IS* a table!
+./run 'select i from one2ten.sql ten'
+
+
 echo "========== BUGS ==========="
 ./test-bugs
 echo "^^^^^^^^^^ BUGS ^^^^^^^^^^^"
