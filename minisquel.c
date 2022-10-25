@@ -1054,7 +1054,15 @@ char* getcollist() {
 }
 
 FILE* expectfile(char* spec) {
-  FILE* f= fopen(spec, "r");
+  if (!spec || !*spec) expected("filename");
+  int len= strlen(spec);
+  FILE* f= NULL;
+  if (spec[len-1]=='|') {
+    spec[strlen(spec)-1]= 0;
+    f= popen(spec, "r");
+  } else {
+    f= fopen(spec, "r");
+  }
   if (!f) {
     char fname[NAMELEN]= {0};
     snprintf(fname, sizeof(fname), "Test/%s", spec);
@@ -1069,8 +1077,15 @@ FILE* expectfile(char* spec) {
 int from_list(char* selexpr, int is_join) {
   char* backtrack= ps;
 
+  // filename.csv or "filename.csv"
   char spec[NAMELEN]= {0};
-  expectname(spec, "unkown from-iterator");
+  char* s= NULL;
+  if (str(&s) && *s) {
+    strncpy(spec, s, sizeof(spec));
+  } else {
+    expectname(spec, "unkown from-iterator");
+  }
+  if (s) free(s);
 
   // dispatch to named iterator
   if (0==strcmp("int", spec)) {
@@ -1261,29 +1276,70 @@ void runquery(char* cmd) {
   sqllog(cmd, "end", NULL, NULL, readrows, lineno-1, ms);
 }
 
+void process_file(FILE* in);
+
+// returns number of args processed (1 or 2)
+int process_arg(char* arg, char* next) {
+  if (0==strcmp("--csv", arg)) {
+    strcpy(globalformat, arg+2);
+
+  } else if (arg==strstr(arg, "--format=")) {
+    strcpy(globalformat, arg + strlen("--format="));
+
+  } else if (arg==strstr(arg, "--init")) {
+    char fname[NAMELEN]= {0};
+    strcpy(fname, arg + strlen("--init"));
+    char* fn= &fname[0];
+    if (*fn=='=') fn++;
+    while(*fn==' ') fn++;
+    // get next arg (--init FILE)
+    if (!*fn) fn= next;
+
+    FILE* f= expectfile(fn);
+    process_file(f);
+    fclose(f);
+    return fn==next? 2: 1;
+    
+  } else if (arg==strstr(arg, "--")) {
+    // -- illegal option
+    printf("Error: %s\n", arg);
+    fprintf(stderr, "Error: %s\n", arg);
+    printf("Usage: ./sql --csv --format=csv|bar|tab --init FILENAME 'select 42' 'select \"foo\"\n");
+    error("Unkonwn option");
+
+  } else {
+    //  no option match: assume sql
+    runquery(arg);
+  }
+
+  return 1;
+}
+
+void process_file(FILE* in) {
+  char* line= NULL;
+  size_t l= 0;
+  do {
+    printf("SQL> ");
+    if (getline(&line, &l, in)==EOF) break;
+    int len= strlen(line);
+    if (line[len-1]=='\n') line[len-1]= 0;
+    // haha, process as if argument!
+    (void)process_arg(line, NULL);
+  } while(strcmp("exit", line) && strcmp("quit", line));
+  printf("\n");
+}
+
 int main(int argc, char** argv) {
 // testread(); exit(0);
   char* arg0= *argv;
  
   register_funcs();
   
-  while (*++argv && --argc>0) {
-    if (0==strcmp("--csv", *argv)) {
-      strcpy(globalformat, *argv+2);
-
-    } else if (*argv==strstr(*argv, "--format=")) {
-      strcpy(globalformat, *argv + strlen("--format="));
-
-    } else if (*argv==strstr(*argv, "--")) {
-      printf("ARG: %s\n", *argv);
-      fprintf(stderr, "ARG: %s\n", *argv);
-      printf("Usage: ./sql --csv --format=csv|bar|tab 'select 42' 'select \"foo\"\n");
-      error("Unkonwn option");
-
-    } else {
-      //  no option match: assume sql
-      runquery(*argv);
-    }
+  int n=1;
+  while (*((argv+=n)) && (argc+=n)>0) {
+    n= process_arg(argv[0], argv[1]);
   }
+  process_file(stdin);
+
   return 0;
 }
