@@ -1,3 +1,5 @@
+clang minisquel.c -o sql && {
+
 # --------- fail - TODO:
 ./sql 'select 42 where (1)=1'
 ./sql 'select 42 where ((1)=1)'
@@ -16,3 +18,14 @@
 ./sql 'select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where'
 # - t2.b not loaded
 ./sql 'select t1.a, t2.a, t2.b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a'
+
+# ---------------------------
+# --- COSMETIC
+
+# table header bad
+./sql 'select "foo"'
+
+
+
+# -- end test
+}

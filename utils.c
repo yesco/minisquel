@@ -61,6 +61,67 @@ void expected(char* msg) {
 
 // TODO: warningf
 
+//////////////////
+// String routines
+
+#include <strings.h>
+#include <string.h>
+
+
+// Extract number from argument
+// --foo      -> 1
+// --foo=on   -> 1
+// --foo=off  -> 1
+// --foo=37   -> 37
+// --no-foo   -> 0
+int arg2int(char* arg) {
+  if (strstr(arg, "=on")) return 1;
+  if (strstr(arg, "=off")) return 0;
+  if (strstr(arg, "--no-")) return 0;
+  if (strstr(arg, "--no")) return 0; // ?
+  size_t i= strcspn(arg, "0123456789");
+  if (i==strlen(arg)) return 1;
+  int neg= (i && arg[i-1]=='-')? -1: +1;
+  return neg * atoi(arg+i);
+}
+
+// Return 1 if matched, set *v
+// v is optional, can be NULL
+int optint(char* name, int* v, char* arg) {
+  if (*arg!='-' || !strstr(arg, name)) return 0;
+  if (v) *v= arg2int(arg);
+  return 1;
+}
+
+// Look for NAMEd option, store it in STR copying MAX chars.
+// 
+// If STR==NULL just return 1 if match.
+// If MAX is negative, assume it's a pinter to a string pointer, deallocate/reallocate.
+
+// If (MAX<0)
+// - use existing storage (MAX>0)
+// char filename[32];
+// optstr("file", filename, sizeof(filename));
+
+// - free/allocates new string (MAX<0)
+// char* filename= NULL;
+// optstr("file", &filename, -1);
+//
+// Return: 1 if matched
+int optstr(char* name, void* s, int max, char* arg) {
+  char* found= strstr(arg, name);
+  if (*arg!='-' || !found) return 0;
+  char* p= strchr(arg, '=');
+  if (!p && !*(found+strlen(name))) p= found-1;
+  if (!s || !p) ; // no copy
+  else if (max>0) strncpy(s, p+1, max);
+  else {
+    free(*(char**)s);
+    *(char**)s= strdup(p+1);
+  }
+  return 1;
+}
+
 
 #define JSK_INCLUDED_UTILS
 

@@ -33,9 +33,18 @@ long lineno= 0, readrows= 0, nfiles= 0;
 //   - sqlite3(ascii box column csv html insert json line list markdown qbox quote table tabs tcl)
 //   - DuckDB(ascii, box, column, csv, (no)header, html, json, line, list, markdown, newline SEP, quote, separator SEP, table)
 
-// format
+// -- Options
+
+int stats= 1, debug= 0, batch= 0, force= 0;
+int verbose= 0, interactive= 1;
+
+int globalecho= 1, echo= 1;
+
 char globalformat[30]= {0};
 char format[30]= {0};
+
+
+
 
 char formatdelim() {
   if (!*format) return '\t';
@@ -889,6 +898,7 @@ static
     char ixname[NAMELEN]= {0};
     snprintf(ixname, sizeof(ixname), "index.%s.%s", table, joincol);
     ix= newindex(ixname, 0);
+    jdebug= debug;
     if (jdebug) fprintf(stderr, "! CREATE INDEX %s ON %s(%s)\n", ixname, table, joincol);
     act= action_insert_into_index;
   }
@@ -1248,7 +1258,8 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readrows, long ro
 }
 
 void runquery(char* cmd) {
-  printf("SQL> %s\n", cmd);
+
+  if (echo) printf("SQL> %s\n", cmd);
 
   // log and time
   sqllog(cmd, "start", NULL, NULL, 0, 0, 0);
@@ -1260,10 +1271,14 @@ void runquery(char* cmd) {
   int r= sql();
   ms= timems()-ms;
   
-  if (lineno-1 >= 0) {
-    printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno-1, ms, readrows);
+  if (stats) {
+    if (lineno-1 >= 0) {
+      printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno-1, ms, readrows);
+    }
+    fprintmallocs(stdout);
   }
-  fprintmallocs(stdout);
+
+  // TODO: clean stats!
 
   // TODO: catch/report parse errors
   if (r!=1) printf("\n%%result=%d\n", r);
@@ -1276,57 +1291,74 @@ void runquery(char* cmd) {
   sqllog(cmd, "end", NULL, NULL, readrows, lineno-1, ms);
 }
 
-void process_file(FILE* in);
+void process_file(FILE* in, int prompt);
 
 // returns number of args processed (1 or 2)
 int process_arg(char* arg, char* next) {
-  if (0==strcmp("--csv", arg)) {
-    strcpy(globalformat, arg+2);
+  int gotit =
+    optstr("csv", globalformat, sizeof(globalformat), arg) ||
+    optstr("format", globalformat, sizeof(globalformat), arg) ||
+    optint("echo", &echo, arg) ||
+    optint("stats", &stats, arg) ||
+    optint("force", &force, arg) ||
+    optint("verbose", &verbose, arg) ||
+    optint("-v", &verbose, arg) ||
+    optint("interactive", &interactive, arg) ||
+    optint("-t", &interactive, arg) ||
+    0;
 
-  } else if (arg==strstr(arg, "--format=")) {
-    strcpy(globalformat, arg + strlen("--format="));
+  if (gotit) {
+    return 1;
+  } else if (optint("batch", &batch, arg)) {
+    strcpy(globalformat, "csv");
+    echo= 0; stats= 0; interactive= 0;
 
-  } else if (arg==strstr(arg, "--init")) {
-    char fname[NAMELEN]= {0};
-    strcpy(fname, arg + strlen("--init"));
-    char* fn= &fname[0];
-    if (*fn=='=') fn++;
-    while(*fn==' ') fn++;
-    // get next arg (--init FILE)
-    if (!*fn) fn= next;
-
-    FILE* f= expectfile(fn);
-    process_file(f);
+  } else if (optint("init", NULL, arg)) {
+    FILE* f= expectfile(next);
+    process_file(f, 0);
     fclose(f);
-    return fn==next? 2: 1;
-    
+    return 2;
+
   } else if (arg==strstr(arg, "--")) {
-    // -- illegal option
+    // -- Unknown option
     printf("Error: %s\n", arg);
     fprintf(stderr, "Error: %s\n", arg);
-    printf("Usage: ./sql --csv --format=csv|bar|tab --init FILENAME 'select 42' 'select \"foo\"\n");
+
+    printf("Usage: ./sql ( [OPTIONS] [SQL] ) ... \n\
+[OPTIONS]\n\
+\n\
+\n\
+\n\
+--init FILENAME\n\
+\n\
+\n\
+[SQL]	'select 42'\n\
+	'select \"foo\"'\n");
     error("Unkonwn option");
 
   } else {
     //  no option match: assume sql
     runquery(arg);
+    interactive= 0;
   }
 
   return 1;
 }
 
-void process_file(FILE* in) {
+void process_file(FILE* in, int prompt) {
   char* line= NULL;
   size_t l= 0;
   do {
-    printf("SQL> ");
+    if (prompt) printf("SQL> ");
     if (getline(&line, &l, in)==EOF) break;
     int len= strlen(line);
     if (line[len-1]=='\n') line[len-1]= 0;
     // haha, process as if argument!
+    if (prompt) echo= 0;
     (void)process_arg(line, NULL);
+    echo= globalecho;
   } while(strcmp("exit", line) && strcmp("quit", line));
-  printf("\n");
+  if (prompt) printf("\n");
 }
 
 int main(int argc, char** argv) {
@@ -1336,10 +1368,10 @@ int main(int argc, char** argv) {
   register_funcs();
   
   int n=1;
-  while (*((argv+=n)) && (argc+=n)>0) {
+  while (*((argv+=n)) && (argc+=n)>0)
     n= process_arg(argv[0], argv[1]);
-  }
-  process_file(stdin);
+
+  if (interactive) process_file(stdin, 1);
 
   return 0;
 }
