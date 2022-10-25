@@ -33,6 +33,8 @@ long lineno= 0, readrows= 0, nfiles= 0;
 //   - sqlite3(ascii box column csv html insert json line list markdown qbox quote table tabs tcl)
 //   - DuckDB(ascii, box, column, csv, (no)header, html, json, line, list, markdown, newline SEP, quote, separator SEP, table)
 
+// format
+char globalformat[30]= {0};
 char format[30]= {0};
 
 char formatdelim() {
@@ -1147,7 +1149,7 @@ int from(char* selexpr) {
 
 // just an aggregator!
 int sqlselect() {
-  ZERO(*format);
+  strcpy(format, globalformat);
   if (got("format") && !getname(format)) expected("expected format name");
   if (!got("select")) return 0;
   char* expr= ps;
@@ -1230,12 +1232,7 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readrows, long ro
   // close is kind of optional, as "\a+" will flush?
 }
 
-int main(int argc, char** argv) {
-// testread(); exit(0);
- 
-  register_funcs();
-  
-  char* cmd= argv[1];
+void runquery(char* cmd) {
   printf("SQL> %s\n", cmd);
 
   // log and time
@@ -1250,8 +1247,8 @@ int main(int argc, char** argv) {
   
   if (lineno-1 >= 0) {
     printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno-1, ms, readrows);
-    fprintmallocs(stdout);
   }
+  fprintmallocs(stdout);
 
   // TODO: catch/report parse errors
   if (r!=1) printf("\n%%result=%d\n", r);
@@ -1262,6 +1259,31 @@ int main(int argc, char** argv) {
 
   // log and time
   sqllog(cmd, "end", NULL, NULL, readrows, lineno-1, ms);
+}
 
+int main(int argc, char** argv) {
+// testread(); exit(0);
+  char* arg0= *argv;
+ 
+  register_funcs();
+  
+  while (*++argv && --argc>0) {
+    if (0==strcmp("--csv", *argv)) {
+      strcpy(globalformat, *argv+2);
+
+    } else if (*argv==strstr(*argv, "--format=")) {
+      strcpy(globalformat, *argv + strlen("--format="));
+
+    } else if (*argv==strstr(*argv, "--")) {
+      printf("ARG: %s\n", *argv);
+      fprintf(stderr, "ARG: %s\n", *argv);
+      printf("Usage: ./sql --csv --format=csv|bar|tab 'select 42' 'select \"foo\"\n");
+      error("Unkonwn option");
+
+    } else {
+      //  no option match: assume sql
+      runquery(*argv);
+    }
+  }
   return 0;
 }

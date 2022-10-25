@@ -1,4 +1,4 @@
 gcc -g minisquel.c -o minisquel-debug && {
-    echo "QUERY: '$*'"
-    (echo "run '$*'" ; echo "break exit" ; echo "where" ; cat -) | gdb minisquel-debug
+    echo "DEBUG.sql> $@"
+    (echo "./dbg $@" ; echo "break exit" ; echo "where" ; cat -) | gdb minisquel-debug
 }
