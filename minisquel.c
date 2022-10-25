@@ -38,7 +38,7 @@ long lineno= 0, readrows= 0, nfiles= 0;
 int stats= 1, debug= 0, batch= 0, force= 0;
 int verbose= 0, interactive= 1;
 
-int globalecho= 1, echo= 1;
+int globalecho= 1, echo= 1, security= 0;
 
 char globalformat[30]= {0};
 char format[30]= {0};
@@ -1068,6 +1068,7 @@ FILE* expectfile(char* spec) {
   int len= strlen(spec);
   FILE* f= NULL;
   if (spec[len-1]=='|') {
+    if (security) expected2("Security doesn't allow POPEN style queries/tables", spec);
     spec[strlen(spec)-1]= 0;
     f= popen(spec, "r");
   } else {
@@ -1299,6 +1300,7 @@ int process_arg(char* arg, char* next) {
     optstr("csv", globalformat, sizeof(globalformat), arg) ||
     optstr("format", globalformat, sizeof(globalformat), arg) ||
     optint("echo", &echo, arg) ||
+    optint("security", &security, arg) ||
     optint("stats", &stats, arg) ||
     optint("force", &force, arg) ||
     optint("verbose", &verbose, arg) ||
@@ -1321,19 +1323,35 @@ int process_arg(char* arg, char* next) {
 
   } else if (arg==strstr(arg, "--")) {
     // -- Unknown option
-    printf("Error: %s\n", arg);
-    fprintf(stderr, "Error: %s\n", arg);
-
     printf("Usage: ./sql ( [OPTIONS] [SQL] ) ... \n\
+\n\
 [OPTIONS]\n\
-\n\
-\n\
-\n\
+--batch\n\
+	(== --csv --no-echo --no-stats --no-interactive)\n\
+--csv\n\
+--echo\n\
+--force\n\
+--format=csv|bar|tab	(tab is default)\n\
 --init FILENAME\n\
-\n\
+	Loads and runs SQL from file.\n\
+--interactive | -t\n\
+--security\n\
+	Disables potentially dangerious operations.\n\
+	popen: select name from \"ls -1\"(name) file\n\
+--stats\n\
+--verbose | -v\n\
+--verbose\n\
 \n\
 [SQL]	'select 42'\n\
-	'select \"foo\"'\n");
+	'select \"foo\"'\n\
+\n\
+	If queries are run command line, it'll exit after.\n\
+	To change; add--interactive.\n\
+\n\
+\n");
+    printf("Unknown option: %s\n", arg);
+    fprintf(stderr, "Unknown option: %s\n", arg);
+
     error("Unkonwn option");
 
   } else {
