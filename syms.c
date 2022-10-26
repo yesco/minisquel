@@ -58,21 +58,37 @@ int symcmp(int a, int b) {
 }
 
 // TODO: idea use negative numbers to indicate it's "ordered", that way can detect "mixing"
+int sym_owned(char* owned);
+
+// looup STRING, or add a *copy*.
+// 
+// Returns: sym number
+int sym(char* s) {
+  return sym_owned(strdup(s));
+}
+
 int osym(char* s);
 char* osymstr(int o);
 
-// looup symbol (add if needed)
-int sym(char* s) {
+// lookup OWNED string, if need adds
+// the pointer, otherwise free:s it.
+//
+// Returrns: sym number
+int sym_owned(char* owned) {
+  char*s = owned;
   // find previous
   if (!s) return 0;
-  // TODO: improve w hash
+  // TODO: improve w hash?
+  // or just keep in osyms order?
   for(int i=1; i<symscount; i++)
-    if (0==strcmp(s, syms[i]))
+    if (0==strcmp(s, syms[i])) {
+      free(owned);
       return i;
+    }
   // not found - add
   if (symscount>SYMS_MAX)
     error("Broke the SYMS_MAX limit!");
-  syms[symscount]= strdup(s);
+  syms[symscount]= owned;
   // TODO: do insertion sort? above!
   osyms[symscount]= symscount;
   // if adding in higher than existing...
