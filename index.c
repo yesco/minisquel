@@ -261,36 +261,42 @@ int cmpko_offset(const void* va, const void* vb) {
   return (a->o > b->o) - (b->o > a->o);
 }
 
-void printix(memindex* ix) {
+// Print index IX, and maybe also PRINT_ENTRIES
+void printix(memindex* ix, int print_entries) {
   printf("\n\n========== %s\n", ix->name);
 
-  int groups= 0, same= 0;
+  int groups= 0, same= 0, distinct= 0;
 
   for(int i=0; i<ix->n; i++) {
     keyoffset* ko= ix->kos+i;
 
-    // TODO: FAULTTY!
+    // actually 13% slower for str!
+    //   WHEN STR are equal!
+    // 9% FASTER for nums
     //int eq= i && eqko(ko-1, ko);
     
     int eq= i && 0==cmpko(ko-1, ko);
 
+    if (!eq) distinct++;
     if (eq) same++;
     if (same>1 && (i==ix->n-1 || i && !eq && i)) {
       // TODO: report last group!
-      printf("...\n");
-      printko(ko-1);
       groups++;
-      printf("-- GROUP %d COUNT: %d ( %3.1f%% )\n\n", groups, same, 100.0*same/ix->n);
+      if (print_entries) {
+	printf("...\n");
+	printko(ko-1);
+	printf("-- GROUP %d COUNT: %d ( %3.1f%% )\n\n", groups, same, 100.0*same/ix->n);
+      }
       same= 0;
     }
 
     if (same < 16) {
-      printko(ko);
+      if (print_entries) printko(ko);
     } else {
       //printf(" @%d", ko->o);
     }
   }
-  printf("------ %d entries %d groups\n", ix->n, groups);
+  printf("------ %d entries %d distinct %d groups\n", ix->n, distinct, groups);
   printf("nstrdup=%ld bstrdup=%ld\n", nstrdup, bstrdup);
   long bytes= bstrdup + ix->n*sizeof(keyoffset) + nstrdup*(16/2+4);
   printf("Bytes: %ld\n\n\n", bytes);

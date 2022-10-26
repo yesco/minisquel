@@ -6,8 +6,6 @@ rm -f test.diff
 
 diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new > test.diff
 
-diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new
-
 (diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new && echo "OK - all tests passed") || {
 diff=$?
 

@@ -705,7 +705,7 @@ int where(char* selexpr) {
   
   if (v.not_null) {
     parse_only= 0;
-    print_expr_list(selexpr);
+    if (selexpr) print_expr_list(selexpr);
   }
   ps= saved;
   
@@ -824,7 +824,9 @@ void process_result(int col, val* vals, int* row, char* parse_after, char* selex
   if (!col) return;
   ps= parse_after;
   if (act) act(ix, table, joincol);
-  next_from_list(selexpr);
+  // TODO:?
+  if (selexpr)
+    next_from_list(selexpr);
   // TODO: consider not clearing here
   //   can use current str as last!
   for(int i=0; i<col; i++)
@@ -1038,7 +1040,7 @@ static
   if (ix) {
     sortix(ix);
     index_complete= 1;
-    if (jdebug) printix(ix);
+    if (jdebug || verbose || stats>1) printix(ix, jdebug);
 
     // TODO: retain somewhere!
     if (0) {
@@ -1236,11 +1238,31 @@ int sqlselect() {
   return 1;
 }
 
+int sqlcreateindex() {
+  if (!got("create")) return 0;
+  if (!got("index")) return 0;
+  char name[NAMELEN]= {0};
+  expectname(name, "index name");
+  if (!got("on")) expected("ON");
+  char table[NAMELEN]= {0};
+  expectname(table, "table name");
+  if (!gotc('(')) expected("(");
+  char col[NAMELEN]= {0};
+  expectname(col, "column name");
+  if (!gotc(')')) expected(")");
+  
+  FILE* f= magicfile(table);
+  TABCSV(f, table, NULL, 1, col, NULL, NULL);
+  fclose(f);
+
+  return 1;
+}
+
 int sql() {
   spcs();
   if (end()) return 1;
-  int r= sqlselect();
-  // TODO: try: create index ...
+  int r= sqlselect() ||
+    sqlcreateindex();
   return r;
 }
 
@@ -1321,9 +1343,8 @@ void runquery(char* cmd) {
   ms= timems()-ms;
   
   if (stats) {
-    if (lineno-1 >= 0) {
+    //if (lineno-1 >= 0)
       printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno-1, ms, readrows);
-    }
     fprintmallocs(stdout);
   }
 
@@ -1378,6 +1399,9 @@ int process_arg(char* arg, char* next) {
 --batch\n\
 	(== --csv --no-echo --no-stats --no-interactive)\n\
 --csv\n\
+--debug\n\
+	gives some inner working info\n\
+	like detailed index info\n\
 --echo\n\
 --force\n\
 --format=csv|bar|tab	(tab is default)\n\
@@ -1388,6 +1412,8 @@ int process_arg(char* arg, char* next) {
 	Disables potentially dangerious operations.\n\
 	popen: select name from \"ls -1 |\"(name) file\n\
 --stats\n\
+	= 1 (default) gives timing\n\
+	= 2 gives more details\n\
 --verbose | -v\n\
 --verbose\n\
 \n\

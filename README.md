@@ -92,6 +92,9 @@ Basically, we're saying that a sql script (with one statement) *IS* a table!
 
 This means we have limited subqueries at least in the FROM clause.
 
+### Create Index
+
+     create index ix on foo.csv(a)
 
 ## Performance?
 - actually, not too bad!
@@ -174,6 +177,7 @@ Error: Unkonwn option
 
 ## TODO:
 - tab JOIN tab USING(c, ...)
+- CREATE TABLE xxx AS SELECT ...
 - LIKE/REGEXP
 - select *,tab.*
 - sql allows names to be quoted!

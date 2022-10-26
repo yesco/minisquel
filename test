@@ -74,8 +74,10 @@ echo "before"
 ./sql 'select name from "ls Test/*.csv|"(name) file'
 
 # haha: sql query *IS* a table!
-./run 'select i from one2ten.sql ten'
+./sql 'select i from one2ten.sql ten'
 
+# --- index
+./sql --debug 'create index ix on foo.csv(a)'
 
 echo "========== BUGS ==========="
 ./test-bugs
