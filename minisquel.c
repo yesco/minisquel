@@ -93,13 +93,15 @@ int isid(char c) {
 }
  
 // also removes starting/trailing spaces, no prefix match
-// use only for [alnum _ $ .]
-// TODO: case insensitive?
+// Use only for [alnum _ $ .]
+// It's case insensitive!
+// Don't match partial "words"
+// got("foo") does NOT got "foobar"
 int got(char* s) {
   if (end() || !s) return 0;
   spcs();
   char* p= ps;
-  while(*p && *s && *p == *s) {
+  while(*p && *s && tolower(*p) == tolower(*s)) {
     p++; s++;
   }
   if (*s) return 0;
@@ -335,7 +337,7 @@ void expectname(char name[NAMELEN], char* msg) {
 }
 
 // allow: foo or "foo" 
-// TODO: foo/bar lol
+// TODO: foo/bar
 void expectsymbol(char name[NAMELEN], char* msg) {
   printf("EXPECT SYMBOL\n");
   char* s= NULL;
