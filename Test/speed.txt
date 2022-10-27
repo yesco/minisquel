@@ -1,0 +1,39 @@
+=== 1.921s 1000 fopen/happy.csv getline 
+real    0m1.921s
+user    0m1.037s
+sys     0m0.883s
+
+22MB*500=11000
+
+=== 11000 GB/s on android!
+
+
+
+real    0m0.060s
+user    0m0.046s
+sys     0m0.015s
+=== read 22MB with getline
+
+
+real    0m1.670s
+user    0m0.872s
+sys     0m0.797s
+=== read 1000x times rewind(f)
+=== overhead of fopen/fclose 20%
+
+(/ 1000 1.670) = 598 table/s
+(/ 1000000 598) = 1.67 ms/
+-------------
+
+I'm guessing w loading to memory there'd be a nice speedup!
+
+sqlite: 71 tables/s    => 14     ms/table
+duckdb: 13369 tables/s =>  0.074 ms/table
+
+(fileread only!)
+minisquel: 598 tabs    =>  1.67  ms/table
+
+
+i.e. duckdb/sqlite = 100x lol.
+
+typical for column store...

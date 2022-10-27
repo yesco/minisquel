@@ -6,7 +6,7 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 
 - "minimal" in code/complexity (~1000 lines code)
 - fast hack for fun
-- do the simplest for the moment to add
+- do the simplest for the moment to add functionality
 - "not for professional use" :-D
 - no depencies other than linux/posix
 - limited sql
@@ -92,9 +92,17 @@ Basically, we're saying that a sql script (with one statement) *IS* a table!
 
 This means we have limited subqueries at least in the FROM clause.
 
+### Schema
+
+     UNIX> ./tables
+
+     UNIX> ./describe foo.csv
+
 ### Create Index
 
-     create index ix on foo.csv(a)
+     SQL> create index ix on foo.csv(a)
+
+     UNIX> ./index foo.csv a
 
 ## Performance?
 - actually, not too bad!

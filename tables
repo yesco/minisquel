@@ -1,0 +1,4 @@
+echo "--- views --"
+ls -1 *.sql Test/*.sql 2>/dev/null | sed 's/^/\t/'
+echo "--- tables --"
+wc -l *.csv Test/*.csv
