@@ -334,6 +334,18 @@ void expectname(char name[NAMELEN], char* msg) {
   expected(msg? msg: "name");
 }
 
+// allow: foo or "foo" 
+// TODO: foo/bar lol
+void expectsymbol(char name[NAMELEN], char* msg) {
+  printf("EXPECT SYMBOL\n");
+  char* s= NULL;
+  if (str(&s)) {
+    strncpy(name, s, NAMELEN);
+  } else {
+    expectname(name, "unkown from-iterator");
+  }
+  if (s) free(s);
+}
 // functions
 typedef struct func {
   char* name;
@@ -1139,13 +1151,7 @@ int from_list(char* selexpr, int is_join) {
 
   // filename.csv or "filename.csv"
   char spec[NAMELEN]= {0};
-  char* s= NULL;
-  if (str(&s) && *s) {
-    strncpy(spec, s, sizeof(spec));
-  } else {
-    expectname(spec, "unkown from-iterator");
-  }
-  if (s) free(s);
+  expectsymbol(spec, "unknow from-iterator");
 
   // dispatch to named iterator
   if (0==strcmp("int", spec)) {
@@ -1241,16 +1247,26 @@ int sqlselect() {
 int sqlcreateindex() {
   if (!got("create")) return 0;
   if (!got("index")) return 0;
+
   char name[NAMELEN]= {0};
   expectname(name, "index name");
+
   if (!got("on")) expected("ON");
+
+  printf("HELLOWORDL\n");
   char table[NAMELEN]= {0};
-  expectname(table, "table name");
+  expectsymbol(table, "table namex");
+
   if (!gotc('(')) expected("(");
+
   char col[NAMELEN]= {0};
+  // TODO: computed expressions?
+  // or ... AS SELECT ...
   expectname(col, "column name");
+
   if (!gotc(')')) expected(")");
   
+
   FILE* f= magicfile(table);
   TABCSV(f, table, NULL, 1, col, NULL, NULL);
   fclose(f);

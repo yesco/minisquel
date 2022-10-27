@@ -1,0 +1,16 @@
+if [ $# -eq 0 ]
+then
+  ls *.csv *.sql Test/*.csv Test/*.sql 2>/dev/null
+fi
+
+if [ $# -eq 1 ]
+then
+  ./describe $1
+fi
+
+if [ $# -eq 2 ]
+then 
+  ./run --debug "create index ix on \"$1\"($2)"
+else
+  echo "Usage: ./index [TABLE [COLUMN]]"
+fi
