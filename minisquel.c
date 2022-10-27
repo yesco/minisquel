@@ -1366,7 +1366,6 @@ void process_file(FILE* in, int prompt);
 // returns number of args processed (1 or 2)
 int process_arg(char* arg, char* next) {
   int gotit =
-    optstr("csv", globalformat, sizeof(globalformat), arg) ||
     optstr("format", globalformat, sizeof(globalformat), arg) ||
     optint("debug", &debug, arg) ||
     optint("echo", &echo, arg) ||
@@ -1379,17 +1378,26 @@ int process_arg(char* arg, char* next) {
     optint("-t", &interactive, arg) ||
     0;
 
+  int foo=0;
   if (gotit) {
     return 1;
+  } else if (optint("csv", NULL, arg)) {
+    strcpy(format, "csv");
+  } else if (optint("foo", &foo, arg)) {
+    printf("FOO %d\n", foo);
   } else if (optint("batch", &batch, arg)) {
     strcpy(globalformat, "csv");
     echo= 0; stats= 0; interactive= 0;
 
   } else if (optint("init", NULL, arg)) {
-    FILE* f= expectfile(next);
+    char* fn= NULL;
+    if (optstr("init", &fn, -1, arg)) next= NULL;
+    FILE* f= expectfile(fn ? fn : next);
+    printf("%s<\n", fn);
+    free(fn);
     process_file(f, 0);
     fclose(f);
-    return 2;
+    if (next) return 2;
 
   } else if (arg==strstr(arg, "--")) {
     // -- Unknown option

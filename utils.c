@@ -73,6 +73,7 @@ void expected(char* msg) {
 // --foo=on   -> 1
 // --foo=off  -> 1
 // --foo=37   -> 37
+// --foo99    -> 99
 // --no-foo   -> 0
 int arg2int(char* arg) {
   if (strstr(arg, "=on")) return 1;
@@ -90,14 +91,21 @@ int arg2int(char* arg) {
 int optint(char* name, int* v, char* arg) {
   if (*arg!='-' || !strstr(arg, name)) return 0;
   if (v) *v= arg2int(arg);
+  if (v) printf("Variable '%s' set to %d\n", name, *v);
   return 1;
 }
 
-// Look for NAMEd option, store it in STR copying MAX chars.
+// Look for NAMEd option, store it in STR copying MAX chars from ARG.
+//
+// ARG: "--format=csv"  => "csv"
+//      "--format csv"  => "fish"
+// ( NO "--csv"         => "csv" )
+//
+// 
 // 
 // If STR==NULL just return 1 if match.
 // If MAX is negative, assume it's a pinter to a string pointer, deallocate/reallocate.
-
+//
 // If (MAX<0)
 // - use existing storage (MAX>0)
 // char filename[32];
@@ -112,13 +120,17 @@ int optstr(char* name, void* s, int max, char* arg) {
   char* found= strstr(arg, name);
   if (*arg!='-' || !found) return 0;
   char* p= strchr(arg, '=');
-  if (!p && !*(found+strlen(name))) p= found-1;
-  if (!s || !p) ; // no copy
+  if (!p) p= strchr(arg, ' ');
+  //if (!p && !*(found+strlen(name))) p= found-1;
+  if (!s || !p)
+    return 0;
   else if (max>0) strncpy(s, p+1, max);
   else {
     free(*(char**)s);
     *(char**)s= strdup(p+1);
   }
+  if (s && p)
+    printf("Variable '%s' set to '%s'\n", name, max>0 ? (char*)s : *(char**)s);
   return 1;
 }
 
