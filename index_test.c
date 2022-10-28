@@ -36,7 +36,64 @@ void readwords(memindex* i, char* filename) {
   printf("read %ld words from %s in %ld ms\n", n, filename, ms);
 }
 
+typedef struct fkeyoffset {
+  float d; // f lol
+  int o;
+} fkeyoffset;
+
+// fkeyoffset
+//   N=1M j=10000 =>  9.4s
+//     2M   10000    18.4s
+//     4M   10000    35.7s
+//     2M    5000     9.1s
+//     4M    2500     0s
+
+// keyoffset
+//   N=1M j=10000 => 40.0s (sum)
+//     2M   10000    80
+//     2M    5000    40.0s
+//     4M    2500    40.0s
+
+//     4M    2500    15.4s (== n++)
+//     1M   10000    15.4s
+
+// double cost 4x as much in performance?
+
+// double[] 
+//     1M   10000    8.00s (== n++
+// float[]
+//     1M   10000    4.00s
+
+void scandoublesVSfloats() {
+  const int N= 1*1024*1024;
+  keyoffset* kos= malloc(N*sizeof(*kos));
+  //  float* kos= malloc(N*sizeof(double));
+  for(int i=0; i<N; i++) {
+    //kos[i]= i;
+    kos[i].val.d= i;
+    //kos[i].o= -i;
+  }
+  float sum= 0;
+  int o= 0;
+  int n= 0;
+  for(int j=0; j<10000; j++) {
+
+    for(int i=0; i<N; i++) {
+      //if (kos[i]==i) n++;
+      if (kos[i].val.d==i) n++;
+      //o+= kos[i].o;
+    }
+
+  }
+  printf("%g %d %d\n", sum, o, n);
+}
+
 int main(int argc, char** argv) {
+  if (1) {
+    scandoublesVSfloats();
+    exit(0);
+  }
+  
   memindex* ix= newindex("test", 0);
   
   assert(sizeof(keyoffset)==16);
@@ -57,7 +114,7 @@ int main(int argc, char** argv) {
   (void)dixadd(ix, 111, 17);
   (void)dixadd(ix, 22, 19);
   (void)sixadd(ix, "", 23);
-  printix(ix);
+  printix(ix, 1);
 
   sortix(ix);
   

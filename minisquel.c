@@ -256,7 +256,7 @@ int varcount= 0;
 
 val* linkval(char* table, char* name, val* v) {
   if (varcount>=VARCOUNT) error("out of vars");
-  if (debug) printf("linkval %s.%s\n", table, name);
+  if (debug) printf(" {linkval %s.%s} ", table, name);
   tablenames[varcount]= table;
   varnames[varcount]= name;
   varvals[varcount]= v;
@@ -339,7 +339,6 @@ void expectname(char name[NAMELEN], char* msg) {
 // allow: foo or "foo" 
 // TODO: foo/bar
 void expectsymbol(char name[NAMELEN], char* msg) {
-  printf("EXPECT SYMBOL\n");
   char* s= NULL;
   if (str(&s)) {
     strncpy(name, s, NAMELEN);
@@ -1024,10 +1023,7 @@ static
   col= 0;
   while(1) {
     r= freadCSV(f, s, sizeof(s), &d);
-    // TODO: read empty line becomes a NULL value?
-    // TODO: ignore
-    
-    //printf("---CSV: %d %lg >%s<\n", r, d, s);
+    if (debug>2) printf(" {CSV: %2d '%s' %lg} ", r, s, d);
     if (r==RNEWLINE || !r) {
       readrows++;
 
@@ -1135,8 +1131,7 @@ FILE* magicfile(char* spec) {
   spec= strdup(spec); // haha
 
   // handle foo.sql script -> popen!
-  char* dot= strrchr(spec, '.');
-  if (dot && 0==strcmp(dot, ".sql")) {
+  if (endsWith(spec, ".sql")) {
     char fname[NAMELEN]= {0};
     snprintf(fname, sizeof(fname), "./minisquel --batch --init %s |", spec);
     free(spec);
@@ -1403,15 +1398,23 @@ int process_arg(char* arg, char* next) {
     strcpy(format, "csv");
   } else if (optint("foo", &foo, arg)) {
     printf("FOO %d\n", foo);
-  } else if (optint("batch", &batch, arg)) {
-    strcpy(globalformat, "csv");
-    echo= 0; stats= 0; interactive= 0;
+  } else if (0==strncmp("--batch", arg, 7)) {
+    // LOL, need to do manual to suppress
+    optmsg= NULL;
+    optint("batch", &batch, arg);
+    if (batch) {
+      strcpy(globalformat, "csv");
+      echo= 0; stats= 0; interactive= 0;
+      optmsg= NULL;
+    } else {
+      echo= 1; stats= 1; interactive= 1;
+      optmsg= optmessage;
+    }
 
   } else if (optint("init", NULL, arg)) {
     char* fn= NULL;
     if (optstr("init", &fn, -1, arg)) next= NULL;
     FILE* f= expectfile(fn ? fn : next);
-    printf("%s<\n", fn);
     free(fn);
     process_file(f, 0);
     fclose(f);

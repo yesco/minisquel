@@ -64,6 +64,7 @@ int sym_owned(char* owned);
 // 
 // Returns: sym number
 int sym(char* s) {
+  // TODO: potentilly wast! fix w flag?
   return sym_owned(strdup(s));
 }
 
@@ -78,33 +79,48 @@ int sym_owned(char* owned) {
   char*s = owned;
   // find previous
   if (!s) return 0;
-  // TODO: improve w hash?
-  // or just keep in osyms order?
-  for(int i=1; i<symscount; i++)
-    if (0==strcmp(s, syms[i])) {
+
+  // if adding in higher than existing...
+  int i, r;
+  if (osyms_ordered &&
+      (r=strcmp(syms[osyms[symscount-1]], s))<=0) {
+    if (r==0) {
+      fputc('=', stdout);
       free(owned);
-      return i;
+      return symscount-1;
     }
+    fputc('<', stdout);
+    i= symscount;
+  } else {
+    fputc('x', stdout);
+    printf("\n '%s' '%s'\n", syms[osyms[symscount-1]], s);
+    // TODO: improve w hash? binary search?
+    // or just keep in osyms order?
+    for(i=1; i<symscount; i++) {
+      int r= strcmp(s, syms[i]);
+      if (r==0) { // found
+	free(owned);
+	return i;
+      } else if (r>0) // insert here
+	break;
+    }
+  }
+  
   // not found - add
-  if (symscount>SYMS_MAX)
+  if (symscount>=SYMS_MAX)
     error("Broke the SYMS_MAX limit!");
+
   syms[symscount]= owned;
-  // TODO: do insertion sort? above!
   osyms[symscount]= symscount;
   // if adding in higher than existing...
   if (osyms_ordered &&
       strcmp(syms[osyms[symscount-1]], s)<0) {
     ;
   } else {
-    // do insertion sort to keep ordered!
-    // TODO: binary search?
     //printf("---------INSERT: '%s'\n", s);
-    int i;
-    for(i=0; i<symscount; i++)
-      if (nullstrcmp(osymstr(i), s)>0)
-	break;
     //printf("iiiiiiiii=%d %d '%s'\n\n", i, symscount, osymstr(i));
     if (i<=symscount) {
+      // move down
       for(int j=symscount; j>i; j--)
  	osyms[j]= osyms[j-1];
       osyms[i]= symscount;
@@ -191,57 +207,3 @@ void osymssort() {
   osyms_ordered= 1;
 }
 
-void test(int s) {
-  char* str= symstr(s);
-  printf("%d '%s' -> %d\n", s, str, sym(str));
-}
-       
-void dump() {
-  printf("\nDump\n----\n");
-
-  for(int s=0; s<symscount; s++)
-    printf("%3d %3d %3d  '%s'\n", s, osyms[s], xsyms[s], symstr(s));
-
-  printf("%s\n", osyms_ordered?"ORDERED":"MESSY");
-  for(int s=0; s<symscount; s++)
-    printf("%3d %3d %3d  '%s'\n", s, osyms[s], xsyms[s], osymstr(s));
-
-  printf("\n");
-}
-
-void simple() {
-  sym("zero");
-  sym("one");
-  sym("two");
-  sym("three");
-  sym("four");
-  sym("five");
-  sym("six");
-  sym("seven");
-  sym("eight");
-  sym("nine");
-  return;
-      
-  printf("\nSimple\n-----\n");
-  int c= sym("circus");
-  int a= sym("a");
-  int b= sym("abba");
-  test(sym(NULL));
-  test(sym(""));
-  test(a);
-  test(b);
-  test(c);
-  test(sym(NULL));
-  test(sym(""));
-  dump();
-}
-
-int main(int argc, char** argv) {
-  simple(); dump();
-  printf("AAAA\n");
-  //symssort();
-  //osymssort();
-  printf("BBBB\n");
-  simple(); dump();
-  printf("CCCCC\n");
-}

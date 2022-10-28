@@ -17,7 +17,13 @@ double drand(double min, double max) {
   return min + (rand() / div);
 }
 
-
+char* endsWith(char *s, char *end) {
+  if (!s || !end) return NULL;
+  int sl= strlen(s), el= strlen(end);
+  if (!sl || !el) return NULL;
+  return (0==strcmp(s+sl-el, end))?
+    s+sl : NULL;
+}
 
 // To malloced string S
 // append N characters from ADD.
@@ -67,6 +73,15 @@ void expected(char* msg) {
 #include <strings.h>
 #include <string.h>
 
+void optmessage(char* name, char* s, int n) {
+  if (s)
+    printf("Variable '%s' set to '%s'\n", name, s);
+  else 
+    printf("Variable '%s' set to %d\n", name, n);
+}
+
+// variable, set to message reporter for variable changes
+void (*optmsg)(char* name, char* s, int num) = optmessage;
 
 // Extract number from argument
 // --foo      -> 1
@@ -91,7 +106,7 @@ int arg2int(char* arg) {
 int optint(char* name, int* v, char* arg) {
   if (*arg!='-' || !strstr(arg, name)) return 0;
   if (v) *v= arg2int(arg);
-  if (v) printf("Variable '%s' set to %d\n", name, *v);
+  if (v && optmsg) optmsg(name, NULL, *v);
   return 1;
 }
 
@@ -129,8 +144,8 @@ int optstr(char* name, void* s, int max, char* arg) {
     free(*(char**)s);
     *(char**)s= strdup(p+1);
   }
-  if (s && p)
-    printf("Variable '%s' set to '%s'\n", name, max>0 ? (char*)s : *(char**)s);
+  if (s && p && optmsg)
+    optmsg(name, max>0 ? (char*)s : *(char**)s, 0);
   return 1;
 }
 

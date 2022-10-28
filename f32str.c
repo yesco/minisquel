@@ -204,7 +204,40 @@ void printbits() {
  
 }
 
+#include "syms.c"
+
+void readdict() {
+  FILE* f= fopen("wordlist-1.1M.txt", "r");
+  char* word= NULL;
+  size_t len= 0;
+  int n= 0;
+  while(getline(&word, &len, f)!=EOF) {
+    int l= strlen(word);
+    if (word[l-1]=='\n') word[l-1]= 0;
+    n++;
+    sym_owned(word);
+    word= NULL;
+    if (n%1000 == 0) fputc('.', stderr);
+    //if (n%1000 == 0) fputc('.', stdout);
+  }
+  printf("# %d\n", n);
+  fclose(f);
+}
+
 int main(int argc, char** argv) {
+  readdict(); exit(0);
+  
+  if (1) {
+      p32f(-1);
+      p32(0);
+      p32(0xffffffff);
+  }
+  if (1) {
+    // Max int value: 16 777 215
+    int i= (2<<23) -1; float f= i;
+    printf("%d %f %d\n", i, f, (int)f);
+    exit(0);
+  }
   //printf("%8x\n", 0xff000000 >> 1); exit(1);
   if(0) {
     int i= (2<<21)+1;
