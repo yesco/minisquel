@@ -89,7 +89,7 @@ int spcs() {
 }
 
 int isid(char c) {
-  return isalnum(c) || c=='_' || c=='$' || c=='.';
+  return isalnum(c) || strchr("@$#_.", c);
 }
  
 // also removes starting/trailing spaces, no prefix match
@@ -413,6 +413,7 @@ int call(val* r, char* name) {
 // and always return true
 int var(val* v) {
   char name[NAMELEN]= {};
+  // TODO:? "variables) in prepared stmsts
   if (getname(name)) {
     if (gotc('(')) return call(v, name);
     char* dot= strchr(name, '.');
@@ -1314,11 +1315,32 @@ int sqlcreateindex() {
   return 1;
 }
 
+// TODO: DECLARE var [= 3+4]
+//   - if in file, forget after load!
+int setvarexp() {
+  // set a = 42
+  // TODO?: set (a,b,c) = (42,"foo",99)
+  if (!got("set")) return 0;
+  char name[NAMELEN]= {0};
+  expectname(name, "variable");
+  spcs();
+  if (!gotc('=')) expected("=");
+  val v= {0};
+  if (!expr(&v)) expected("expression");
+  if (debug) {
+    printf(" [set '%s' to ", name);
+    printval(&v, 0, 0); printf("]\n");
+  }
+  setvar("global", name, &v);
+  return 1;
+}
+
 int sql() {
   spcs();
   if (end()) return 1;
   int r= sqlselect() ||
-    sqlcreateindex();
+    setvarexp() ||
+    sqlcreateindex() ;
   return r;
 }
 

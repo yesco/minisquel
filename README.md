@@ -116,6 +116,8 @@ This means we have limited subqueries at least in the FROM clause.
 - refer to columns by col or table.col
 - table names can be quoted (getsymbol)
 - plain-text CSV/TAB-file querying
+- SET @varible = 3+4*7
+- variables can/should be '@var'
 - rudimentary automatic build of in-memory index 16B/entry
 - LIMITED: tab JOIN tab ON col - speedup is from 30h to 5s! using index on cross-join which becomes nested loop index lookup. 2s is scanning the two (same) tables and building the index ("zero" time)
 - undefined/not present variables are NULL

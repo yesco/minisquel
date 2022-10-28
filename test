@@ -82,6 +82,10 @@ echo "before"
 # --- index
 ./sql --debug 'create index ix on foo.csv(a)'
 
+# --- variables
+./sql 'set @a=42' 'select @a'
+./sql 'set #a=42' 'select #a'
+
 echo "========== BUGS ==========="
 ./test-bugs
 echo "^^^^^^^^^^ BUGS ^^^^^^^^^^^"
