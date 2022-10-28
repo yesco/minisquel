@@ -73,6 +73,9 @@ echo "before"
 # --- popen, subqueries!
 ./sql 'select name from "ls Test/*.csv|"(name) file'
 
+# magic find file and popen (search .csv .sql)
+./sql 'select i from one2ten ten'
+
 # haha: sql query *IS* a table!
 ./sql 'select i from one2ten.sql ten'
 

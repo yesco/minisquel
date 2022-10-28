@@ -71,7 +71,7 @@ a	b	c	d
       4	fum	   4444	   1111
 
 4 rows in 0 ms (read 5 lines)
-[6 malloc 7 free (leak -1) 4120 bytes]
+[7 malloc 8 free (leak -1) 4128 bytes]
 
 SQL> select fish from count.txt(fish) f
 fish
@@ -85,7 +85,7 @@ fish
 6 g
 
 7 rows in 0 ms (read 8 lines)
-[10 malloc 10 free (leak +0) 4139 bytes]
+[11 malloc 11 free (leak +0) 4149 bytes]
 
 SQL> select 12345, 123456, 1234567, 12345678, 123456789
 12345	123456	1234567	12345..	12345..
@@ -182,7 +182,7 @@ SQL> select 42 where 1=1 and 2=2
 ======= 
      42
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42 where not(1=1 and 2=1)
@@ -206,7 +206,7 @@ plus(3
 ======= 
       7
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select plus(3)
@@ -224,7 +224,7 @@ add()
 ======= 
       0
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select add(1,2,3)
@@ -273,7 +273,7 @@ count..
       9
      10
 
-10 rows in 0 ms (read 0 lines)
+10 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select type(NULL) as tnull, type(foo) as tstr, type(3.3) as tnumber, type(3) as tint
@@ -325,7 +325,7 @@ foo	null	12345..	i+333..
      42	NULL	1.235e9	NULL
      42	NULL	1.235e9	NULL
 
-3 rows in 1 ms (read 0 lines)
+3 rows in 0 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> select ta.a, tb.a from foo.csv ta, foo.csv tb where ta.a=tb.a
@@ -336,8 +336,8 @@ ta.a	tb.a
       3	      3
       4	      4
 
-4 rows in 1 ms (read 25 lines)
-[30 malloc 35 free (leak -5) 20600 bytes]
+4 rows in 0 ms (read 25 lines)
+[35 malloc 40 free (leak -5) 20640 bytes]
 
 before
 SQL> select i,j,i*j from int(1,20) i, int(1,10) j where i=j
@@ -354,7 +354,7 @@ i	j	i*j
       9	      9	     81
      10	     10	    100
 
-10 rows in 2 ms (read 0 lines)
+10 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1, foo.csv t2 where t1.a=t2.a
@@ -365,8 +365,8 @@ t1.a	t2.a	b
       3	      3	fie
       4	      4	fum
 
-4 rows in 0 ms (read 25 lines)
-[30 malloc 35 free (leak -5) 20600 bytes]
+4 rows in 1 ms (read 25 lines)
+[35 malloc 40 free (leak -5) 20640 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
 t1.a	t2.a	b
@@ -376,8 +376,8 @@ t1.a	t2.a	b
       3	      3	fie
       4	      4	fum
 
-4 rows in 1 ms (read 10 lines)
-[16 malloc 17 free (leak -1) 8275 bytes]
+4 rows in 0 ms (read 10 lines)
+[21 malloc 22 free (leak -1) 8315 bytes]
 
 SQL> select name from "ls Test/*.csv|"(name) file
 name
@@ -390,7 +390,24 @@ Test/manynls.csv
 Test/nl.csv
 
 6 rows in 1 ms (read 7 lines)
-[10 malloc 10 free (leak +0) 4214 bytes]
+[11 malloc 11 free (leak +0) 4229 bytes]
+
+SQL> select i from one2ten ten
+i
+======= 
+      1
+      2
+      3
+      4
+      5
+      6
+      7
+      8
+      9
+     10
+
+10 rows in 0 ms (read 11 lines)
+[6 malloc 7 free (leak -1) 4177 bytes]
 
 SQL> select i from one2ten.sql ten
 i
@@ -406,13 +423,22 @@ i
       9
      10
 
-10 rows in 1 ms (read 11 lines)
-[3 malloc 4 free (leak -1) 4149 bytes]
+10 rows in 0 ms (read 11 lines)
+[4 malloc 5 free (leak -1) 4161 bytes]
 
 Variable 'debug' set to 1
 SQL> create index ix on foo.csv(a)
 HELLOWORDL
- {linkval foo.csv.a}  {linkval foo.csv.b}  {linkval foo.csv.c}  {linkval foo.csv.d}  {linkval foo.csv.e} 
+ [trying foo.csv]
+ [trying foo.csv]
+ [trying Test/foo.csv]
+ [found foo.csv]
+ {linkval foo.csv.a}
+ {linkval foo.csv.b}
+ {linkval foo.csv.c}
+ {linkval foo.csv.d}
+ {linkval foo.csv.e}
+
 
 ========== index.foo.csv.a
 IX>                  1  16  @   10
@@ -425,8 +451,8 @@ Bytes: 64
 
 
 
--1 rows in 1 ms (read 5 lines)
-[7 malloc 7 free (leak +0) 4136 bytes]
+-1 rows in 0 ms (read 5 lines)
+[8 malloc 8 free (leak +0) 4144 bytes]
 
 ========== BUGS ===========
 SQL> select 42 where (1)=1
@@ -567,7 +593,7 @@ count..	count..	count()
      10	      9	     99
      10	     10	    100
 
-100 rows in 3 ms (read 0 lines)
+100 rows in 2 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where
@@ -582,7 +608,7 @@ t1.a	t2.a	b
       4	      4	fum
 
 7 rows in 1 ms (read 10 lines)
-[16 malloc 17 free (leak -1) 8275 bytes]
+[21 malloc 22 free (leak -1) 8315 bytes]
 
 SQL> select t1.a, t2.a, t2.b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
 t1.a	t2.a	t2.b
@@ -592,8 +618,8 @@ t1.a	t2.a	t2.b
       3	      3	NULL
       4	      4	NULL
 
-4 rows in 0 ms (read 10 lines)
-[16 malloc 17 free (leak -1) 8275 bytes]
+4 rows in 1 ms (read 10 lines)
+[21 malloc 22 free (leak -1) 8315 bytes]
 
 SQL> select "foo"
 "foo"
