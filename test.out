@@ -27,7 +27,7 @@ SQL> select 3+4*2
 ======= 
      11
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 3+x, x+3
@@ -84,7 +84,7 @@ fish
 5 F
 6 g
 
-7 rows in 1 ms (read 8 lines)
+7 rows in 0 ms (read 8 lines)
 [11 malloc 11 free (leak +0) 4149 bytes]
 
 SQL> select 12345, 123456, 1234567, 12345678, 123456789
@@ -167,7 +167,7 @@ i	i*i
       9	     81
      10	    100
 
-5 rows in 0 ms (read 0 lines)
+5 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42 where 1=1 and 1=2
@@ -206,7 +206,7 @@ plus(3
 ======= 
       7
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select plus(3)
@@ -248,7 +248,7 @@ f	F	lower..
 ======= ======= ======= 
 NULL	NULL	NULL
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [2 malloc 0 free (leak +2) 4 bytes]
 
 SQL> select "A" as f, char(ascii(lower(f)))
@@ -336,7 +336,7 @@ ta.a	tb.a
       3	      3
       4	      4
 
-4 rows in 1 ms (read 25 lines)
+4 rows in 0 ms (read 25 lines)
 [35 malloc 40 free (leak -5) 20640 bytes]
 
 before
@@ -389,7 +389,7 @@ Test/happy.csv
 Test/manynls.csv
 Test/nl.csv
 
-6 rows in 0 ms (read 7 lines)
+6 rows in 1 ms (read 7 lines)
 [11 malloc 11 free (leak +0) 4229 bytes]
 
 SQL> select i from one2ten ten
@@ -406,7 +406,7 @@ i
       9
      10
 
-10 rows in 0 ms (read 11 lines)
+10 rows in 1 ms (read 11 lines)
 [6 malloc 7 free (leak -1) 4177 bytes]
 
 SQL> select i from one2ten.sql ten
@@ -428,7 +428,6 @@ i
 
 Variable 'debug' set to 1
 SQL> create index ix on foo.csv(a)
-HELLOWORDL
  [trying foo.csv]
  [trying foo.csv]
  [trying Test/foo.csv]
@@ -478,6 +477,45 @@ SQL> select #a
      42
 
 1 rows in 0 ms (read 0 lines)
+[0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> create view foo as "ls -1|"
+
+-1 rows in 0 ms (read 0 lines)
+[3 malloc 0 free (leak +3) 18 bytes]
+
+SQL> select name, type, params, select, impl from $view bar
+name	type	params	select	impl
+======= ======= ======= ======= ======= 
+foo	view	NULL	      0	"ls -1|"
+
+1 rows in 0 ms (read 0 lines)
+[0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> create view foo as "ls -1|"
+
+-1 rows in 0 ms (read 0 lines)
+[3 malloc 0 free (leak +3) 18 bytes]
+
+SQL> select name, type, params, select, impl from $view bar where bar.name="foo"
+name	type	params	select	impl
+======= ======= ======= ======= ======= 
+foo	view	NULL	      0	"ls -1|"
+
+1 rows in 0 ms (read 0 lines)
+[1 malloc 0 free (leak +1) 4 bytes]
+
+SQL> CREATE VIEW bar AS SELECT 42
+
+-1 rows in 0 ms (read 0 lines)
+[3 malloc 0 free (leak +3) 19 bytes]
+
+SQL> select name, type, params, select, impl from $view bar
+name	type	params	select	impl
+======= ======= ======= ======= ======= 
+bar	view	NULL	      1	SELECT 42
+
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 ========== BUGS ===========
@@ -633,7 +671,7 @@ t1.a	t2.a	b
       3	      3	fie
       4	      4	fum
 
-7 rows in 1 ms (read 10 lines)
+7 rows in 0 ms (read 10 lines)
 [21 malloc 22 free (leak -1) 8315 bytes]
 
 SQL> select t1.a, t2.a, t2.b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a

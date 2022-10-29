@@ -248,6 +248,46 @@ double stats_avg(val *v) {
   return v->sum/v->n;
 }
 
+#include "csv.c"
+
+void setnum(val* v, double d) {
+  clearval(v);
+  v->not_null= 1;
+  v->d= d;
+  updatestats(v);
+}
+
+void setnull(val* v) {
+  clearval(v);
+  updatestats(v);
+}
+
+void setstr(val* v, char* s) {
+  clearval(v);
+  v->not_null= !!s;
+  if (s) v->dealloc= v->s= strdup(s);
+  updatestats(v);
+}
+
+void setstrconst(val* v, char* s) {
+  clearval(v);
+  v->not_null= !!s;
+  v->s= s;
+  updatestats(v);
+}
+
+void setval(val* v, int r, double d, char* s) {
+  clearval(v);
+  v->not_null= (r != RNULL);
+  switch(r) {
+  case RNULL: break;
+  case RNUM: v->d= d; break;
+  case RSTRING: v->dealloc= v->s= strdup(s); break;
+  default: error("Unknown freadCSV ret val");
+  }
+  updatestats(v);
+}
+
 // TODO: make struct/linked list?
 char* tablenames[VARCOUNT]= {0};
 char* varnames[VARCOUNT]= {0};
@@ -384,6 +424,13 @@ func* findfunc(char* name) {
 
 int expr(val* v);
 
+// TODO: use to call "sql" with params?
+// EXEC updateAddress @city = 'Calgary'
+// TODO:
+//   updateAddress(@city=5, @foo=7);
+//
+
+// 
 int call(val* r, char* name) {
   #define MAXPARAMS 10
   val params[MAXPARAMS]= {0};
@@ -761,6 +808,75 @@ int next_from_list(char* selexpr) {
   ps= backtrack;
 }
 		   
+// - db objects
+// TODO: generalize/hash from registerfun
+typedef struct dbobj {
+  struct dbobj* next;
+  char* type;
+  char* name;
+  char* params;
+  char* impl;
+  int select;
+} dbobj;
+  
+dbobj* objs= NULL;
+
+void regobj(char* type, char* name, char* params, char* impl, int select) {
+  dbobj* next= objs;
+  objs= calloc(1, sizeof(dbobj));
+  objs->next= next;
+
+  objs->type= strdup(type); // not needed?
+  objs->name= strdup(name);
+  objs->params= params?strdup(params):NULL;
+  objs->impl = strdup(impl);
+  objs->select= select;
+}
+
+dbobj* findobj(char* name) {
+  dbobj* o= objs;
+  while(o) {
+    if (0==strcmp(o->name, name))
+      return o;
+    o= o->next;
+  }
+  return NULL;
+}
+
+
+int VIEW(char* table, char* selexpr) {
+  int nvars= varcount;
+  char* backtrack= ps;
+
+  val type={}, name={}, params={}, select={}, impl={};
+  linkval(table, "type", &type);
+  linkval(table, "name", &name);
+  linkval(table, "params", &params);
+  linkval(table, "select", &select);
+  linkval(table, "impl", &impl);
+
+  dbobj* l= objs;
+  lineno= 0;
+  while(l) {
+    lineno++;
+
+    setstrconst(&type, l->type);
+    setstrconst(&name, l->name);
+    setstrconst(&params, l->params);
+    setnum(&select, l->select);
+    setstrconst(&impl, l->impl);
+
+    ps= backtrack;
+    //print_expr_list(selexpr);
+    next_from_list(selexpr);
+    l= l->next;
+  }
+
+  ps= backtrack;
+  varcount= nvars;
+  return 1;
+}
+
 // sqlite3: virtual tables
 // - https://www.sqlite.org/vtablist.html
 
@@ -771,7 +887,6 @@ int next_from_list(char* selexpr) {
 //   CREATE TABLE t1(x FLOAT, two_x AS (2 * x))
 //   CREATE TABLE t1(x FLOAT, two_x FLOAT GENERATED ALWAYS AS (2 * x) VIRTUAL)
 //   https://duckdb.org/docs/sql/statements/create_view
-
 
 
 // TODO: add (start,stop,STEP)
@@ -796,9 +911,7 @@ int INT(char* selexpr) {
   for(double i= start; i<stop; i+= step) {
     // handle coded setvar
     // TODO:setnum/setstr?
-    v.d= i;
-    v.not_null= 1;
-    updatestats(&v);
+    setnum(&v, i);
 
     ps= backtrack;
     next_from_list(selexpr);
@@ -846,20 +959,6 @@ void process_result(int col, val* vals, int* row, char* parse_after, char* selex
   for(int i=0; i<col; i++)
     clearval(&vals[col]);
   (*row)++;
-}
-
-#include "csv.c"
-
-void setval(val* v, int r, double d, char* s) {
-  clearval(v);
-  v->not_null= (r != RNULL);
-  switch(r) {
-  case RNULL: break;
-  case RNUM: v->d= d; break;
-  case RSTRING: v->dealloc= v->s= strdup(s); break;
-  default: error("Unknown freadCSV ret val");
-  }
-  updatestats(v);
 }
 
 keyoffset* vixadd(memindex* ix, val* v, int offset) {
@@ -1195,7 +1294,11 @@ int from_list(char* selexpr, int is_join) {
   expectsymbol(spec, "unknow from-iterator");
 
   // dispatch to named iterator
-  if (0==strcmp("int", spec)) {
+  if (0==strcmp("$view", spec)) {
+    char table[NAMELEN]= {0};
+    expectname(table, "table alias name");
+    VIEW(table, selexpr);
+  } else if (0==strcmp("int", spec)) {
     INT(selexpr);
     // TODO: is_join?
   } else {
@@ -1285,16 +1388,23 @@ int sqlselect() {
   return 1;
 }
 
-int sqlcreateindex() {
-  if (!got("create")) return 0;
-  if (!got("index")) return 0;
 
+int sqlcreateview() {
+  return 1;
+}
+
+
+// CREATE FUNCTION sum(a,b) RETURN a+b;
+int sqlcreate_function() {
+  return 1;
+}
+
+int create_index() {
   char name[NAMELEN]= {0};
   expectname(name, "index name");
 
   if (!got("on")) expected("ON");
 
-  printf("HELLOWORDL\n");
   char table[NAMELEN]= {0};
   expectsymbol(table, "table namex");
 
@@ -1307,6 +1417,7 @@ int sqlcreateindex() {
 
   if (!gotc(')')) expected(")");
   
+  // TODO: registerobj
 
   FILE* f= magicfile(table);
   TABCSV(f, table, NULL, 1, col, NULL, NULL);
@@ -1314,6 +1425,42 @@ int sqlcreateindex() {
 
   return 1;
 }
+
+// CREATE VIEW name [ ( 2bar, ... ) ] AS ...
+// CREATE VIEW files AS "ls -1|"(name)
+// CREATE VIEW files(@dir) AS concat("ls -1 ", @dir, "|")(name)
+// CREATE VIEW ont2ten AS SELECT i FROM int(1,10) i
+// CREATE VIEW iota(@a,@b) AS SELECT i FROM int(@a,@b) i
+int create_view() {
+  char name[NAMELEN]= {0};
+  expectname(name, "index name");
+
+  // parameters
+  char* params= NULL;
+  if (gotc('(')) {
+    params= params;
+    while(!gotc(')'));
+    if (!*ps) expected(")");
+  }
+
+  if (!got("as")) expected("AS");
+
+  spcs();
+  char* impl= ps;
+  regobj("view", name, params, impl, got("select"));
+  return 1;
+}
+
+int sqlcreate() {
+  if (!got("create")) return 0;
+  int (*creator)()= NULL;
+  
+  if (got("index")) return create_index();
+  if (got("view")) return create_view();
+  //  if (got("function")) return create_function();
+  return 0;
+}
+
 
 // TODO: DECLARE var [= 3+4]
 //   - if in file, forget after load!
@@ -1340,11 +1487,11 @@ int sql() {
   if (end()) return 1;
   int r= sqlselect() ||
     setvarexp() ||
-    sqlcreateindex() ;
+    sqlcreate() ;
   return r;
 }
 
-void testread() {
+ void testread() {
   // not crash for either file
   //FILE* f= fopen("foo.csv", "r");
   FILE* f= fopen("happy.csv", "r");

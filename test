@@ -85,6 +85,12 @@ echo "before"
 # --- variables
 ./sql 'set @a=42' 'select @a'
 ./sql 'set #a=42' 'select #a'
+b
+
+# --- system tables
+./sql 'create view foo as "ls -1|"' 'select name, type, params, select, impl from $view bar'
+./sql 'create view foo as "ls -1|"' 'select name, type, params, select, impl from $view bar where bar.name="foo"'
+./sql 'CREATE VIEW bar AS SELECT 42' 'select name, type, params, select, impl from $view bar'
 
 echo "========== BUGS ==========="
 ./test-bugs
