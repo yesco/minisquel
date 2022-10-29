@@ -58,10 +58,28 @@ int _char(val* r, int n, val* a) {
 }
 // CHARINDEX
 // CONCAT
+int concat(val* r, int n, val* v) {
+  int len= 0;
+  for(int i=0; i<n; i++)
+    len+= (v[i].s? strlen(v[i].s): 5) + 1;
+
+  char* s= calloc(1, len);
+  for(int i=0; i<n; i++) {
+    if (v[i].s) strcat(s, v[i].s);
+  }
+  
+  setstr(r, s);
+  return 1;
+}
 // CONCAT_WS
 // DIFFERENCE
 // FORMAT
 // LEFT
+int left(val* r, int n, val* s, val* len) {
+  if (n!=2) return -2;
+  setstrfree(r, s->s? strndup(s->s, len->d): NULL);
+  return 1;
+}
 // LEN
 // LOWER
 int lower(val* r, int n, val* a) {
@@ -85,6 +103,15 @@ int lower(val* r, int n, val* a) {
 // REPLICATE
 // REVERSE
 // RIGHT
+int right(val* r, int n, val* s, val* len) {
+  if (n!=2) return -2;
+  if (!s->s) return 1;
+  int ln= strlen(s->s);
+  int rght= len->d;
+  if (rght >= ln) rght= ln;
+  setstrfree(r, strndup(s->s + ln-rght, rght));
+  return 1;
+}
 // RTRIM
 // SOUNDEX
 // SPACE
@@ -209,7 +236,10 @@ void register_funcs() {
   // strings
   registerfun("ascii", ascii);
   registerfun("char", _char);
+  registerfun("concat", concat);
+  registerfun("left", left);
   registerfun("lower", lower);
+  registerfun("right", right);
   registerfun("upper", upper);
   
   // time

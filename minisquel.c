@@ -262,6 +262,13 @@ void setnull(val* v) {
   updatestats(v);
 }
 
+void setstrfree(val* v, char* s) {
+  clearval(v);
+  v->not_null= !!s;
+  if (s) v->dealloc= v->s= s;
+  updatestats(v);
+}
+
 void setstr(val* v, char* s) {
   clearval(v);
   v->not_null= !!s;
@@ -847,34 +854,8 @@ dbobj* findobj(char* name) {
 // schema("type,name,param,select,impl",
 //   type, name, params, select, impl);
 
-void foo(){
-
-#define TYP dbobj
-#define O(FIELD) ((int)&((TYP*)0)->FIELD)
-
-  char* cols[]={
-    "type", "name", "param", "select", "impl", 0};
-  int offset[]={
-    O(type), O(name), O(params), O(select), O(impl), 0};
-  // s)tring d)ouble l)ong i)nteger c)char, S)TRING,
-  char typ[]= "sssi"; 
-    
-  int o= (int)&((dbobj*)0)->type;
-  printf("offset= %d\n", o);
-
-#define xstr(a) str(a)
-#define str(a) #a
-
-#define TYPEOF(A) xstr(A)
-
-  typeof(o) x= 99;
-  printf("foo:%s\n", str(typeof(o)));;
-  printf("foo:%s\n", TYPENAME(o));
-}
-
 
 int VIEW(char* table, char* selexpr) {
-  foo();
   int nvars= varcount;
   char* backtrack= ps;
 

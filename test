@@ -47,6 +47,10 @@ echo "== negatives, can be improved"
 # strings
 ./sql 'select foo as f, upper(f) as F, lower(F)'
 ./sql 'select "A" as f, char(ascii(lower(f)))'
+./sql 'select concat("foo", "bar", "fie") as ccc'
+./sql 'select left(concat("foo", "bar", "fie"),5) as c5'
+./sql 'select right(concat("foo", "bar", "fie"),5) as c5'
+./sql 'select left(right(concat("foo", "bar", "fie"), 6),4)'
 
 # aggregates
 ./sql 'select count(i) from int(1,10) i'
@@ -97,3 +101,4 @@ echo "========== BUGS ==========="
 echo "^^^^^^^^^^ BUGS ^^^^^^^^^^^"
 
 }
+

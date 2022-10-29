@@ -63,6 +63,9 @@ void schema(void* record, char* name, char* typ, char* typs, char* param, int* o
   printf("name: %s\n", name);
   printf("%s\n", typ);
 
+  // TODO: make copy of offsets if going to keep it around/register...
+ 
+  // poor man's reflection
   int* o= offsets;
   char* p= param;
   char* t= typs;
