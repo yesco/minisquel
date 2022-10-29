@@ -70,7 +70,7 @@ a	b	c	d
       3	fie	    333	    222
       4	fum	   4444	   1111
 
-4 rows in 0 ms (read 5 lines)
+4 rows in 1 ms (read 5 lines)
 [7 malloc 8 free (leak -1) 4128 bytes]
 
 SQL> select fish from count.txt(fish) f
@@ -84,7 +84,7 @@ fish
 5 F
 6 g
 
-7 rows in 0 ms (read 8 lines)
+7 rows in 1 ms (read 8 lines)
 [11 malloc 11 free (leak +0) 4149 bytes]
 
 SQL> select 12345, 123456, 1234567, 12345678, 123456789
@@ -100,7 +100,7 @@ SQL> select 0.1, 0.02, 0.003, 0.0004, 0.00005, 1.2e5 , 1.2e5, 9.9e99, 9.9e100, 1
 ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= 
     0.1	   0.02	  0.003	 0.0004	  5e-05	 120000	 120000	 9.9e+99	 9.9e+100	 120000	      3
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 == negatives, can be improved
@@ -167,7 +167,7 @@ i	i*i
       9	     81
      10	    100
 
-5 rows in 1 ms (read 0 lines)
+5 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42 where 1=1 and 1=2
@@ -206,7 +206,7 @@ plus(3
 ======= 
       7
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select plus(3)
@@ -259,6 +259,38 @@ A	a
 1 rows in 0 ms (read 0 lines)
 [4 malloc 0 free (leak +4) 8 bytes]
 
+SQL> select concat("foo", "bar", "fie") as ccc
+ccc
+======= 
+foobarfie
+
+1 rows in 0 ms (read 0 lines)
+[8 malloc 0 free (leak +8) 38 bytes]
+
+SQL> select left(concat("foo", "bar", "fie"),5) as c5
+c5
+======= 
+fooba
+
+1 rows in 0 ms (read 0 lines)
+[9 malloc 0 free (leak +9) 43 bytes]
+
+SQL> select right(concat("foo", "bar", "fie"),5) as c5
+c5
+======= 
+arfie
+
+1 rows in 0 ms (read 0 lines)
+[9 malloc 0 free (leak +9) 43 bytes]
+
+SQL> select left(right(concat("foo", "bar", "fie"), 6),4)
+left(..
+======= 
+barf
+
+1 rows in 0 ms (read 0 lines)
+[9 malloc 0 free (leak +9) 46 bytes]
+
 SQL> select count(i) from int(1,10) i
 count..
 ======= 
@@ -298,7 +330,7 @@ foo	sum(f..
       1	      9
       1	     10
 
-10 rows in 0 ms (read 0 lines)
+10 rows in 1 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> select count(i), sum(i), min(i), avg(i), max(i), stdev(i) from int(1,10) i
@@ -325,7 +357,7 @@ foo	null	12345..	i+333..
      42	NULL	1.235e9	NULL
      42	NULL	1.235e9	NULL
 
-3 rows in 0 ms (read 0 lines)
+3 rows in 1 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> select ta.a, tb.a from foo.csv ta, foo.csv tb where ta.a=tb.a
@@ -336,7 +368,7 @@ ta.a	tb.a
       3	      3
       4	      4
 
-4 rows in 0 ms (read 25 lines)
+4 rows in 1 ms (read 25 lines)
 [35 malloc 40 free (leak -5) 20640 bytes]
 
 before
@@ -354,7 +386,7 @@ i	j	i*j
       9	      9	     81
      10	     10	    100
 
-10 rows in 1 ms (read 0 lines)
+10 rows in 2 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1, foo.csv t2 where t1.a=t2.a
@@ -376,7 +408,7 @@ t1.a	t2.a	b
       3	      3	fie
       4	      4	fum
 
-4 rows in 1 ms (read 10 lines)
+4 rows in 0 ms (read 10 lines)
 [21 malloc 22 free (leak -1) 8315 bytes]
 
 SQL> select name from "ls Test/*.csv|"(name) file
@@ -423,7 +455,7 @@ i
       9
      10
 
-10 rows in 1 ms (read 11 lines)
+10 rows in 0 ms (read 11 lines)
 [4 malloc 5 free (leak -1) 4161 bytes]
 
 Variable 'debug' set to 1
@@ -450,7 +482,7 @@ Bytes: 64
 
 
 
--1 rows in 1 ms (read 5 lines)
+-1 rows in 0 ms (read 5 lines)
 [8 malloc 8 free (leak +0) 4144 bytes]
 
 SQL> set @a=42
@@ -468,7 +500,7 @@ SQL> select @a
 
 SQL> set #a=42
 
--1 rows in 0 ms (read 0 lines)
+-1 rows in 1 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 3 bytes]
 
 SQL> select #a
@@ -515,7 +547,7 @@ name	type	params	select	impl
 ======= ======= ======= ======= ======= 
 bar	view	NULL	      1	SELECT 42
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 ========== BUGS ===========
@@ -671,7 +703,7 @@ t1.a	t2.a	b
       3	      3	fie
       4	      4	fum
 
-7 rows in 0 ms (read 10 lines)
+7 rows in 1 ms (read 10 lines)
 [21 malloc 22 free (leak -1) 8315 bytes]
 
 SQL> select t1.a, t2.a, t2.b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
