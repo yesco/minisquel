@@ -40,28 +40,47 @@
 
 #define SGET_MACRO(_0,_1,_2,_3,_4,_5,NAME,...) NAME 
 #define STRMAP(action,...) \
-  LGET_MACRO(_0,__VA_ARGS__,LFE_5,LFE_4,LFE_3,LFE_2,LFE_1,LFE_0)(action,__VA_ARGS__)
+  SGET_MACRO(_0,__VA_ARGS__,SFE_5,SFE_4,SFE_3,SFE_2,SFE_1,SFE_0)(action,__VA_ARGS__)
 
 
 #include <stdio.h>
 
-void schema(char* name, char* typ, char* param, ...) {
+//void schema(char* name, char* typ, char* param, ...) {
+void schema(void* record, char* name, char* typ, char* typs, char* param, int* offsets) {
   printf("\n\n-------------------\n");
   printf("name: %s\n", name);
   printf("typ: %s\n", typ);
+
+  printf("\nREOCRD=%s\n" ,(char*)record);
+
+  int* o= offsets;
   char* p= param;
+  char* t= typs;
   while(p && *p) {
-    printf("\t%-10s\n", p);
-    p+= strlen(p)+1 + 1;
+    printf("\t%-10s %3d %c\n", p, *o, *t);
+    printf("\t     == ");
+    void* v= ((char*)record) + *o;
+    switch(*t) {
+    case 's': printf("'%s'", *(char**)v); break;
+    case 'd': printf("%ld", *(double**)v); break;
+    case 'i': printf("%d", *(int**)v); break;
+    case 'l': printf("%ld", *(long**)v); break;
+    case 'c': printf("%c", *(char**)v); break;
+    }
+    printf("\n");
+    p+= strlen(p)+1;
+    o++; t++;
   }
+  printf("SIZE=%d\n", *o);
 }
 
 typedef struct foo{
   char* type;
   char* name;
   char* param;
-  int select;
   char* impl;
+  int select;
+  char c;
 } foo;
 
 int main(void) {
@@ -69,16 +88,18 @@ int main(void) {
 #define XXSTR(a) STR(a)"\0"
 
 #define BAR(f) f
-#define FOO(typ) (long)&((typ)0)->BAR
+#define FOO(typ) (int)(long)&((typ)0)->BAR
 #define TOFFSET(typ) FOO(struct typ*)
 
   
-#define SCHEMA(name, typ, ...) \
-  schema(name, #typ, \
+#define SCHEMA(record, name, typ, typs, ...)		\
+  schema(record, name, #typ, typs, \
     STRMAP(XXSTR, __VA_ARGS__) "\0",\
-    ARGMAP(TOFFSET(typ), __VA_ARGS__),sizeof(struct typ),0)
+	 (int*)&(int[]){ARGMAP(TOFFSET(typ), __VA_ARGS__),sizeof(struct typ),0})
 
-  SCHEMA("view", foo, name, param, select, impl);
+  foo r= (foo){"TYPE", "NAME", "PARAM", "IMPL", 42, 'q'};
+
+  SCHEMA(&r, "view", foo, "ssisc", name, param, select, impl, c);
   int a= 45;
   typeof(a) b=77;
 }
