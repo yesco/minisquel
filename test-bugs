@@ -25,7 +25,11 @@ clang minisquel.c -o sql && {
 # table header bad
 ./sql 'select "foo"'
 
+# should give syntax error
+# FROM ... FROM
+time ./run 'select left(predicted_category, 5) from happy h from int(1,10)) i where 0=1' | tail
 
 
 # -- end test
 }
+
