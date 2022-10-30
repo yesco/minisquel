@@ -39,25 +39,30 @@ typedef struct hashentry {
   void* data;
 } hashentry;
 
-typedef int(*hasheq)(hashentry*, void*);
+struct arena;
+struct hashtab;
+
+typedef int(*hasheq)(struct hashtab*,void*, void*);
 
 typedef struct hashtab {
   hashentry** arr;
   int size;
   int n;
   hasheq eq;
-  char* heap;
+  int freedata; // free hashentry.data
+  struct arena* arena;
 } hashtab;
 
 
-hashtab* newhash(int size, hasheq eq) {
+hashtab* newhash(int size, hasheq eq, int freedata) {
   // TODO: resize?
   size= size<=0 ? HASH_DEFAULT : size;
   hashtab *ht = calloc(1, sizeof(*ht));
   if (!ht) return NULL;
-  ht->arr= calloc(1, sizeof(*(ht->arr)));
+  ht->arr= calloc(size, sizeof(void*));
   ht->size= size;
   ht->eq= eq;
+  ht->freedata= freedata;
   return ht;
 }
 
@@ -67,7 +72,7 @@ void freehash(hashtab* ht) {
     hashentry* e= ht->arr[i];
     while(e) {
       hashentry* next= e->next;
-      if (e->data) free(e->data);
+      if (ht->freedata && e->data) free(e->data);
       free(e);
       e= next;
     }
@@ -85,7 +90,7 @@ hashentry* findhash(hashtab* ht, char* s) {
     while(e->h != h) e= e->next;
     if (!e) return NULL;
     // equal hash
-    if (!ht->eq || ht->eq(e, s)) break;
+    if (!ht->eq || ht->eq(ht, e->data, s)) break;
     e= e->next;
   }
   return e;
@@ -102,7 +107,7 @@ hashentry* addhash(hashtab* ht, char* s, void* data) {
     while(e->h != h) e= e->next;
     if (!e) return NULL;
     // equal hash
-    if (!ht->eq || ht->eq(e, s)) break;
+    if (!ht->eq || ht->eq(ht, e->data, s)) break;
     e= e->next;
   }
 
@@ -112,7 +117,7 @@ hashentry* addhash(hashtab* ht, char* s, void* data) {
     e->next= ht->arr[i];
     ht->arr[i]= e;
     ht->n++;
-  } else if (e->data)
+  } else if (ht->freedata && e->data)
     free(e->data);
   
   e->data= data;
@@ -140,8 +145,137 @@ void printhash(hashtab* ht) {
   printf("=== %d slots used\n", n);
 }
 
+typedef struct arena {
+  char* mem;
+  int size;
+  int top;
+  int align;
+} arena;
+
+arena* newarena(int size, int align) {
+  if (align<=0) align= 1;
+  if (size<=0) size= 10*1024;
+  arena* a= calloc(1, sizeof(*a));
+  if (!a) return NULL;
+
+  a->mem= malloc(size);
+  if (!a->mem) { free(a); return NULL; }
+  a->size= size;
+  a->top= 0;
+  a->align= align;
+
+  return a;
+}
+
+int addarena(arena* a, void* data, int size) {
+  if (!a) return -1;
+  if (a->top+size+a->align >= a->size) {
+    int newsize= a->size*1.3;
+    if (newsize - a->size < 1024) newsize+= 1024;
+    char* mem= realloc(a->mem, newsize);
+    if (!mem) return -1;
+    a->mem= mem;
+    a->size= newsize;
+  }
+
+  // allocate data
+  int i= a->top;
+  // align
+  a->top+= size;
+  while(a->top % a->align)
+    a->mem[a->top++]= 0;
+
+  memcpy(a->mem+i, data, size);
+  return i;
+}
+
+void* arenaptr(arena*a, int i) {
+  if (!a) return NULL;
+  return &a->mem[i];
+}
+
+int saddarena(arena* a, char* s) {
+  if (!s) return -1;
+  int len= strlen(s);
+  return addarena(a, s, len+1);
+}
+
+void printarena(arena* a) {
+  printf("--- arena (size=%d top=%d)\n", a->size, a->top);
+  char* c= a->mem;
+  for(int i=0; i<a->top; i++) {
+    if (!*c) printf("\\0");
+    else putchar(*c);
+    c++;
+  }
+  printf("<<<\n");
+}
+
+void testarena() {
+  arena* a= newarena(0,1);
+  int foo= saddarena(a, "foo");
+  int bar= saddarena(a, "bar");
+  int fiefum= saddarena(a, "fiefum");
+  printarena(a);
+  for(int i=0; i<10000; i++) {
+    char s[32];
+    snprintf(s, sizeof(s), "FOO-%d-BAR", i);
+    int ix= saddarena(a, s);
+    printf("%d @ %d %s\n", i, ix, (char*)arenaptr(a, ix));
+  }
+  printarena(a);
+  printf("BAR: %s\n", (char*)arenaptr(a, bar));
+  exit(0);
+}
+
+// atoms / hashstrings
+static hashtab* atoms= NULL;
+
+int hashstr_eq(hashtab* ht, void* a, void* b) {
+  char* sa= arenaptr(ht->arena, *(long*)a);
+  char* sb= b;
+  return strcmp(sa, sb);
+}
+
+int atom(char* s) {
+  if (!atoms) {
+    atoms= newhash(0, NULL, 0);
+    atoms->arena= newarena(0, 1);
+    atom(""); // take pos 0! lol
+  }
+  hashentry* e= findhash(atoms, s);
+  if (e) return (long)(e->data);
+  long i= saddarena(atoms->arena, s);
+  e= addhash(atoms, s, (void*)i);
+  return i;
+}
+
+char* atomstr(int a) {
+  return arenaptr(atoms->arena, a);
+}  
+
+void testatoms() {
+  int a= atom("foo");
+  int b= atom("bar");
+  int c= atom("foo");
+
+  printf("%d %d %d\n", a,b,c);
+
+  printf("%s %s %s\n", atomstr(a),atomstr(b),atomstr(c));
+
+  printhash(atoms);
+
+  printf("%s %s %s\n", atomstr(a),atomstr(b
+),atomstr(c));
+
+  printf("%s %s %s\n", atomstr(a),atomstr(b),atomstr(c));
+
+  exit(0);
+}
+
 int main(void) {
-  hashtab *h= newhash(10, NULL);
+  testatoms();
+  hashtab *h= newhash(10, NULL, 0);
   printhash(h);
 
   hashentry* f= addhash(h, "foo", NULL);
