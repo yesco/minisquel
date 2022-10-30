@@ -77,6 +77,7 @@ void freehash(hashtab* ht) {
       e= next;
     }
   }
+  free(ht->arena);
   free(ht);
 }
 
@@ -87,7 +88,7 @@ hashentry* findhash(hashtab* ht, char* s) {
   
   hashentry *e= ht->arr[i];
   while(e) {
-    while(e->h != h) e= e->next;
+    while(e && e->h!=h) e= e->next;
     if (!e) return NULL;
     // equal hash
     if (!ht->eq || ht->eq(ht, e->data, s)) break;
@@ -104,8 +105,8 @@ hashentry* addhash(hashtab* ht, char* s, void* data) {
   
   hashentry *e= ht->arr[i];
   while(e) {
-    while(e->h != h) e= e->next;
-    if (!e) return NULL;
+    while(e && e->h!=h) e= e->next;
+    if (!e) break;
     // equal hash
     if (!ht->eq || ht->eq(ht, e->data, s)) break;
     e= e->next;
@@ -239,7 +240,7 @@ int hashstr_eq(hashtab* ht, void* a, void* b) {
 
 int atom(char* s) {
   if (!atoms) {
-    atoms= newhash(0, NULL, 0);
+    atoms= newhash(700000, NULL, 0);
     atoms->arena= newarena(0, 1);
     atom(""); // take pos 0! lol
   }
@@ -253,6 +254,28 @@ int atom(char* s) {
 char* atomstr(int a) {
   return arenaptr(atoms->arena, a);
 }  
+
+void readdict() {
+  FILE* f= fopen("wordlist-1.1M.txt", "r");
+  //FILE* f= fopen("Test/count.txt", "r");
+  char* word= NULL;
+  size_t len= 0;
+  int n= 0;
+  while(getline(&word, &len, f)!=EOF) {
+    int l= strlen(word);
+    if (word[l-1]=='\r') word[l-1]= 0, l--;
+    if (word[l-1]=='\n') word[l-1]= 0, l--;
+    if (word[l-1]=='\r') word[l-1]= 0, l--;
+    n++;
+    //printf("startADD: %s\n", word);
+    int s= atom(word);
+    //printf("endADD: %s\n====\n\n", symstr(s));
+    if (n%1000 == 0) fputc('.', stderr);
+    //if (n%1000 == 0) fputc('.', stdout);
+  }
+  printf("# %d\n", n);
+  fclose(f);
+}
 
 void testatoms() {
   int a= atom("foo");
@@ -268,8 +291,12 @@ void testatoms() {
   printf("%s %s %s\n", atomstr(a),atomstr(b
 ),atomstr(c));
 
-  printf("%s %s %s\n", atomstr(a),atomstr(b),atomstr(c));
+  readdict();
 
+  //printhash(atoms);
+  //printarena(atoms->arena);
+  freehash(atoms);
+  
   exit(0);
 }
 
