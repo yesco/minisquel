@@ -1706,7 +1706,69 @@ void process_file(FILE* in, int prompt) {
   if (prompt) printf("\n");
 }
 
+// speed "sql' 1.6 M/s
+// nn=30M ops 4.55 M/s in 6600 ms -c
+// nn=30 Mops 6.12 M/s in 4903 ms -O3
+// nn=30 Mops 9.58 M/s in 3132 ms const
+// nn=30 Mops 9.65 M/s in 3108 ms !stat
+// nn=30 Mops 9.99 M/s in 3003 ms !clr
+
+// - clear overhead (/ 9.99 9.65)
+//    1.03 x == ok...
+
+// - updatestats overhead (/ 9.65 9.58)
+//    1.007 x == free!
+
+// const: (using setstrconst)
+// - mall/free overhead (/ 9.58 4.05)
+//    2.4 x
+
+// - sql overhead (/ 6.12 1.6)
+//    3.8 x
+
+
+void speedtest() {
+  int N= 10*1000*1000;
+  val n4={},n5={},n6={};
+  val a={},b={},c={},d={};
+  val foo={},bar={},fie={};
+  val fbf={},r={},l={};
+  int n= 0;
+  long ms= timems();
+  for(int i=0; i<N; i++) {
+    setnum(&n4, 4);
+    setnum(&n5, 5);
+    setnum(&n6, 6);
+
+    setstr(&foo, "foo");
+    setstr(&bar, "bar");
+    setstr(&fie, "fie");
+    concat(&fbf, 3, (void*)&(val[]){foo,bar,fie});
+
+    right(&r, 2, &fbf, &n6);
+    left(&l, 2, &r, &n4);
+    n+= 1;
+
+    if (1) {
+      clearval(&n4);
+      clearval(&n5);
+      clearval(&n6);
+      clearval(&foo);
+      clearval(&bar);
+      clearval(&fbf);
+      clearval(&r);
+      clearval(&l);
+    }
+  }
+  ms= timems()-ms;
+  int nn= N*3;
+  float calls= (0.0+nn)/ms/1000;
+  printf("nn=%d Mops %.2f M/s in %ld ms\n", nn/1000000, calls, ms);
+  exit(0);
+}
+
 int main(int argc, char** argv) {
+  //  speedtest();
 // testread(); exit(0);
   char* arg0= *argv;
  

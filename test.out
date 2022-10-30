@@ -267,12 +267,28 @@ foobarfie
 1 rows in 0 ms (read 0 lines)
 [8 malloc 0 free (leak +8) 38 bytes]
 
+SQL> select concat(null, "foo", 42, "bar")
+conca..
+======= 
+foo42bar
+
+1 rows in 0 ms (read 0 lines)
+[5 malloc 0 free (leak +5) 25 bytes]
+
+SQL> select concat(null, "foo", 12345678901234567890, "bar")
+conca..
+======= 
+foo12345678901234567168bar
+
+1 rows in 0 ms (read 0 lines)
+[5 malloc 0 free (leak +5) 43 bytes]
+
 SQL> select left(concat("foo", "bar", "fie"),5) as c5
 c5
 ======= 
 fooba
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [9 malloc 0 free (leak +9) 43 bytes]
 
 SQL> select right(concat("foo", "bar", "fie"),5) as c5
@@ -280,7 +296,7 @@ c5
 ======= 
 arfie
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [9 malloc 0 free (leak +9) 43 bytes]
 
 SQL> select left(right(concat("foo", "bar", "fie"), 6),4)
@@ -330,7 +346,7 @@ foo	sum(f..
       1	      9
       1	     10
 
-10 rows in 1 ms (read 0 lines)
+10 rows in 0 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> select count(i), sum(i), min(i), avg(i), max(i), stdev(i) from int(1,10) i
@@ -357,7 +373,7 @@ foo	null	12345..	i+333..
      42	NULL	1.235e9	NULL
      42	NULL	1.235e9	NULL
 
-3 rows in 1 ms (read 0 lines)
+3 rows in 0 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> select ta.a, tb.a from foo.csv ta, foo.csv tb where ta.a=tb.a
@@ -368,7 +384,7 @@ ta.a	tb.a
       3	      3
       4	      4
 
-4 rows in 1 ms (read 25 lines)
+4 rows in 0 ms (read 25 lines)
 [35 malloc 40 free (leak -5) 20640 bytes]
 
 before
@@ -386,7 +402,7 @@ i	j	i*j
       9	      9	     81
      10	     10	    100
 
-10 rows in 2 ms (read 0 lines)
+10 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1, foo.csv t2 where t1.a=t2.a
@@ -397,7 +413,7 @@ t1.a	t2.a	b
       3	      3	fie
       4	      4	fum
 
-4 rows in 1 ms (read 25 lines)
+4 rows in 0 ms (read 25 lines)
 [35 malloc 40 free (leak -5) 20640 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
@@ -421,7 +437,7 @@ Test/happy.csv
 Test/manynls.csv
 Test/nl.csv
 
-6 rows in 1 ms (read 7 lines)
+6 rows in 0 ms (read 7 lines)
 [11 malloc 11 free (leak +0) 4229 bytes]
 
 SQL> select i from one2ten ten
@@ -455,7 +471,7 @@ i
       9
      10
 
-10 rows in 0 ms (read 11 lines)
+10 rows in 1 ms (read 11 lines)
 [4 malloc 5 free (leak -1) 4161 bytes]
 
 Variable 'debug' set to 1
@@ -482,7 +498,7 @@ Bytes: 64
 
 
 
--1 rows in 0 ms (read 5 lines)
+-1 rows in 1 ms (read 5 lines)
 [8 malloc 8 free (leak +0) 4144 bytes]
 
 SQL> set @a=42
@@ -500,7 +516,7 @@ SQL> select @a
 
 SQL> set #a=42
 
--1 rows in 1 ms (read 0 lines)
+-1 rows in 0 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 3 bytes]
 
 SQL> select #a
@@ -714,7 +730,7 @@ t1.a	t2.a	t2.b
       3	      3	NULL
       4	      4	NULL
 
-4 rows in 1 ms (read 10 lines)
+4 rows in 0 ms (read 10 lines)
 [21 malloc 22 free (leak -1) 8315 bytes]
 
 SQL> select "foo"
@@ -724,5 +740,15 @@ foo
 
 1 rows in 0 ms (read 0 lines)
 [2 malloc 0 free (leak +2) 8 bytes]
+
+affec
+affec
+enjoy
+affec
+bondi
+exerc
+
+100535 rows in 1205 ms (read 100536 lines)
+[617339 malloc 516805 free (leak +100534) 21382603 bytes]
 
 ^^^^^^^^^^ BUGS ^^^^^^^^^^^

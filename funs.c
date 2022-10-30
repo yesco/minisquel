@@ -61,11 +61,16 @@ int _char(val* r, int n, val* a) {
 int concat(val* r, int n, val* v) {
   int len= 0;
   for(int i=0; i<n; i++)
-    len+= (v[i].s? strlen(v[i].s): 5) + 1;
+    len+= (v[i].s? strlen(v[i].s): 15) + 1;
 
   char* s= calloc(1, len);
   for(int i=0; i<n; i++) {
     if (v[i].s) strcat(s, v[i].s);
+    else if (v[i].not_null) {
+      char num[32];
+      snprintf(num, sizeof(num), "%.32g", v[i].d);
+      strcat(s, num);
+    }
   }
   
   setstr(r, s);
