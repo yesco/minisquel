@@ -141,11 +141,6 @@ int32_t is24(float f) {
 }
 
 
-
-
-
-
-
 void p32(unsigned int v) {
   unsigned int vv= v;
   for(int i=0; i<32; i++) {
@@ -207,7 +202,8 @@ void printbits() {
 #include "syms.c"
 
 void readdict() {
-  FILE* f= fopen("wordlist-1.1M.txt", "r");
+  //FILE* f= fopen("wordlist-1.1M.txt", "r");
+  FILE* f= fopen("Test/count.txt", "r");
   char* word= NULL;
   size_t len= 0;
   int n= 0;
@@ -215,13 +211,17 @@ void readdict() {
     int l= strlen(word);
     if (word[l-1]=='\n') word[l-1]= 0;
     n++;
-    sym_owned(word);
+    //printf("startADD: %s\n", word);
+    int s= sym_owned(word);
+    //printf("endADD: %s\n====\n\n", symstr(s));
     word= NULL;
     if (n%1000 == 0) fputc('.', stderr);
     //if (n%1000 == 0) fputc('.', stdout);
   }
   printf("# %d\n", n);
   fclose(f);
+
+  dump();
 }
 
 int main(int argc, char** argv) {

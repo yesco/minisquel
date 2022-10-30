@@ -1,18 +1,5 @@
 #include "syms.c"
 
-void dump() {
-  printf("\nDump\n----\n");
-
-  for(int s=0; s<symscount; s++)
-    printf("%3d %3d %3d  '%s'\n", s, osyms[s], xsyms[s], symstr(s));
-
-  printf("%s\n", osyms_ordered?"ORDERED":"MESSY");
-  for(int s=0; s<symscount; s++)
-    printf("%3d %3d %3d  '%s'\n", s, osyms[s], xsyms[s], osymstr(s));
-
-  printf("\n");
-}
-
 void test(int s) {
   char* str= symstr(s);
   printf("%d '%s' -> %d\n", s, str, sym(str));

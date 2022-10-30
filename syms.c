@@ -71,6 +71,8 @@ int sym(char* s) {
 int osym(char* s);
 char* osymstr(int o);
 
+void dump();
+
 // lookup OWNED string, if need adds
 // the pointer, otherwise free:s it.
 //
@@ -85,48 +87,61 @@ int sym_owned(char* owned) {
   if (osyms_ordered &&
       (r=strcmp(syms[osyms[symscount-1]], s))<=0) {
     if (r==0) {
+      // it's the last one!
       fputc('=', stdout);
       free(owned);
       return symscount-1;
     }
+    // it's greater, just add at end
     fputc('<', stdout);
     i= symscount;
   } else {
+    // smaller, need to search
     fputc('x', stdout);
-    printf("\n '%s' '%s'\n", syms[osyms[symscount-1]], s);
+    //printf("\n '%s' '%s'\n", syms[osyms[symscount-1]], s);
     // TODO: improve w hash? binary search?
-    // or just keep in osyms order?
     for(i=1; i<symscount; i++) {
-      int r= strcmp(s, syms[i]);
+      r= strcmp(s, syms[osyms[i]]);
+      //printf("CMP '%s' <=> '%s' == %d @ %d\n", s, syms[osyms[i]], r, i);
       if (r==0) { // found
 	free(owned);
 	return i;
-      } else if (r>0) // insert here
+      } else if (r<0) {// insert here
+	//printf("FOUND POS: iiiii=%d\n", i);
 	break;
+      }
     }
   }
+
   
   // not found - add
   if (symscount>=SYMS_MAX)
     error("Broke the SYMS_MAX limit!");
 
   syms[symscount]= owned;
-  osyms[symscount]= symscount;
   // if adding in higher than existing...
+  // TODO: we should know? no need to CMP? just use "i"
   if (osyms_ordered &&
       strcmp(syms[osyms[symscount-1]], s)<0) {
     ;
   } else {
-    //printf("---------INSERT: '%s'\n", s);
-    //printf("iiiiiiiii=%d %d '%s'\n\n", i, symscount, osymstr(i));
+    //printf("---------INSERT: '%s' %d\n", owned, i);
+    //printf("iiiiiiiii=%d %d '%s'\n\n", i, symscount, syms[osyms[i]]);
     if (i<=symscount) {
       // move down
       for(int j=symscount; j>i; j--)
  	osyms[j]= osyms[j-1];
-      osyms[i]= symscount;
     }
   }
+  osyms[i]= symscount;
+  //printf("ADDDED: %s\n", owned);
   return symscount++;
+}
+
+int debug_sym_owned(char* owned) {
+  int r= sym_owned(owned);
+  dump();
+  return r;
 }
 
 int osym(char* s) {
@@ -207,3 +222,25 @@ void osymssort() {
   osyms_ordered= 1;
 }
 
+void dump() {
+  printf("\nDump\n----\n");
+
+  // TODO: how to do incrementially?
+  for(int s=0; s<symscount; s++)
+    xsyms[osyms[s]]= s;
+
+  for(int s=0; s<symscount; s++)
+    printf("%3d %3d %3d  '%s'\n", s, osyms[s], xsyms[s], symstr(s));
+
+  printf("%s\n", osyms_ordered?"ORDERED":"MESSY");
+
+  for(int s=0; s<symscount; s++) {
+    //printf("%3d %3d %3d  '%s'\n", s, osyms[s], xsyms[s], osymstr(s));
+    //    printf("%3d %3d %3d '%-7s' '%-7s' '%-7s\n", s, osyms[xsyms[s]], xsyms[s], syms[xsyms[s]], syms[osyms[s]], syms[osyms[xsyms[s]]]);
+    printf("%3d %3d %3d '%-7s'\n",
+	   s, osyms[s], xsyms[s],
+	   syms[osyms[s]]);
+  }
+
+  printf("\n");
+}
