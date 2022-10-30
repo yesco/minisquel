@@ -54,14 +54,6 @@
 #include <stdlib.h>
 #include <math.h>
 
-
-const uint32_t INF_MASK= 0x7f800000;
-const uint32_t MASK    = 0x7f000000; // 0111 1111 0
-const uint32_t NAN_MASK= 0x7fc00000;
-const uint32_t MASK_23=  0x007fffff;
-const uint32_t SIGN_BIT= 0x80000000;
-const uint32_t MASK_22=  0x003fffff;
-
 void p32(uint32_t i);
 void p32f(float f);
 
@@ -119,8 +111,15 @@ void nl() { putchar('\n'); }
 // 
 // REF: https://en.m.wikipedia.org/wiki/Double-precision_floating-point_format
 
+const uint32_t INF_MASK= 0x7f800000;
+const uint32_t MASK    = 0x7f000000; // 0111 1111 0
+const uint32_t NAN_MASK= 0x7fc00000;
+const uint32_t MASK_23=  0x007fffff;
+const uint32_t SIGN_BIT= 0x80000000;
+const uint32_t MASK_22=  0x003fffff;
+
 float make24(int32_t i) {
-  uint32_t u= i<0 ? -i : i;
+  uint32_t u= i<0 ? -i : i; // abs
   //  if (!!(u & INF_MASK) || !(u & MASK_22)) {
   if ((u & INF_MASK) || !i) {
     printf("make23: %u doesn't fit in 23!\n", i);
@@ -141,6 +140,39 @@ int32_t is24(float f) {
 }
 
 
+const uint64_t LINF_MASK= 0x7ff0000000000000l; // 11 bits exp
+const uint64_t LMASK    = 0x7ff0000000000000l;
+const uint64_t LNAN_MASK= 0x7ff8000000000000l;
+const uint64_t LMASK_53=  0x0007ffffffffffffl;
+const uint64_t LSIGN_BIT= 0x8000000000000000l;
+const uint64_t LMASK_52=  0x0003ffffffffffffl;
+
+const long L53MAX= 2251799813685248l-2; // 111 ... 11 excluded
+
+double make53(int64_t l) {
+  uint64_t ul= l<0? -l : l;
+  if (ul<2 || ul>=L53MAX) {
+    printf("make53: l= %ld outside of range", l);
+    printf("make53: l= %ld  outside of range", l);
+    exit(1);
+  }
+  ul |= LINF_MASK;
+  double d= *(double*)&ul;
+  d= l<0 ? -d : +d;
+  //printf("make53: %ld => %g\n", l, d);
+  return d;
+}
+
+int64_t is53(double d) {
+  uint64_t ul= *(uint64_t*)&d;
+  int neg= !!(ul & LSIGN_BIT);
+  ul &= LMASK_53; 
+  if (!isnan(d) || ul<2 || ul>L53MAX) return 0;
+  ul &= LMASK_53;
+  //return d<0 ? -ul : +ul;
+  return neg ? -ul : +ul;
+}
+
 void p32(unsigned int v) {
   unsigned int vv= v;
   for(int i=0; i<32; i++) {
@@ -159,6 +191,26 @@ void p32(unsigned int v) {
 
 void p32f(float f) {
   p32(*(unsigned int*)&f);
+}
+
+void p64(uint64_t v) {
+  uint64_t vv= v;
+  for(int i=0; i<64; i++) {
+    putchar((vv & 0x8000000000000000l)? '1': '0');
+    vv<<= 1;
+    if (i==0 || i==4 || i==8 || i>8 && (i-11)%4==0)
+      putchar(' ');
+  }
+  double d= *(double*)&v;
+  printf(" %lg", d);
+  if (isinf(d)) printf(" INF");
+  if (isnan(d)) printf(" NAN");
+  if (is53(d)) printf(" 53");
+  nl();
+}
+
+void p64d(double d) {
+  p64(*(uint64_t*)&d);
 }
 
 void printbits() {
@@ -225,8 +277,74 @@ void readdict() {
 }
 
 int main(int argc, char** argv) {
-  readdict(); exit(0);
+  if (1) {
+    p64d(+INFINITY);
+    p64d(-INFINITY);
+    p64d(+NAN);
+    p64d(-NAN);
+    nl();
+    p64d(1);
+    p64d(2);
+    p64d(3);
+    p64d(4);
+    p64d(5);
+    p64d(8);
+    p64d(16);
+    double d;
+    p64d(d=make53(2)); printf("==> %ld\n", is53(d));
+    p64d(d=make53(3)); printf("==> %ld\n", is53(d));
+    p64d(d=make53(256)); printf("==> %ld\n", is53(d));
+    nl();
+    // s52
+    //   ----------------------------------- 52 -------------------------------
+    // s xxxx xxxx  xxxx xxxx  xxxx xxxx  xxxx xxxx  xxxx xxxx  xxxx xxxx  tttt
+    // s -------------------------------- 48 bits -----------------------  4 b-
+    //   ---------------------40 bits-------------------------  heap heap
+    //
+    // 48 bits 281474976710656 = 281 474 976 710 656 = 256 T
+    //
+    // 40 bits 1099511627776 = 109 9511 627 776 = 1 TB
+    //
+    // heap heap index to 256 different heaps
+    //
+    // tttt = 4 bit "type" info
+    // ----
+    // 0000 = 
+
+
+    //double lmax= 4503599627370496l;
+    long lmax= 2251799813685248l;
+    double max= lmax;
+    
+    p64d(d=make53(lmax-3)); printf("==> %ld\n", is53(d));
+    //p64d(d=make53(lmax-2)); printf("==> %ld\n", is53(d));
+    // TOOD: exclude lmax
+    //    p64d(d=make53(lmax-1)); printf("==> %ld\n", is53(d));
+    //    p64d(d=make53(lmax)); printf("==> %ld\n", is53(d));
+    //p64d(d=make53(lmax+1)); printf("==> %ld\n", is53(d));
+    nl();
+    printf("--- negatives\n");
+    p64d(d=make53(-2)); printf("==> %ld\n", is53(d));
+    p64d(d=make53(-3)); printf("==> %ld\n", is53(d));
+    p64d(d=make53(-256)); printf("==> %ld\n", is53(d));
+    nl();
+
+    exit(1);
+  }
+
+
+  //  readdict(); exit(0);
   
+  if (1) {
+    float a= make24(47);
+    float b= make24(48);
+    p32f(a);
+    p32f(b);
+    printf("%f <=> %f --> %d\n", a, b, (a>b)-(b>a));
+    int ia= is24(a), ib= is24(b);
+    printf("%d <=> %d --> %d\n", ia, ib, (ia>ib)-(ib>ia));
+    exit(0);
+  }
   if (1) {
       p32f(-1);
       p32(0);
