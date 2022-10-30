@@ -1712,6 +1712,12 @@ void process_file(FILE* in, int prompt) {
 // nn=30 Mops 9.58 M/s in 3132 ms const
 // nn=30 Mops 9.65 M/s in 3108 ms !stat
 // nn=30 Mops 9.99 M/s in 3003 ms !clr
+// nn=30 Mops 5.14 M/s in 5842 ms findf
+
+// - findfunc overhead (/ 6.12 5.14)
+//    1.19 x == it's going to inc!!!
+//
+// TODO: could cache at parsepos! LOL
 
 // - clear overhead (/ 9.99 9.65)
 //    1.03 x == ok...
@@ -1736,6 +1742,14 @@ void speedtest() {
   int n= 0;
   long ms= timems();
   for(int i=0; i<N; i++) {
+    if(0){
+    typeof(concat) *_concat;  _concat= findfunc("concat")->f;
+    typeof(left) *_left;  _left= findfunc("left")->f;
+    typeof(right) *_right; _right= findfunc("right")->f;
+    if (_concat) n++;
+    if (_left) n++;
+    if (_right) n++;
+    }
     setnum(&n4, 4);
     setnum(&n5, 5);
     setnum(&n6, 6);
@@ -1744,7 +1758,6 @@ void speedtest() {
     setstr(&bar, "bar");
     setstr(&fie, "fie");
     concat(&fbf, 3, (void*)&(val[]){foo,bar,fie});
-
     right(&r, 2, &fbf, &n6);
     left(&l, 2, &r, &n4);
     n+= 1;
@@ -1764,16 +1777,17 @@ void speedtest() {
   int nn= N*3;
   float calls= (0.0+nn)/ms/1000;
   printf("nn=%d Mops %.2f M/s in %ld ms\n", nn/1000000, calls, ms);
+  printf("n=%d\n", n);
   exit(0);
 }
 
 int main(int argc, char** argv) {
-  //  speedtest();
+  register_funcs();
+  
+  //speedtest();
 // testread(); exit(0);
   char* arg0= *argv;
  
-  register_funcs();
-  
   int n=1;
   while (*((argv+=n)) && (argc+=n)>0)
     n= process_arg(argv[0], argv[1]);
