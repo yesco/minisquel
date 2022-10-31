@@ -16,6 +16,114 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
+
+#include "utils.c"
+
+
+// --- Arena memory allocater
+
+// An arena is a simple allocator that
+// putses out data from a contigious
+// memory pool. There is typically no
+// deallocator for individual allocations.
+//
+// This arena returns an offset, that
+// can be used to get a temporory pointer.
+// This pointer should not be stored.
+// Any other adds to the arena may
+// move the memory to other addrees.
+//
+// Use and story only the index returned.
+
+typedef struct arena {
+  char* mem;
+  int size;
+  int top;
+  int align;
+} arena;
+
+arena* newarena(int size, int align) {
+  if (align<=0) align= 1;
+  if (size<=0) size= 10*1024;
+  arena* a= calloc(1, sizeof(*a));
+  if (!a) return NULL;
+
+  a->mem= malloc(size);
+  if (!a->mem) { free(a); return NULL; }
+  a->size= size;
+  a->top= 0;
+  a->align= align;
+
+  return a;
+}
+
+int addarena(arena* a, void* data, int size) {
+  if (!a) return -1;
+  if (a->top+size+a->align >= a->size) {
+    int newsize= a->size*1.3;
+    if (newsize - a->size < 1024) newsize+= 1024;
+    char* mem= realloc(a->mem, newsize);
+    if (!mem) return -1;
+    a->mem= mem;
+    a->size= newsize;
+  }
+
+  // allocate data
+  int i= a->top;
+  // align
+  a->top+= size;
+  while(a->top % a->align)
+    a->mem[a->top++]= 0;
+
+  memcpy(a->mem+i, data, size);
+  return i;
+}
+
+// WARNING: Do NOT store this pointer;
+// it may cahnge after any new adds!
+void* arenaptr(arena*a, int i) {
+  if (!a) return NULL;
+  return &a->mem[i];
+}
+
+// string add
+int saddarena(arena* a, char* s) {
+  if (!s) return -1;
+  int len= strlen(s);
+  return addarena(a, s, len+1);
+}
+
+int printarena(arena* a, int details) {
+  if (!a) { putchar('\n'); return 0; }
+  printf("--- arena (size=%d top=%d)\n", a->size, a->top);
+  if (!details) return a->size;
+  char* c= a->mem;
+  for(int i=0; i<a->top; i++) {
+    if (!*c) printf("\\0");
+    else putchar(*c);
+    c++;
+  }
+  printf("<<<\n");
+  return a->size;
+}
+
+void testarena() {
+  arena* a= newarena(0,1);
+  int foo= saddarena(a, "foo");
+  int bar= saddarena(a, "bar");
+  int fiefum= saddarena(a, "fiefum");
+  printarena(a, 1);
+  for(int i=0; i<10000; i++) {
+    char s[32];
+    snprintf(s, sizeof(s), "FOO-%d-BAR", i);
+    int ix= saddarena(a, s);
+    printf("%d @ %d %s\n", i, ix, (char*)arenaptr(a, ix));
+  }
+  printarena(a, 1);
+  printf("BAR: %s\n", (char*)arenaptr(a, bar));
+  exit(0);
+}
 
 // not power of 2 as ascii is regular
 #define HASH_DEFAULT 63
@@ -44,9 +152,10 @@ typedef struct hashentry {
   struct hashentry* next;
   hashval h;
   void* data;
+  int count; // optional?
+  // int; for alignment
 } hashentry;
 
-struct arena;
 struct hashtab;
 
 typedef int(*hasheq)(struct hashtab*,void*, void*);
@@ -57,7 +166,8 @@ typedef struct hashtab {
   int n;
   hasheq eq;
   int freedata; // free hashentry.data
-  struct arena* arena;
+  arena* arena;
+  arena* ars;
 } hashtab;
 
 
@@ -159,125 +269,36 @@ hashentry* addhash(hashtab* ht, char* s, void* data) {
 }
 
 // print the slots
-void printhash(hashtab* ht, int details) {
+void printhashprinter(hashtab* ht, int details, int(*printer)(hashtab*,hashentry*)) {
   if (!ht) return;
+  int bytes= 0;
   printf("\n----- hashtab (%d items/%d slots)\n", ht->n, ht->size);
   int n= 0;
   for(int i=0; i<ht->size; i++) {
     hashentry* e= *(ht->arr + i);
     if (e) {
       n++;
-      if (details) printf("%3d : ", i);
+      if (details||printer) printf("%3d : ", i);
       int nn = 0;
       while(e) {
+	if (printer) bytes+= printer(ht, e);
 	nn++;
 	e= e->next;
+	bytes+= sizeof(hashentry);
       }
-      if (details && nn) printf(" --- #%d\n", nn);
+      //if (printer && nn) printf("\n");
+      if ((details || printer) && nn) printf(" --- #%d\n", nn);
     }
   }
+  bytes+= sizeof(hashtab);
   printf("=== %d slots used\n", n);
+  printf("arena: "); bytes+= printarena(ht->arena, 0);
+  printf("  ars: "); bytes+= printarena(ht->ars, 0);
+  printf("BYTES: %d\n", bytes);
 }
 
-// --- Dynamically growing hashtable.
-
-// An arena is a simple allocator that
-// putses out data from a contigious
-// memory pool. There is typically no
-// deallocator for individual allocations.
-//
-// This arena returns an offset, that
-// can be used to get a temporory pointer.
-// This pointer should not be stored.
-// Any other adds to the arena may
-// move the memory to other addrees.
-//
-// Use and story only the index returned.
-
-typedef struct arena {
-  char* mem;
-  int size;
-  int top;
-  int align;
-} arena;
-
-arena* newarena(int size, int align) {
-  if (align<=0) align= 1;
-  if (size<=0) size= 10*1024;
-  arena* a= calloc(1, sizeof(*a));
-  if (!a) return NULL;
-
-  a->mem= malloc(size);
-  if (!a->mem) { free(a); return NULL; }
-  a->size= size;
-  a->top= 0;
-  a->align= align;
-
-  return a;
-}
-
-int addarena(arena* a, void* data, int size) {
-  if (!a) return -1;
-  if (a->top+size+a->align >= a->size) {
-    int newsize= a->size*1.3;
-    if (newsize - a->size < 1024) newsize+= 1024;
-    char* mem= realloc(a->mem, newsize);
-    if (!mem) return -1;
-    a->mem= mem;
-    a->size= newsize;
-  }
-
-  // allocate data
-  int i= a->top;
-  // align
-  a->top+= size;
-  while(a->top % a->align)
-    a->mem[a->top++]= 0;
-
-  memcpy(a->mem+i, data, size);
-  return i;
-}
-
-// WARNING: Do NOT store this pointer;
-// it may cahnge after any new adds!
-void* arenaptr(arena*a, int i) {
-  if (!a) return NULL;
-  return &a->mem[i];
-}
-
-// string add
-int saddarena(arena* a, char* s) {
-  if (!s) return -1;
-  int len= strlen(s);
-  return addarena(a, s, len+1);
-}
-
-void printarena(arena* a) {
-  printf("--- arena (size=%d top=%d)\n", a->size, a->top);
-  char* c= a->mem;
-  for(int i=0; i<a->top; i++) {
-    if (!*c) printf("\\0");
-    else putchar(*c);
-    c++;
-  }
-  printf("<<<\n");
-}
-
-void testarena() {
-  arena* a= newarena(0,1);
-  int foo= saddarena(a, "foo");
-  int bar= saddarena(a, "bar");
-  int fiefum= saddarena(a, "fiefum");
-  printarena(a);
-  for(int i=0; i<10000; i++) {
-    char s[32];
-    snprintf(s, sizeof(s), "FOO-%d-BAR", i);
-    int ix= saddarena(a, s);
-    printf("%d @ %d %s\n", i, ix, (char*)arenaptr(a, ix));
-  }
-  printarena(a);
-  printf("BAR: %s\n", (char*)arenaptr(a, bar));
-  exit(0);
+int printhash(hashtab* ht, int details) {
+  printhashprinter(ht, details, NULL);
 }
 
 // --- Atoms / Interned Strings (Pool)
@@ -290,22 +311,111 @@ void testarena() {
 
 static hashtab* atoms= NULL;
 
-int hashstr_eq(hashtab* ht, long a, char* b) {
-  char* sa= arenaptr(ht->arena, a);
-  //printf("EQ: %s %s\n", sa, b);
-  return 0==strcmp(sa, b);
+typedef struct atomstorage {
+  // must be long/8B and must be first!
+  long i; // offset of atom string
+  arena arena;
+} atomstorage;
+
+int hashstr_eq(hashtab* ht, long i, char* b) {
+  //printf("EQ: %ld %s\n", i, b);
+  if (i<0) {
+    atomstorage* storage= arenaptr(ht->ars, -i);
+    i= storage->i;
+  }
+  char* estr= arenaptr(ht->arena, i);
+  //printf("EQ: %s %s\n", estr, b);
+  return 0==strcmp(estr, b);
 }
 
+ 
+// will get existing or create
 hashentry* atomentry(char* s) {
+  //printf("atomentry: '%s'\n", s);
   if (!atoms) {
     atoms= newhash(0, (void*)hashstr_eq, 0);
     atoms->arena= newarena(0, 1);
-    atomentry(""); // take pos 0! lol
+    char* empty= "";
+    // make sure not give offset 0, lol
+    addarena(atoms->arena, empty, 1);
+    // create an arena for arenas!
+    // == macarena?
+    atoms->ars= newarena(16*sizeof(atomstorage), sizeof(atomstorage));
+    // make sure not give offset 0, lol
+    addarena(atoms->ars, empty, 1);
   }
+
   hashentry* e= findhash(atoms, s);
   if (e) return e;
+
+  //printf("  saddarena: '%s'\n", s);
   long i= saddarena(atoms->arena, s);
   return addhash(atoms, s, (void*)i);
+}
+
+arena* atomarena(char* s) {
+  hashentry* e= atomentry(s);
+  if (!e) return NULL;
+
+  // get storage and real i
+  long i= (long)e->data;
+  if (i>0) return NULL;
+
+  atomstorage* storage= i>0 ? NULL : arenaptr(atoms->ars, -i);
+  return &storage->arena;
+}
+
+int atomstore(char* s, void* data, int len) {
+  hashentry* e= atomentry(s);
+  e->count++;
+  if (!e) return -1;
+
+  // get storage and real i
+  long i= (long)e->data;
+  //printf("  OFFSET %ld\n", i);
+  
+  atomstorage* storage= i>0 ? NULL : arenaptr(atoms->ars, -i);
+
+  //printf("  atomstore: '%s' %ld %p\n", s, i, storage);
+  
+  if (storage) i= storage->i;
+  assert(i>0);
+  
+  // no need store anything
+  if (!data || len <= 0) return i;
+  
+  // we want to store - need storage
+  if (!storage) {
+    //printf("  !!!! CREATE ARENA\n");
+
+    // allocate a new arena
+    arena *a= newarena(16*sizeof(int), sizeof(int));
+
+    // hacky, TODO: make initarena?
+    atomstorage s= {};
+    s.i= i;
+    memcpy(&s.arena, a, sizeof(s.arena));
+    long si= addarena(atoms->ars, &s, sizeof(s));
+    //printf("  SI=%ld\n", si);
+    // save this as as -offset
+    e->data= (void*)-si;
+    storage= arenaptr(atoms->ars, si);
+  }
+
+  {
+    long i= (long)e->data;
+    //printf("  OFFSET=%ld\n", i);
+    //printf("  STORAGE i=%ld\n", storage->i);
+  }
+  
+  //printf("  aboustore: '%s' %ld %p\n", s, i, storage);
+
+  // finally ready to add data
+  long ai= addarena(&storage->arena, data, len);
+
+  //printf("  added ai=%ld LEN=%d\n", ai, storage->arena.top);
+  // return the atom offset
+  return i;
 }
 
 int atom(char* s) {
@@ -329,6 +439,22 @@ void dumpatoms(hashtab* ht) {
   }
 }
 
+int atomprinter(hashtab* ht, hashentry* e) {
+  int bytes= 0;
+  if (!e) return 0;
+  long i= (long)e->data;
+  printf("\n    @%ld ", i);
+  if (i<0) {
+    atomstorage* storage= arenaptr(ht->ars, -i);
+    i= storage->i;
+  }
+  printf("#%d ", e->count);
+  printf("'%s' ", atomstr(i));
+
+  arena* a= atomarena(atomstr(i));
+  if (a) bytes+= printarena(a, 0);
+}
+
 void readdict() {
   FILE* f= fopen("duplicates.txt", "r");
   //  FILE* f= fopen("wordlist-1.1M.txt", "r");
@@ -343,40 +469,49 @@ void readdict() {
     if (word[l-1]=='\r') word[l-1]= 0, l--;
     n++;
 
-    int s= atom(word);
+    // store one int/file offset
+    int o= 4711;
+    int s= atomstore(word, &o, sizeof(o));
+    //printf("  ---> %d '%s'\n", s, atomstr(s));
+    //int s= atom(word);
 
     if (n%1000 == 0) fputc('.', stderr);
   }
   printf("# %d\n", n);
   fclose(f);
+
+  printhashprinter(atoms, 0, atomprinter);
 }
 
 void testatoms() {
   readdict(); printhash(atoms, 1); exit(0);
   
-  int a= atom("foo");
-  int b= atom("bar");
-  int c= atom("foo");
+  int data=4711;
+  
+  //  int a= atom("foo");  int b= atom("bar");  int c= atom("foo"); int bb= atom("bar");
+  //int a= atomstore("foo", &data, sizeof(data));  int b= atomstore("bar", &data, sizeof(data));  int c= atomstore("foo", &data, sizeof(data)); int bb= atomstore("bar", &data, sizeof(data));
+  int a= atomstore("foo", NULL, 0);  int b= atomstore("bar", NULL, 0);  int c= atomstore("foo", NULL, 0); int bb= atomstore("bar", NULL, 0);
 
-  printf("%d %d %d\n", a,b,c);
+  printf("%d %d %d %d\n", a,b,c,bb);
 
-  printf("%s %s %s\n", atomstr(a),atomstr(b),atomstr(c));
+  printf("%s %s %s %s\n", atomstr(a),atomstr(b),atomstr(c),atomstr(bb));
 
   printhash(atoms, 1);
 
-  printf("%s %s %s\n", atomstr(atom("foo")), atomstr(atom("bar")), atomstr(atom("foo")));
+  printf("%s %s %s %s\n", atomstr(a),atomstr(b),atomstr(c),atomstr(bb));
 
   printhash(atoms, 1);
   
-  readdict();
+  //readdict();
 
   printhash(atoms, 0);
 
   //dumpatoms(atoms);
 
-  //printarena(atoms->arena);
+  //printarena(atoms->arena, 1);
   freehash(atoms);
   
+  printhashprinter(atoms, 0, atomprinter);
   exit(0);
 }
 
