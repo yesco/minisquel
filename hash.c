@@ -55,7 +55,6 @@ typedef struct hashtab {
 
 
 hashtab* newhash(int size, hasheq eq, int freedata) {
-  // TODO: resize?
   size= size<=0 ? HASH_DEFAULT : size;
   hashtab *ht = calloc(1, sizeof(*ht));
   if (!ht) return NULL;
@@ -64,6 +63,30 @@ hashtab* newhash(int size, hasheq eq, int freedata) {
   ht->eq= eq;
   ht->freedata= freedata;
   return ht;
+}
+
+void resizehash(hashtab* ht, int size) {
+  //fprintf(stderr, "{Rrrr %d => ", ht->size);
+  if (size<=0) size= 67;
+  hashentry** arr= calloc(size, sizeof(void*));
+  for(int i=0; i<ht->size; i++) {
+    hashentry* e= *(ht->arr + i);
+    while(e) {
+      hashentry* next= e->next;
+      e->next= NULL;
+      int i= e->h % size;
+      
+      hashentry* o= arr[i];
+      arr[i]= e;
+      e->next= o;
+		  
+      e= next;
+    }
+  }
+  free(ht->arr);
+  ht->arr= arr;
+  ht->size= size;
+  //fprintf(stderr, "%d rrrr}", size);
 }
 
 void freehash(hashtab* ht) {
@@ -99,6 +122,10 @@ hashentry* findhash(hashtab* ht, char* s) {
 
 // if found, replace data
 hashentry* addhash(hashtab* ht, char* s, void* data) {
+  if (!ht) return NULL;
+  if (ht->n / ht->size > 10)
+    resizehash(ht, ht->size*3);
+      
   int len= strlen(s?s:"");
   hashval h= s?larsons_hash(s, len):0;
   int i= h % ht->size;
@@ -126,21 +153,21 @@ hashentry* addhash(hashtab* ht, char* s, void* data) {
 }
 
 // print the slots
-void printhash(hashtab* ht) {
+void printhash(hashtab* ht, int details) {
   if (!ht) return;
-  printf("\n----- hashtab (%d items)\n", ht->n);
+  printf("\n----- hashtab (%d items/%d slots)\n", ht->n, ht->size);
   int n= 0;
   for(int i=0; i<ht->size; i++) {
     hashentry* e= *(ht->arr + i);
     if (e) {
       n++;
-      printf("%3d : ", i);
+      if (details) printf("%3d : ", i);
       int nn = 0;
       while(e) {
 	nn++;
 	e= e->next;
       }
-      if (nn) printf(" --- #%d\n", nn);
+      if (details && nn) printf(" --- #%d\n", nn);
     }
   }
   printf("=== %d slots used\n", n);
@@ -240,7 +267,7 @@ int hashstr_eq(hashtab* ht, void* a, void* b) {
 
 int atom(char* s) {
   if (!atoms) {
-    atoms= newhash(700000, NULL, 0);
+    atoms= newhash(0, NULL, 0);
     atoms->arena= newarena(0, 1);
     atom(""); // take pos 0! lol
   }
@@ -286,14 +313,15 @@ void testatoms() {
 
   printf("%s %s %s\n", atomstr(a),atomstr(b),atomstr(c));
 
-  printhash(atoms);
+  printhash(atoms, 1);
 
-  printf("%s %s %s\n", atomstr(a),atomstr(b
-),atomstr(c));
+  printf("%s %s %s\n", atomstr(atom("foo")), atomstr(atom("bar")), atomstr(atom("foo")));
 
+  printhash(atoms, 1);
+  
   readdict();
 
-  //printhash(atoms);
+  printhash(atoms, 0);
   //printarena(atoms->arena);
   freehash(atoms);
   
@@ -303,11 +331,11 @@ void testatoms() {
 int main(void) {
   testatoms();
   hashtab *h= newhash(10, NULL, 0);
-  printhash(h);
+  printhash(h, 1);
 
   hashentry* f= addhash(h, "foo", NULL);
   hashentry* b= addhash(h, "bar", NULL);
-  printhash(h);
+  printhash(h, 1);
 
   freehash(h);
 }
