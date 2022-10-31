@@ -115,13 +115,12 @@ hashentry* findhash(hashtab* ht, char* s) {
   int len= strlen(s?s:"");
   hashval h= s?larsons_hash(s, len):0;
   int i= h % ht->size;
-  
   hashentry *e= ht->arr[i];
   while(e) {
     while(e && e->h!=h) e= e->next;
     if (!e) return NULL;
-    // equal hash
-    if (!ht->eq || ht->eq(ht, e->data, s)) break;
+    // now is equal hash
+    if (!ht->eq || ht->eq(ht, e->data, s)) break; // FOUND
     e= e->next;
   }
   return e;
@@ -293,7 +292,8 @@ static hashtab* atoms= NULL;
 
 int hashstr_eq(hashtab* ht, long a, char* b) {
   char* sa= arenaptr(ht->arena, a);
-  return strcmp(sa, b);
+  //printf("EQ: %s %s\n", sa, b);
+  return 0==strcmp(sa, b);
 }
 
 int atom(char* s) {
@@ -305,6 +305,7 @@ int atom(char* s) {
   hashentry* e= findhash(atoms, s);
   if (e) return (long)(e->data);
   long i= saddarena(atoms->arena, s);
+  printf("ADDING: %s\n", s);
   e= addhash(atoms, s, (void*)i);
   return i;
 }
@@ -324,7 +325,8 @@ void dumpatoms(hashtab* ht) {
 }
 
 void readdict() {
-  FILE* f= fopen("wordlist-1.1M.txt", "r");
+  FILE* f= fopen("duplicates.txt", "r");
+  //  FILE* f= fopen("wordlist-1.1M.txt", "r");
   //FILE* f= fopen("Test/count.txt", "r");
   char* word= NULL;
   size_t len= 0;
@@ -335,17 +337,18 @@ void readdict() {
     if (word[l-1]=='\n') word[l-1]= 0, l--;
     if (word[l-1]=='\r') word[l-1]= 0, l--;
     n++;
-    //printf("startADD: %s\n", word);
+
     int s= atom(word);
-    //printf("endADD: %s\n====\n\n", symstr(s));
+
     if (n%1000 == 0) fputc('.', stderr);
-    //if (n%1000 == 0) fputc('.', stdout);
   }
   printf("# %d\n", n);
   fclose(f);
 }
 
 void testatoms() {
+  readdict(); printhash(atoms, 1); exit(0);
+  
   int a= atom("foo");
   int b= atom("bar");
   int c= atom("foo");
