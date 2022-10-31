@@ -174,7 +174,8 @@ typedef struct table {
   char** colnames;
   arena* data;
   hashtab* strings;
-
+  long bytesread;
+  
   int cols;
   int keys;
   // int ...
@@ -270,13 +271,22 @@ table* loadcsvtable(char* name, FILE* f) {
   table* t= newtable(name, 0, 0, NULL); // LOL
   // header is a line!
   char* line= NULL;
-  while((line= csvgetline(f)))
+  while((line= csvgetline(f))) {
+    t->bytesread+= strlen(line);
     tableaddline(t, line);
+  }
   return t;
 }
   
-void printtable(table* t) {
-  if (!t) return;
+long printtable(table* t, int details) {
+  if (!t) return 0;
+
+  // optimize
+  long saved= 0;
+  saved+= arenaoptimize(t->data);
+  saved+= arenaoptimize(t->strings->arena);
+
+  long bytes= 0;
   printf("\n=== TABLE: %s ===\n", t->name);
 
   dbval* vals= (void*)t->data->mem;
@@ -298,24 +308,34 @@ void printtable(table* t) {
       putchar('\n');
     }
 
+    if (details < 0) break;
   }
+  bytes+= sizeof(table);
   putchar('\n');
+  printf("--- %ld rows\n", t->count);
+  printf("   data: "); bytes+= printarena(t->data, 0);
+  // not add bytes as is part of hash!
+  printf("strings: "); printarena(t->strings->arena, 0);
+  printf("   hash: "); bytes+= printhash(t->strings, 0);
+  printf("BYTES: %ld (optmized -%ld) compressed %.2f%% bytesread %ld\n", bytes, saved, (100.0*bytes)/t->bytesread, t->bytesread);
+  return bytes;
 }
 
 void tabletest() {
   table* t= NULL;
 
-  if (1) {
+  if (0) {
     t= newtable("foo", 1, 3, (char**)&(char*[]){"a", "b", "c"});
   tableaddrow(t, (dbval*)&(dbval[]){mknull(), mknum(42), tablemkstr(t, "foo")});
 
   } else if (1) {
-    FILE* f= fopen("Test/foo.csv", "r");
-    t= loadcsvtable("foo.csv", f);
+    FILE* f= fopen("Test/happy.csv", "r");
+    //FILE* f= fopen("Test/foo.csv", "r");
+    t= loadcsvtable("happy.csv", f);
   }
 
   
-  printtable(t);
+  printtable(t, -1);
   //freetable(t);
 }
 

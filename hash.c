@@ -58,6 +58,15 @@ arena* newarena(int size, int align) {
   return a;
 }
 
+long arenaoptimize(arena* a) {
+  // more like "truncate" waste
+  long bytes= a->size - a->top;
+  long newsize= a->align * ((a->top+a->align-1)/a->align);
+  a->mem= realloc(a->mem, a->top);
+  a->size= a->top;
+  return bytes;
+}
+
 int addarena(arena* a, void* data, int size) {
   if (!a) return -1;
   if (a->top+size+a->align >= a->size) {
@@ -94,7 +103,7 @@ int saddarena(arena* a, char* s) {
   return addarena(a, s, len+1);
 }
 
-int printarena(arena* a, int details) {
+long printarena(arena* a, int details) {
   if (!a) { putchar('\n'); return 0; }
   printf("--- arena (size=%d top=%d)\n", a->size, a->top);
   if (!details) return a->size;
@@ -253,9 +262,9 @@ hashentry* addhash(hashtab* ht, char* s, void* data) {
 }
 
 // print the slots
-int printhashprinter(hashtab* ht, int details, int(*printer)(hashtab*,hashentry*)) {
+long printhashprinter(hashtab* ht, int details, long(*printer)(hashtab*,hashentry*)) {
   if (!ht) return 0;
-  int bytes= 0;
+  long bytes= 0;
   printf("\n----- hashtab (%d items/%d slots)\n", ht->n, ht->size);
   int n= 0;
   for(int i=0; i<ht->size; i++) {
@@ -278,11 +287,11 @@ int printhashprinter(hashtab* ht, int details, int(*printer)(hashtab*,hashentry*
   printf("=== %d slots used\n", n);
   printf("arena: "); bytes+= printarena(ht->arena, 0);
   printf("  ars: "); bytes+= printarena(ht->ars, 0);
-  printf("BYTES: %d\n", bytes);
+  printf("BYTES: %ld\n", bytes);
   return bytes;
 }
 
-int printhash(hashtab* ht, int details) {
+long printhash(hashtab* ht, int details) {
   return printhashprinter(ht, details, NULL);
 }
 
@@ -416,8 +425,8 @@ void dumpatoms(hashtab* ht) {
 }
 
 // return bytes
-int atomprinter(hashtab* ht, hashentry* e) {
-  int bytes= 0;
+long atomprinter(hashtab* ht, hashentry* e) {
+  long bytes= 0;
   if (!e) return 0;
   long i= (long)e->data;
   printf("\n    @%ld ", i);
@@ -434,7 +443,7 @@ int atomprinter(hashtab* ht, hashentry* e) {
 }
 
 // return bytes
-int printatoms(hashtab* ht) {
+long printatoms(hashtab* ht) {
   return printhashprinter(atoms, 0, atomprinter);
 }
 
