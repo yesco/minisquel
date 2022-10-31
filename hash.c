@@ -269,8 +269,8 @@ hashentry* addhash(hashtab* ht, char* s, void* data) {
 }
 
 // print the slots
-void printhashprinter(hashtab* ht, int details, int(*printer)(hashtab*,hashentry*)) {
-  if (!ht) return;
+int printhashprinter(hashtab* ht, int details, int(*printer)(hashtab*,hashentry*)) {
+  if (!ht) return 0;
   int bytes= 0;
   printf("\n----- hashtab (%d items/%d slots)\n", ht->n, ht->size);
   int n= 0;
@@ -295,10 +295,11 @@ void printhashprinter(hashtab* ht, int details, int(*printer)(hashtab*,hashentry
   printf("arena: "); bytes+= printarena(ht->arena, 0);
   printf("  ars: "); bytes+= printarena(ht->ars, 0);
   printf("BYTES: %d\n", bytes);
+  return bytes;
 }
 
 int printhash(hashtab* ht, int details) {
-  printhashprinter(ht, details, NULL);
+  return printhashprinter(ht, details, NULL);
 }
 
 // --- Atoms / Interned Strings (Pool)
@@ -308,6 +309,17 @@ int printhash(hashtab* ht, int details) {
 // is unqiue (for its pool).
 //
 // Do not store pointer to the strings.
+
+// atom(s) -> i
+// atomstr(i)
+//
+// atomappend(s, data, len)
+//
+// atomarena(s) -> arena (for s)
+//
+// printatoms(hashentry)
+//
+// atomentry(s) -> hashentry
 
 static hashtab* atoms= NULL;
 
@@ -365,7 +377,7 @@ arena* atomarena(char* s) {
   return &storage->arena;
 }
 
-int atomstore(char* s, void* data, int len) {
+long atomappend(char* s, void* data, int len) {
   hashentry* e= atomentry(s);
   e->count++;
   if (!e) return -1;
@@ -376,7 +388,7 @@ int atomstore(char* s, void* data, int len) {
   
   atomstorage* storage= i>0 ? NULL : arenaptr(atoms->ars, -i);
 
-  //printf("  atomstore: '%s' %ld %p\n", s, i, storage);
+  //printf("  atomappend: '%s' %ld %p\n", s, i, storage);
   
   if (storage) i= storage->i;
   assert(i>0);
@@ -418,27 +430,29 @@ int atomstore(char* s, void* data, int len) {
   return i;
 }
 
-int atom(char* s) {
+long atom(char* s) {
   hashentry* e= atomentry(s);
   if (!e) return -1;
-  int i= (long)e->data;
-  return i;
+  return (long)e->data;
 }
 
-char* atomstr(int a) {
+char* atomstr(long a) {
   return arenaptr(atoms->arena, a);
 }  
 
 void dumpatoms(hashtab* ht) {
+  error("more comples for neg i");
   for(int i=0; i<ht->size; i++) {
     hashentry* e= ht->arr[i];
     while(e) {
-      printf("%s\n", atomstr((long)(e->data)));
+      long id= (long)e->data;
+      printf("%s,%d\n", atomstr(id), e->count);
       e= e->next;
     }
   }
 }
 
+// return bytes
 int atomprinter(hashtab* ht, hashentry* e) {
   int bytes= 0;
   if (!e) return 0;
@@ -453,7 +467,15 @@ int atomprinter(hashtab* ht, hashentry* e) {
 
   arena* a= atomarena(atomstr(i));
   if (a) bytes+= printarena(a, 0);
+  return bytes;
 }
+
+// return bytes
+int printatoms(hashtab* ht) {
+  return printhashprinter(atoms, 0, atomprinter);
+}
+
+
 
 void readdict() {
   FILE* f= fopen("duplicates.txt", "r");
@@ -471,7 +493,7 @@ void readdict() {
 
     // store one int/file offset
     int o= 4711;
-    int s= atomstore(word, &o, sizeof(o));
+    int s= atomappend(word, &o, sizeof(o));
     //printf("  ---> %d '%s'\n", s, atomstr(s));
     //int s= atom(word);
 
@@ -480,7 +502,7 @@ void readdict() {
   printf("# %d\n", n);
   fclose(f);
 
-  printhashprinter(atoms, 0, atomprinter);
+  printatoms(atoms);
 }
 
 void testatoms() {
@@ -489,8 +511,9 @@ void testatoms() {
   int data=4711;
   
   //  int a= atom("foo");  int b= atom("bar");  int c= atom("foo"); int bb= atom("bar");
-  //int a= atomstore("foo", &data, sizeof(data));  int b= atomstore("bar", &data, sizeof(data));  int c= atomstore("foo", &data, sizeof(data)); int bb= atomstore("bar", &data, sizeof(data));
-  int a= atomstore("foo", NULL, 0);  int b= atomstore("bar", NULL, 0);  int c= atomstore("foo", NULL, 0); int bb= atomstore("bar", NULL, 0);
+  //int a= atomappend("foo", &data, sizeof(data));  int b= atomappend("bar", &data, sizeof(data));  int c= atomappend("foo", &data, sizeof(data)); int bb= atomappend("bar", &data, sizeof(data));
+  char cc= '1';
+  int a= atomappend("foo", &cc, 1);  int b= atomappend("bar", &cc, 1);  int c= atomappend("foo", &cc, 1); int bb= atomappend("bar", &cc, 1);
 
   printf("%d %d %d %d\n", a,b,c,bb);
 
@@ -511,12 +534,15 @@ void testatoms() {
   //printarena(atoms->arena, 1);
   freehash(atoms);
   
-  printhashprinter(atoms, 0, atomprinter);
+  printatoms(atoms);
   exit(0);
 }
 
+
 int main(void) {
   testatoms();
+  testarena();
+  
   hashtab *h= newhash(10, NULL, 0);
   printhash(h, 1);
 
