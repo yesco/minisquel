@@ -61,8 +61,9 @@ int64_t is53(double d) {
 //              num()   str()
 //   isnull() isnum() isstr()
 //                   dbfree()   dbfree()
-typedef struct dbval {
+typedef union dbval {
   double d;
+  long l;
 } dbval;
   
 #define MAXSTRINGS 1024*1024
@@ -278,6 +279,35 @@ table* loadcsvtable(char* name, FILE* f) {
   return t;
 }
   
+// NULL==NULL < -num < num < "bar" < "foo"
+int tablecmp(table* t, dbval a, dbval b) {
+  if (a.l==b.l) return 0;
+  long la= is53(a.d), lb= is53(b.d);
+  // ordered! comparable as -la and -lb
+  if (la<0 && lb<0) return (lb>la)-(la>lb);
+  // resort to cmp strings
+  if (la>0 && lb>0) {
+    if (!t) error("tablecmp: needs table!");
+    char* sa= tablestr(t, a);
+    char* sb= tablestr(t, b);
+    if (sa==sb) return 0;
+    if (!sa) return -1;
+    if (!sb) return +1;
+    return strcmp(sa, sb);
+  }
+  if (isnull(a)) return -1;
+  if (isnull(b)) return +1;
+  if ((!!la != !!lb)) return (la>lb)-(lb>la);
+  return (a.d>b.d)-(b.d>a.d);
+}
+
+// Sort the TABLE using N COLUMNS.
+// If a colum number is -col, use desc.
+// Columns start from "1" LOL. (SQL)
+void tablesort(table* t, int n, int* cols) {
+  qsort(t->data, t->count, t->cols*sizeof(dbval), (void*)tablecmp);
+}
+
 long printtable(table* t, int details) {
   if (!t) return 0;
 
@@ -317,6 +347,9 @@ long printtable(table* t, int details) {
   // not add bytes as is part of hash!
   printf("strings: "); printarena(t->strings->arena, 0);
   printf("   hash: "); bytes+= printhash(t->strings, 0);
+  // compression: to 33% of happy.csv
+  // ( 18% if used floats! )
+  // gzip only 22% LOL!
   printf("BYTES: %ld (optmized -%ld) compressed %.2f%% bytesread %ld\n", bytes, saved, (100.0*bytes)/t->bytesread, t->bytesread);
   return bytes;
 }
@@ -348,6 +381,44 @@ extern int debug= 0;
 
 
 int main(void) {
+  if (1) {
+    table* t= newtable("cmp", 0, 0, NULL);
+
+    printf("---NUMS\n");
+    printf("na %d (0)\n", tablecmp(NULL, mknum(3), mknum(3)));
+    printf("nb %d (-1)\n", tablecmp(NULL, mknum(0), mknum(3)));
+    printf("nc %d (0)\n", tablecmp(NULL, mknum(-3), mknum(-3)));
+    printf("nc %d (-1)\n", tablecmp(NULL, mknum(-333), mknum(-3)));
+    printf("nd %d (-1)\n", tablecmp(NULL, mknum(-333), mknum(3)));
+    printf("ne %d (-1)\n", tablecmp(NULL, mknum(7), mknum(77)));
+
+    printf("---NULL\n");
+    printf("-n %d (0)\n", tablecmp(NULL, mknull(), mknull()));
+    printf("-n %d (-1)\n", tablecmp(NULL, mknull(), mknum(0)));
+    printf("-s %d (-1)\n", tablecmp(t, mknull(), tablemkstr(t, "foo")));
+
+    printf("---STRINGS\n");
+    printf("bb %d (0)\n", tablecmp(t, tablemkstr(t, "bar"), tablemkstr(t, "bar")));
+    printf("bf %d (-1)\n", tablecmp(t, tablemkstr(t, "bar"), tablemkstr(t, "foo")));
+
+    printf("---MIXED\n");
+    printf("ns %d (-1)\n", tablecmp(t, mknum(3), tablemkstr(t, "bar")));
+    printf("sn %d (+1)\n", tablecmp(t, tablemkstr(t, "bar"), mknum(3)));
+
+    exit(0);
+  }
+
+  if (0) {
+    // NAN can't be compared
+    printf("%d\n", NAN==NAN);
+    printf("%d\n", -NAN<NAN);
+    // inf yes!
+    printf("%d\n", INFINITY==INFINITY);
+    printf("%d\n", -INFINITY<INFINITY);
+    printf("%d\n", 0<INFINITY);
+    exit(0);
+  }
+  
   tabletest(); exit(0);
 
   dbval n= mknum(42);
