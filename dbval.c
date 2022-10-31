@@ -4,8 +4,8 @@
 #include <math.h>
 
 #include "utils.c"
-
 #include "hash.c"
+#include "csv.c"
 
 const uint64_t LINF_MASK= 0x7ff0000000000000l; // 11 bits exp
 const uint64_t LMASK    = 0x7ff0000000000000l;
@@ -85,7 +85,6 @@ dbval mknum(double d) {
 }
 
 dbval mkstrfree(char* s, int free) {
-  dbval v;
   int start= strnext;
   while(nstrfree && dbstrings[strnext]) {
     printf("TRYING %d\n", strnext);
@@ -99,6 +98,8 @@ dbval mkstrfree(char* s, int free) {
   } else nstrfree--;
   if (dbstrings[strnext])
     error("mkstringfree: inconsistency, found non-free");
+
+  dbval v;
   v.d= make53(free?-strnext:+strnext);
   dbstrings[strnext]= s;
   return v;
@@ -162,7 +163,130 @@ void testint(dbval v) {
   printf("%lg => %d   is... %d\n", v.d, isint(v), (int)v.d);
 }
 
+
+
+
+
+
+typedef struct table {
+  char* name;
+  long count;
+  char** colnames;
+  arena* data;
+  hashtab* strings;
+
+  int cols;
+  int keys;
+  // int ...
+} table;
+
+table* newtable(char* name, int keys, int cols, char* colnames[]){
+  table* t= calloc(1, sizeof(*t));
+  t->name= strdup(name);
+  t->keys= keys;
+  t->cols= cols;
+  t->colnames= colnames;
+
+  t->data= newarena(1024*sizeof(dbval), sizeof(dbval));
+  t->strings= newhash(0, (void*)hashstr_eq, 0);
+  t->strings->arena= newarena(1024, 1);
+  char zeros[3]= {}; // <3 is NULL,ILLEGAL,NULL
+  addarena(t->strings->arena, &zeros, sizeof(zeros));
+  return t;
+}
+
+long tableaddrow(table* t, dbval v[]) {
+  t->count++;
+  return addarena(t->data, v, t->cols * sizeof(dbval));
+}
+
+dbval tablemkstr(table* t, char* s) {
+  // '' ==> NULL
+  if (!s || !*s) return mknull();
+  hashentry* e= findhash(t->strings, s);
+  long i= -1;
+  if (e) {
+    i= (long)e->data;
+  } else {
+    i= addarena(
+      t->strings->arena, s, strlen(s)+1);
+    e= addhash(t->strings, s, (void*)i);
+  }
+
+  dbval v;
+  v.d= make53(i);
+  return v;
+}
+
+char* tablestr(table* t, dbval v) {
+  long i= is53(v.d);
+  return i<0?NULL:arenaptr(t->strings->arena, i);
+}
+
+long tableaddline(table* t, char* csv) {
+  if (!t || !csv) return -1;
+  dbval vals[t->cols];
+  char str[1024]= {0};
+  double d;
+  for(int i=0; i<t->cols; i++) {
+    int r= sreadCSV(&csv, str, sizeof(str), &d);
+    switch(r){
+    case 0: // EOF/EOS
+    case RNEWLINE:
+    case RNULL:
+      vals[i]= mknull(); break;
+    case RNUM:
+      vals[i]= mknum(d); break;
+    case RSTRING:
+      vals[i]= tablemkstr(t, str); break;
+    }
+  }
+  return tableaddrow(t, vals);
+}  
+
+void printtable(table* t) {
+  if (!t) return;
+  printf("\n=== TABLE: %s ===\n", t->name);
+  for(int col=0; col<t->cols; col++)
+    printf("%-8s", t->colnames[col]);
+  putchar('\n');
+  for(int col=0; col<t->cols; col++)
+    printf("------- ");
+  putchar('\n');
+
+  dbval* vals= (void*)t->data->mem;
+  for(int row=0; row<t->count; row++) {
+    for(int col=0; col<t->cols; col++) {
+      long i= row*t->cols + col;
+      dbval v= vals[i];
+      //long i53= is53(v.d); printf("[%ld] ", i53);
+      if (isnull(v)) printf("NULL\t");
+      else if (isnum(v)) printf("%.8lg\t", v.d);
+      else printf("%s\t", tablestr(t, v));
+    }
+    putchar('\n');
+  }
+  putchar('\n');
+}
+
+void tabletest() {
+  table* t= newtable("foo", 1, 3, (char**)&(char*[]){"a", "b", "c"});
+  tableaddrow(t, (dbval*)&(dbval[]){mknull(), mknum(42), tablemkstr(t, "foo")});
+  printtable(t);
+  //freetable(t);
+}
+
+
+
+
+
+// TODO: remove
+extern int debug= 0;
+
+
 int main(void) {
+  tabletest(); exit(0);
+
   dbval n= mknum(42);
   dbval s= mkstrdup("foo");
   for(int i=0; i<10; i++) {
