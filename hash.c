@@ -2,8 +2,15 @@
 // ----------------------
 // (>) 2022 jsk@yesco.org
 
-// repurposed from:
-// - https://github.com/yesco/esp-lisp/blob/master/symbols.c
+// This file contains:
+// - dyanmic hashtable
+// - dynamic arena memory allocator
+// - atoms (string interning)/symbols
+
+// --- Dynamically growing hashtable.
+
+// If there is morethan 10 eleemnt/slot.
+// It'll resize automatically (3x).
 
 #include <unistd.h>
 #include <string.h>
@@ -173,6 +180,21 @@ void printhash(hashtab* ht, int details) {
   printf("=== %d slots used\n", n);
 }
 
+// --- Dynamically growing hashtable.
+
+// An arena is a simple allocator that
+// putses out data from a contigious
+// memory pool. There is typically no
+// deallocator for individual allocations.
+//
+// This arena returns an offset, that
+// can be used to get a temporory pointer.
+// This pointer should not be stored.
+// Any other adds to the arena may
+// move the memory to other addrees.
+//
+// Use and story only the index returned.
+
 typedef struct arena {
   char* mem;
   int size;
@@ -217,11 +239,14 @@ int addarena(arena* a, void* data, int size) {
   return i;
 }
 
+// WARNING: Do NOT store this pointer;
+// it may cahnge after any new adds!
 void* arenaptr(arena*a, int i) {
   if (!a) return NULL;
   return &a->mem[i];
 }
 
+// string add
 int saddarena(arena* a, char* s) {
   if (!s) return -1;
   int len= strlen(s);
@@ -256,18 +281,24 @@ void testarena() {
   exit(0);
 }
 
-// atoms / hashstrings
+// --- Atoms / Interned Strings (Pool)
+
+// Use this to avoid storing duplicates.
+// It'll return a string "number" that
+// is unqiue (for its pool).
+//
+// Do not store pointer to the strings.
+
 static hashtab* atoms= NULL;
 
-int hashstr_eq(hashtab* ht, void* a, void* b) {
-  char* sa= arenaptr(ht->arena, *(long*)a);
-  char* sb= b;
-  return strcmp(sa, sb);
+int hashstr_eq(hashtab* ht, long a, char* b) {
+  char* sa= arenaptr(ht->arena, a);
+  return strcmp(sa, b);
 }
 
 int atom(char* s) {
   if (!atoms) {
-    atoms= newhash(0, NULL, 0);
+    atoms= newhash(0, (void*)hashstr_eq, 0);
     atoms->arena= newarena(0, 1);
     atom(""); // take pos 0! lol
   }
@@ -281,6 +312,16 @@ int atom(char* s) {
 char* atomstr(int a) {
   return arenaptr(atoms->arena, a);
 }  
+
+void dumpatoms(hashtab* ht) {
+  for(int i=0; i<ht->size; i++) {
+    hashentry* e= ht->arr[i];
+    while(e) {
+      printf("%s\n", atomstr((long)(e->data)));
+      e= e->next;
+    }
+  }
+}
 
 void readdict() {
   FILE* f= fopen("wordlist-1.1M.txt", "r");
@@ -322,6 +363,9 @@ void testatoms() {
   readdict();
 
   printhash(atoms, 0);
+
+  //dumpatoms(atoms);
+
   //printarena(atoms->arena);
   freehash(atoms);
   
