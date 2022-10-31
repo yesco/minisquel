@@ -343,7 +343,6 @@ int hashstr_eq(hashtab* ht, long i, char* b) {
  
 // will get existing or create
 hashentry* atomentry(char* s) {
-  //printf("atomentry: '%s'\n", s);
   if (!atoms) {
     atoms= newhash(0, (void*)hashstr_eq, 0);
     atoms->arena= newarena(0, 1);
@@ -360,7 +359,6 @@ hashentry* atomentry(char* s) {
   hashentry* e= findhash(atoms, s);
   if (e) return e;
 
-  //printf("  saddarena: '%s'\n", s);
   long i= saddarena(atoms->arena, s);
   return addhash(atoms, s, (void*)i);
 }
@@ -384,12 +382,7 @@ long atomappend(char* s, void* data, int len) {
 
   // get storage and real i
   long i= (long)e->data;
-  //printf("  OFFSET %ld\n", i);
-  
   atomstorage* storage= i>0 ? NULL : arenaptr(atoms->ars, -i);
-
-  //printf("  atomappend: '%s' %ld %p\n", s, i, storage);
-  
   if (storage) i= storage->i;
   assert(i>0);
   
@@ -398,8 +391,6 @@ long atomappend(char* s, void* data, int len) {
   
   // we want to store - need storage
   if (!storage) {
-    //printf("  !!!! CREATE ARENA\n");
-
     // allocate a new arena
     arena *a= newarena(16*sizeof(int), sizeof(int));
 
@@ -408,25 +399,13 @@ long atomappend(char* s, void* data, int len) {
     s.i= i;
     memcpy(&s.arena, a, sizeof(s.arena));
     long si= addarena(atoms->ars, &s, sizeof(s));
-    //printf("  SI=%ld\n", si);
     // save this as as -offset
     e->data= (void*)-si;
     storage= arenaptr(atoms->ars, si);
   }
 
-  {
-    long i= (long)e->data;
-    //printf("  OFFSET=%ld\n", i);
-    //printf("  STORAGE i=%ld\n", storage->i);
-  }
-  
-  //printf("  aboustore: '%s' %ld %p\n", s, i, storage);
-
   // finally ready to add data
   long ai= addarena(&storage->arena, data, len);
-
-  //printf("  added ai=%ld LEN=%d\n", ai, storage->arena.top);
-  // return the atom offset
   return i;
 }
 
