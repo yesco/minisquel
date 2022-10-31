@@ -296,17 +296,22 @@ int hashstr_eq(hashtab* ht, long a, char* b) {
   return 0==strcmp(sa, b);
 }
 
-int atom(char* s) {
+hashentry* atomentry(char* s) {
   if (!atoms) {
     atoms= newhash(0, (void*)hashstr_eq, 0);
     atoms->arena= newarena(0, 1);
-    atom(""); // take pos 0! lol
+    atomentry(""); // take pos 0! lol
   }
   hashentry* e= findhash(atoms, s);
-  if (e) return (long)(e->data);
+  if (e) return e;
   long i= saddarena(atoms->arena, s);
-  printf("ADDING: %s\n", s);
-  e= addhash(atoms, s, (void*)i);
+  return addhash(atoms, s, (void*)i);
+}
+
+int atom(char* s) {
+  hashentry* e= atomentry(s);
+  if (!e) return -1;
+  int i= (long)e->data;
   return i;
 }
 
