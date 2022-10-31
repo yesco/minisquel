@@ -180,26 +180,6 @@ typedef struct table {
   // int ...
 } table;
 
-table* newtable(char* name, int keys, int cols, char* colnames[]){
-  table* t= calloc(1, sizeof(*t));
-  t->name= strdup(name);
-  t->keys= keys;
-  t->cols= cols;
-  t->colnames= colnames;
-
-  t->data= newarena(1024*sizeof(dbval), sizeof(dbval));
-  t->strings= newhash(0, (void*)hashstr_eq, 0);
-  t->strings->arena= newarena(1024, 1);
-  char zeros[3]= {}; // <3 is NULL,ILLEGAL,NULL
-  addarena(t->strings->arena, &zeros, sizeof(zeros));
-  return t;
-}
-
-long tableaddrow(table* t, dbval v[]) {
-  t->count++;
-  return addarena(t->data, v, t->cols * sizeof(dbval));
-}
-
 dbval tablemkstr(table* t, char* s) {
   // '' ==> NULL
   if (!s || !*s) return mknull();
@@ -223,55 +203,118 @@ char* tablestr(table* t, dbval v) {
   return i<0?NULL:arenaptr(t->strings->arena, i);
 }
 
+table* newtable(char* name, int keys, int cols, char* colnames[]){
+  table* t= calloc(1, sizeof(*t));
+  t->name= strdup(name);
+  t->keys= keys;
+  t->cols= cols;
+  t->colnames= colnames;
+
+  t->data= newarena(1024*sizeof(dbval), sizeof(dbval));
+  t->strings= newhash(0, (void*)hashstr_eq, 0);
+  t->strings->arena= newarena(1024, 1);
+  char zeros[3]= {}; // <3 is NULL,ILLEGAL,NULL
+  addarena(t->strings->arena, &zeros, sizeof(zeros));
+
+  // just add colnames as any string!
+  for(int col=0; col<cols; col++) {
+    dbval v= tablemkstr(t, colnames[col]);
+    addarena(t->data, &v, sizeof(v));
+  }
+  t->count++;
+  
+  return t;
+}
+
+int tableaddrow(table* t, dbval v[]) {
+  t->count++;
+  return addarena(t->data, v, t->cols * sizeof(dbval));
+}
+
 long tableaddline(table* t, char* csv) {
   if (!t || !csv) return -1;
-  dbval vals[t->cols];
-  char str[1024]= {0};
-  double d;
-  for(int i=0; i<t->cols; i++) {
-    int r= sreadCSV(&csv, str, sizeof(str), &d);
-    switch(r){
-    case 0: // EOF/EOS
-    case RNEWLINE:
-    case RNULL:
-      vals[i]= mknull(); break;
-    case RNUM:
-      vals[i]= mknum(d); break;
-    case RSTRING:
-      vals[i]= tablemkstr(t, str); break;
-    }
-  }
-  return tableaddrow(t, vals);
-}  
 
+  char* str= strdup(csv); // !
+  double d;
+  dbval v;
+  
+  int col= 0, r;
+  while((r= sreadCSV(&csv, str, sizeof(str), &d))) {
+    if (r==RNEWLINE) break;
+    if (t->cols && col >= t->cols) break; 
+    col++;
+    switch(r){
+    case RNULL:   v= mknull(); break;
+    case RNUM:    v= mknum(d); break;
+    case RSTRING: v= tablemkstr(t, str); break;
+    }
+    // TODO: inefficient call many times?
+    addarena(t->data, &v, sizeof(v));
+  }
+  free(str);
+  
+  // first row?
+  // assume it's header if not defined
+  if (!t->cols) t->cols= col;
+
+  // fill with nulls till t->col
+  v= mknull();
+  for(int i=col; i<t->cols; i++)
+    addarena(t->data, &v, sizeof(v));
+
+  t->count++;
+  return 1;
+}
+
+table* loadcsvtable(char* name, FILE* f) {
+  table* t= newtable(name, 0, 0, NULL); // LOL
+  // header is a line!
+  char* line= NULL;
+  while((line= csvgetline(f)))
+    tableaddline(t, line);
+  return t;
+}
+  
 void printtable(table* t) {
   if (!t) return;
   printf("\n=== TABLE: %s ===\n", t->name);
-  for(int col=0; col<t->cols; col++)
-    printf("%-8s", t->colnames[col]);
-  putchar('\n');
-  for(int col=0; col<t->cols; col++)
-    printf("------- ");
-  putchar('\n');
 
   dbval* vals= (void*)t->data->mem;
   for(int row=0; row<t->count; row++) {
+
     for(int col=0; col<t->cols; col++) {
       long i= row*t->cols + col;
       dbval v= vals[i];
-      //long i53= is53(v.d); printf("[%ld] ", i53);
       if (isnull(v)) printf("NULL\t");
-      else if (isnum(v)) printf("%.8lg\t", v.d);
+      else if (isnum(v)) printf("%7.7lg\t", v.d);
       else printf("%s\t", tablestr(t, v));
     }
     putchar('\n');
+
+    // underline col names
+    if (!row) {
+      for(int col=0; col<t->cols; col++)
+	printf("------- ");
+      putchar('\n');
+    }
+
   }
   putchar('\n');
 }
 
 void tabletest() {
-  table* t= newtable("foo", 1, 3, (char**)&(char*[]){"a", "b", "c"});
+  table* t= NULL;
+
+  if (1) {
+    t= newtable("foo", 1, 3, (char**)&(char*[]){"a", "b", "c"});
   tableaddrow(t, (dbval*)&(dbval[]){mknull(), mknum(42), tablemkstr(t, "foo")});
+
+  } else if (1) {
+    FILE* f= fopen("Test/foo.csv", "r");
+    t= loadcsvtable("foo.csv", f);
+  }
+
+  
   printtable(t);
   //freetable(t);
 }
