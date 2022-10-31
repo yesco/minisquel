@@ -5,6 +5,8 @@
 
 #include "utils.c"
 
+#include "hash.c"
+
 const uint64_t LINF_MASK= 0x7ff0000000000000l; // 11 bits exp
 const uint64_t LMASK    = 0x7ff0000000000000l;
 const uint64_t LNAN_MASK= 0x7ff8000000000000l;
