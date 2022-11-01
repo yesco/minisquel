@@ -1247,7 +1247,6 @@ FILE* openfile(char* spec) {
 
 FILE* expectfile(char* spec) {
   FILE* f= openfile(spec);
-  printf("FILE>%s<\n", spec); fflush(stdout);
   if (!f) expected2("File not exist", spec);
   return f;
 }
