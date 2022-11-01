@@ -328,13 +328,6 @@ long tableaddline(table* t, char* csv, char delim) {
     switch(r){
     case RNULL:   v= mknull(); break;
     case RNUM:    v= mknum(d); break;
-      // TODO: 5k, 10M, 5u, 5m, 5G, 5T
-      // TODO: 5s 3m 2h5m (store as seconds, add type hint)
-      // TODO: True False (store as int, or add Boolean val! add type hint)?
-      // TODO: --normalize
-      // TODO: imdb: T00035 store as prefix of col + num!
-      // TODO: $5.95: prefix, USD5.95, 5.95SEK, mix?-> "usd"! just have function usd!
-      // TODO: 5km store as suffix + num!
     case RSTRING:  v= tablemkstr(t, str); break;
     }
     // 1.2% faster if we chunked it - bah
@@ -342,9 +335,6 @@ long tableaddline(table* t, char* csv, char delim) {
   }
   free(str);
   
-  // TODO:newline gives extra row?
-  //  if (col==1 && isnull(v)) return 0;
-
   // first row?
   // assume it's header if not defined
   if (!t->cols) t->cols= col;
@@ -359,14 +349,10 @@ long tableaddline(table* t, char* csv, char delim) {
 }
 
 // 3x slower without storing rows
-table* loadcsvtable_csvgetline(char* name, FILE* f) {
-  if (!f) return NULL;
+int loadcsvtable_csvgetline(table* t, FILE* f) {
+  if (!f || !t) return 0;
   char delim= 0;
   long ms= timems();
-  table* t= newtable(name, 0, 0, NULL);
-  // for testing w only 2 cols
-  // TODO: bring list of cols needed
-  //table* t= newtable(name, 0, 2, NULL);
   // header is a line!
   char* line= NULL;
   while((line= csvgetline(f, delim))) {
@@ -382,42 +368,14 @@ table* loadcsvtable_csvgetline(char* name, FILE* f) {
   }
   ms= timems()-ms;
   if (debug) printf("\rload_csvgl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
-  return t;
+  return 1;
 }
-
-/*
-table* loadcsvtable_newcsvgetline(char* name, FILE* f) {
-  char delim= 0;
-  long ms= timems();
-  table* t= newtable(name, 0, 0, NULL);
-  // header is a line!
-  char* line= NULL;
-  size_t ln= 0;
-  ssize_t r;
-  while((r= newcsvgetline(&line, &ln, f, delim))>=0 && line) {
-    //printf("LINE:%s\n", line);
-    if (!*line) continue;
-    if (!delim) delim= decidedelim(line);
-    t->bytesread+= r;
-    if(1) 
-      tableaddline(t, line, delim);
-    else
-      t->count++;
-    //free(line); line= NULL;
-    if (debug && t->count%10000==0) { printf("\rload_newcgl: %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
-  }
-  free(line);
-  ms= timems()-ms;
-  if (debug) printf("\rload_newcgl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
-  return t;
-}
-*/
 
 // 20% FASTER! (NO FREE/MALLOC, AND STRLEN TO COUNT) - API issue
-table* loadcsvtable_getline(char* name, FILE* f) {
+int loadcsvtable_getline(table* t, FILE* f) {
+  if (!f || !t) return 0;
   char delim= 0;
   long ms= timems();
-  table* t= newtable(name, 0, 0, NULL);
   // header is a line!
   char* line= NULL;
   size_t ln= 0;
@@ -435,13 +393,13 @@ table* loadcsvtable_getline(char* name, FILE* f) {
   free(line); line= NULL;
   ms= timems()-ms;
   if (debug) printf("\rload_gl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
-  return t;
+  return 1;
 }
   
-table* loadcsvtable(char* name, FILE* f) {
+int loadcsvtable(table* t, FILE* f) {
   //  if (1) return loadcsvtable_newcsvgetline(name, f); else
-  if (1) return loadcsvtable_csvgetline(name, f);
-  else return loadcsvtable_getline(name, f);
+  if (1) return loadcsvtable_csvgetline(t, f);
+  else return loadcsvtable_getline(t, f);
 }
   
 // NULL==NULL < -num < num < "bar" < "foo"
@@ -574,133 +532,19 @@ long printtable(table* t, int details) {
   return bytes;
 }
 
-int sortstrcmp(char** a, char** b) {
-  return strcmp(*a, *b);
-}
 
-// TODO: revisit, if cheaper reorg maybe worth it
-//   sort -3 took 2480 ms
-//   sort 3 took 2562 ms
 
-// tableoptimize: find all strings 70 ms
-// tableoptimization sort took 319 ms
-// tableoptimize: add all strings 702 ms
-// tableoptimize: REPLACE 4721 ms
-// optimizetable took 4859 ms
-
-//   sort -3 took 1124 ms
-//   sort 3 took 825 ms
-
-// SO if SORTED total time is:
-//    326ms+1124 about < 2480/2
-
-// However, the reorg, rebuild, rehash
-// is what's costly about 4031-326 ms
-
-void tableoptimize(table* t) {
-  long ms= timems();
-  
-  long n= t->strings->n;
-  char** ix= calloc(n, sizeof(*ix));
-  char** p= ix;
-  //long nn= t->count * t->cols;
-
-  // find all unique strings
-  long msfind= timems();
-  hashtab* ht= t->strings;
-  int nn= 0;
-  for(int i=0; i<ht->size; i++) {
-    hashentry* e= *(ht->arr + i);
-    while(e) {
-      long si= (long)e->data;
-      dbval v;
-      v.d= make53(si);
-      *p++ = tablestr(t, v);
-
-      nn++;
-      e= e->next;
-    }
-  }
-  if (debug) printf("tableoptimize: find all strings %ld ms\n", timems()-msfind);
-  assert(n==nn);
-
-  // sort'em
-  long sortms= timems();
-  qsort(ix, n, sizeof(*ix), (void*)sortstrcmp);
-  if (debug) printf("tableoptimization sort took %ld ms\n", timems()-sortms);
-
-  // add to new hash/arena (new table)
-  long addms= timems();
-  table* nt= newtable(NULL, 0, 0, NULL);
-  p= ix;
-  for(long i=0; i<n; i++) {
-    char* s= *p++;
-    long si= is53(tablemkstr(t, s).d);
-    //printf("%5ld %-15s %ld\n", i, s, si);
-
-    // TODO: what if we
-    // REWROTE *s to contain new offset?
-    // 2 bytes guaranteed? '' not stored
-
-    // hmm, do alignment? 8
-    // ??? put the double there?
-
-    // NAH:that'd WASTE lot's of space!!
-    // 4 bytes on avg...
-  }
-  if (debug) printf("tableoptimize: add all strings %ld ms\n", timems()-msfind);
-
-  // update dbvals, in old table
-  // TODO: the hash will be indentical
-  // only problem is replacing the
-  // dbvals efficiently
-  long replacms= timems();
-  dbval* vals= (void*)t->data->mem;
-  long nvals= t->count * t->cols;
-  for(int i=0; i<nvals; i++) {
-    // heavy work! lol
-    char* s=  tablestr(t, *vals);
-    if (s && *s) *vals= xtablemkstr(nt, s);
-    vals++;
-  }
-  if (debug) printf("tableoptimize: replace all strings %ld ms\n", timems()-msfind);
-
-  printf("\n------ new order\n");
-
-  // verify
-  p= ix;
-  if (0)
-  for(long i=0; i<n; i++) {
-    char* s= *p++;
-    long si= is53(tablemkstr(nt, s).d);
-    //printf("%5ld %-15s %ld\n", i, s, si);
-  }
-
-  // move around
-  freehash(t->strings);
-  t->strings= nt->strings;
-  nt->strings= NULL;
-
-  ms= timems()-ms;
-
-  if (debug) printf("optimizetable took %ld ms\n", ms);
-  
-  //printtable(t, 1);
-  free(ix);
-  // freetable(nt); TODO:
-}
 
 void dotable(char* name, int col) {
   debug= 1;
   int details= +1024;
 
   FILE* f= fopen(name, "r");
-  table* t= loadcsvtable(name, f);
+  table* t= newtable(name, 0, 0, NULL);
+  loadcsvtable(t, f);
 
   tablesort(t, -col, NULL);
   tablesort(t, col, NULL);
-
-  tableoptimize(t);
 
   tablesort(t, -col, NULL);
   tablesort(t, col, NULL);
@@ -724,7 +568,8 @@ void tabletest() {
     //char* name= "Data/Data7602DescendingYearOrder.csv"; // 100MB
     //char* name="Data/Sample-Spreadsheet-500000-rows.csv"; // 6MB 10s
     FILE* f= fopen(name, "r");
-    t= loadcsvtable(name, f);
+    table* t= newtable(name, 0, 0, NULL);
+    loadcsvtable(t, f);
   }
 
   if (1) {

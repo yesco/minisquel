@@ -1,0 +1,7 @@
+      // TODO: 5k, 10M, 5u, 5m, 5G, 5T
+      // TODO: 5s 3m 2h5m (store as seconds, add type hint)
+      // TODO: True False (store as int, or add Boolean val! add type hint)?
+      // TODO: --normalize
+      // TODO: imdb: T00035 store as prefix of col + num!
+      // TODO: $5.95: prefix, USD5.95, 5.95SEK, mix?-> "usd"! just have function usd!
+      // TODO: 5km store as suffix + num!
