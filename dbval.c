@@ -14,7 +14,7 @@ const uint64_t LMASK    = 0x7ff0000000000000l;
 const uint64_t LNAN_MASK= 0x7ff8000000000000l;
 const uint64_t LMASK_53=  0x0007ffffffffffffl;
 const uint64_t LSIGN_BIT= 0x8000000000000000l;
-const uint64_t LMASK_52=  0x0003ffffffffffffl;
+//const uint64_t LMASK_52=  0x0003ffffffffffffl;
 
 const long L53MAX= 2251799813685248l-2; // 111 ... 11 excluded
 
@@ -61,7 +61,7 @@ int64_t is53(double d) {
 // API:
 //   mknull() mknum() mkstr() mkdupstr()
 //              num()   str()
-//   isnull() isnum() isstr()
+//   isnull() isnum()   str()!=NULL
 //                   dbfree()   dbfree()
 typedef union dbval {
   double d;
@@ -109,7 +109,7 @@ dbval mkstrfree(char* s, int free) {
 }
 
 // only use for constants, if you sure
-dbval mkstr(char* s) {
+dbval mkstrconst(char* s) {
   return mkstrfree(s, 0);
 }
 
@@ -131,10 +131,64 @@ int isint(dbval v) {
   return i==v.d;
 }
 
+#define SFALSE (LMASK_53-3) // just use 0
+#define STRUE  (LMASK_53-3) // just use 1
+#define SFAIL  (LMASK_53-2) // ???
+#define SERROR (LMASK_53-1) // max-1
+
+// These valuies are transient
+// Don't store permanently!
+typedef enum{TNULL=0, TNUM, TSTR, TATOM, TBAD=99,TERROR=100} dbtype;
+
+dbtype type(dbval v) {
+  if (!isnan(v.d)) return TNUM;
+  // In NAN number we
+  long i= is53(v.d);
+  long u= i<0 ? -i : i;
+  if (!i) return TNUM; // +NAN/-NAN
+  if (u==1) return TBAD;
+  if (u==SNULL) return TNULL;
+  if (u==LMASK_53) return TBAD;
+  if (u==LMASK_53-1) return TERROR;
+  if (i>0) return TSTR;
+  // TODO: use for more types?
+  // possibly use lower 4 bits as type
+  // xxxx ... xxxx bbbb bbbb tttt
+  // b...b: bank number (arena!)
+  return TATOM;
+}
+	 
+struct table;
+char* tablestr(struct table*, dbval);
+
+int dbprint(struct table* t, dbval v, int width) {
+  switch(type(v)) {
+  case TNULL: printf("NULL\t"); break;
+  case TNUM:  printf("%7.7lg\t", v.d); break;
+  case TATOM: 
+  case TSTR:  {
+    char* s= tablestr(t, v);
+    int i= 6;
+    while(*s && i--) {
+      if (*s=='\n') { printf("\\n"); i--;}
+      else if (*s=='\r') { printf("\\r"); i--;}
+      else putchar(*s++);
+    }
+    if (*s) putchar(s[1] ? '*' : *s);
+    putchar('\t');
+  } break;
+  case TBAD:  printf("ILLEGAL\t"); break;
+  case TERROR:printf("ERROR\t"); break;
+  }
+  return 1;
+}
+	    
 double num(dbval v) {
   return v.d;
 }
 
+// Get (interned) string from VALUE
+// 
 char* str(dbval v) {
   int i= is53(v.d);
   return dbstrings[i<0?-i:+i];
@@ -261,12 +315,13 @@ int tableaddrow(table* t, dbval v[]) {
 long tableaddline(table* t, char* csv, char delim) {
   if (!t || !csv) return -1;
 
+  int len= strlen(csv)+1;
   char* str= strdup(csv); // !
   double d;
   dbval v;
   
   int col= 0, r;
-  while((r= sreadCSV(&csv, str, sizeof(str), &d, delim))) {
+  while((r= sreadCSV(&csv, str, len, &d, delim))) {
     if (r==RNEWLINE) break;
     if (t->cols && col >= t->cols) break; 
     col++;
@@ -280,7 +335,7 @@ long tableaddline(table* t, char* csv, char delim) {
       // TODO: imdb: T00035 store as prefix of col + num!
       // TODO: $5.95: prefix, USD5.95, 5.95SEK, mix?-> "usd"! just have function usd!
       // TODO: 5km store as suffix + num!
-    case RSTRING: v= tablemkstr(t, str); break;
+    case RSTRING:  v= tablemkstr(t, str); break;
     }
     // 1.2% faster if we chunked it - bah
     addarena(t->data, &v, sizeof(v));
@@ -489,11 +544,9 @@ long printtable(table* t, int details) {
   for(int row=0; row<t->count; row++) {
 
     for(int col=0; col<t->cols; col++) {
-      long i= row*t->cols + col;
+      long i= row * t->cols + col;
       dbval v= vals[i];
-      if (isnull(v)) printf("NULL\t");
-      else if (isnum(v)) printf("%7.7lg\t", v.d);
-      else printf("%s\t", tablestr(t, v));
+      dbprint(t, v, 8);
     }
     putchar('\n');
     if (details > 2) details--;
@@ -765,7 +818,7 @@ int main(int argc, char** argv) {
   testint(mknum(42));
   testint(mknum(3.14));
   testint(mknull());
-  testint(mkstr("foo"));
+  testint(mkstrconst("foo"));
   testint(mknum(1.0/0));
   testint(mknum(INT_MAX));
   testint(mknum(INT_MIN));
