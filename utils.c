@@ -25,6 +25,19 @@ char* endsWith(char *s, char *end) {
     s+sl : NULL;
 }
 
+// In STRING count occurances of SUBSTR.
+// ("foo bar boo", "oo") -> 2
+// ("foooo", "oo") ->  3 !
+int strcount(char* s, char* sub) {
+  if (!s || !sub) return 0;
+  int n= 0;
+  while((s= strstr(s, sub))) {
+    n++;
+    s++;
+  }
+  return n;
+}
+
 // To malloced string S
 // append N characters from ADD.
 //

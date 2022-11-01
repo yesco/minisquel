@@ -70,12 +70,13 @@ int freadCSV(FILE* f, char* s, int max, double* d) {
 //   foo,,bar,"",'' gives 3 RNULLS
 //
 // WARNING: moedifies f
-int sreadCSV(char** f, char* s, int max, double* d) {
+int sreadCSV(char** f, char* s, int max, double* d, char delim) {
+  if (!delim) delim= ',';
   int c, q= 0, typ= 0;
   char* r= s;
   *r= 0; max--; // zero terminate 1 byte
   while((c= *(*f)++) &&
-	(c!=',' || q>0) && (c!='\n' || q>0)) {
+	(c!=delim || q>0) && (c!='\n' || q>0)) {
     if (c=='\r') continue; // DOS
     if (c==0) return 0;
     if (c==q) { q= -q; continue; } // "foo" bar, ok!
@@ -111,7 +112,8 @@ int sreadCSV(char** f, char* s, int max, double* d) {
   return typ?typ:RNULL;
 }
 
-char* csvgetline(FILE* f) {
+char* csvgetline(FILE* f, char delim) {
+  if (!delim) delim= ',';
   char* r= NULL;
   size_t l= 0;
   getline(&r, &l, f);
@@ -135,7 +137,7 @@ char* csvgetline(FILE* f) {
 	}
       }
       // start of field?
-      if (s==r || (*s==',' && s++)) {
+      if (s==r || (*s==delim && s++)) {
 	while(*s && *s==' ') s++; // spc
 	if (*s=='\\') continue;
 	// is a start quote?

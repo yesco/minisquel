@@ -4,8 +4,10 @@
 #include <math.h>
 
 #include "utils.c"
+#include "mytime.c"
 #include "hash.c"
 #include "csv.c"
+
 
 const uint64_t LINF_MASK= 0x7ff0000000000000l; // 11 bits exp
 const uint64_t LMASK    = 0x7ff0000000000000l;
@@ -221,12 +223,14 @@ table* newtable(char* name, int keys, int cols, char* colnames[]){
   addarena(t->strings->arena, &zeros, sizeof(zeros));
 
   // just add colnames as any string!
-  for(int col=0; col<cols; col++) {
-    dbval v= tablemkstr(t, colnames[col]);
-    addarena(t->data, &v, sizeof(v));
+  if (colnames) {
+    for(int col=0; col<cols; col++) {
+      dbval v= tablemkstr(t, colnames[col]);
+      addarena(t->data, &v, sizeof(v));
+    }
+    t->count++;
   }
-  t->count++;
-  
+
   return t;
 }
 
@@ -235,7 +239,7 @@ int tableaddrow(table* t, dbval v[]) {
   return addarena(t->data, v, t->cols * sizeof(dbval));
 }
 
-long tableaddline(table* t, char* csv) {
+long tableaddline(table* t, char* csv, char delim) {
   if (!t || !csv) return -1;
 
   char* str= strdup(csv); // !
@@ -243,13 +247,20 @@ long tableaddline(table* t, char* csv) {
   dbval v;
   
   int col= 0, r;
-  while((r= sreadCSV(&csv, str, sizeof(str), &d))) {
+  while((r= sreadCSV(&csv, str, sizeof(str), &d, delim))) {
     if (r==RNEWLINE) break;
     if (t->cols && col >= t->cols) break; 
     col++;
     switch(r){
     case RNULL:   v= mknull(); break;
     case RNUM:    v= mknum(d); break;
+      // TODO: 5k, 10M, 5u, 5m, 5G, 5T
+      // TODO: 5s 3m 2h5m (store as seconds, add type hint)
+      // TODO: True False (store as int, or add Boolean val! add type hint)?
+      // TODO: --normalize
+      // TODO: imdb: T00035 store as prefix of col + num!
+      // TODO: $5.95: prefix, USD5.95, 5.95SEK, mix?-> "usd"! just have function usd!
+      // TODO: 5km store as suffix + num!
     case RSTRING: v= tablemkstr(t, str); break;
     }
     // TODO: inefficient call many times?
@@ -273,17 +284,106 @@ long tableaddline(table* t, char* csv) {
   return 1;
 }
 
-table* loadcsvtable(char* name, FILE* f) {
-  table* t= newtable(name, 0, 0, NULL); // LOL
+char decidedelim(char* line) {
+  int comma= strcount(line, ",");
+  int semi= strcount(line, ";");
+  int tab= strcount(line, "\t");
+  // TODO: ??
+  int spcs= strcount(line, "  ");
+  int bigbest= max(comma, max(semi, tab));
+  char delim= ','; // default
+  if (comma==bigbest) delim= ',';
+  if (semi ==bigbest) delim= ';';
+  if (tab  ==bigbest) delim= '\t';
+  //if (spcs ==bigbest) delim= "  "; //lol'\t';
+  if (debug) {
+    printf("decidedelim: '%c'\n", delim);
+    printf("  DELIM: %d ,%d ;%d \\t%d _%d\n", bigbest, comma, semi, tab, spcs);
+  }
+
+  return delim;
+}
+
+// 3x slower without storing rows
+table* loadcsvtable_csvgetline(char* name, FILE* f) {
+  char delim= 0;
+  long ms= timems();
+  table* t= newtable(name, 0, 0, NULL);
   // header is a line!
   char* line= NULL;
-  while((line= csvgetline(f))) {
+  while((line= csvgetline(f, delim))) {
     if (!*line) continue;
-    t->bytesread+= strlen(line);
-    tableaddline(t, line);
-    free(line);
+    if (!delim) delim= decidedelim(line);
+    t->bytesread+= strlen(line); // 10% cost!...
+    if (1) 
+      tableaddline(t, line, delim);
+    else
+      t->count++;
+    free(line); line= NULL;
+    if (debug && t->count%10000==0) { printf("\rloadcsvtable:  %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
   }
+  ms= timems()-ms;
+  if (debug) printf("\rloadcsvtable_csvgetline: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
   return t;
+}
+
+/* TODO: test!
+
+table* loadcsvtable_newcsvgetline(char* name, FILE* f) {
+  char delim= 0;
+  long ms= timems();
+  table* t= newtable(name, 0, 0, NULL);
+  // header is a line!
+  char* line= NULL;
+  size_t ln= 0;
+  ssize_t r;
+  //  while((r= newcsvgetline(&line, &ln, f, delim))>=0) {
+  while((r= newcsvgetline(&line, &ln, f, delim))>=0) {
+    if (!*line) continue;
+    if (!delim) delim= decidedelim(line);
+    t->bytesread+= r;
+    if (0) 
+      tableaddline(t, line, delim);
+    else
+      t->count++;
+    //free(line); line= NULL;
+    if (debug && t->count%10000==0) { printf("\rloadcsvtable:  %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
+  }
+  ms= timems()-ms;
+  if (debug) printf("\rloadcsvtable_csvgetline: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
+  return t;
+}
+*/
+
+// 20% FASTER! (NO FREE/MALLOC, AND STRLEN TO COUNT) - API issue
+table* loadcsvtable_getline(char* name, FILE* f) {
+  char delim= 0;
+  long ms= timems();
+  table* t= newtable(name, 0, 0, NULL);
+  // header is a line!
+  char* line= NULL;
+  size_t ln= 0;
+  ssize_t r= 0;
+  while((r=getline(&line, &ln, f))>=0) { // 10% faster, no strlen?
+    if (!line || !*line) continue;
+    if (!delim) delim= decidedelim(line);
+    t->bytesread+= r;
+    if(1)
+      tableaddline(t, line, delim);
+    else
+      t->count++;
+    //    if (debug && t->count%10000==0) { printf("\rloadcsvtable:  %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
+  }
+  free(line); line= NULL;
+  ms= timems()-ms;
+  if (debug) printf("\rloadcsvtable_getline: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
+  return t;
+}
+  
+table* loadcsvtable(char* name, FILE* f) {
+  //  if (1) return loadcsvtable_newcsvgetline(name, f); else
+  if (1) return loadcsvtable_csvgetline(name, f);
+  else return loadcsvtable_getline(name, f);
 }
   
 // NULL==NULL < -num < num < "bar" < "foo"
@@ -312,23 +412,34 @@ table* qsort_table= NULL;
 
 int sorttablecmp(dbval *a, dbval *b) {
   table* t= qsort_table;
-  int col= t->sort_col ? t->sort_col-1: 0;
-  a+= col; b+= col;
-  return tablecmp(qsort_table, *a, *b);
+  int col= t->sort_col;
+  int cd= col<0? -col: +col;
+  cd= cd ? cd-1: 0;
+  a+= cd; b+= cd;
+  if (col<0)
+    return -tablecmp(qsort_table, *a, *b);
+  else
+    return tablecmp(qsort_table, *a, *b);
 }
 
 // Sort the TABLE using N COLUMNS.
 // If a colum number is -col, use desc.
 // Columns start from "1" LOL. (SQL)
 void tablesort(table* t, int n, int* cols) {
+  long ms= timems();
 
-  t->sort_col= 5;
+  // TODO:lol
+  t->sort_col= n;
   
   qsort_table= t;
   int row_size= t->cols*sizeof(dbval);
   // skip first row (headers)
   qsort(t->data->mem+row_size, t->count-1, row_size, (void*)sorttablecmp);
   qsort_table= NULL;
+
+  ms= timems()-ms;
+  if (debug)
+    printf("sort %d took %ld ms\n", t->sort_col, ms);
 }
 
 long printtable(table* t, int details) {
@@ -353,6 +464,8 @@ long printtable(table* t, int details) {
       else printf("%s\t", tablestr(t, v));
     }
     putchar('\n');
+    if (details > 2) details--;
+    if (details==2) break;
     if (details < 0) break;
 
     // underline col names
@@ -377,23 +490,44 @@ long printtable(table* t, int details) {
   return bytes;
 }
 
+void dotable(char* name, int col) {
+  debug= 1;
+  int details= +1024;
+
+  FILE* f= fopen(name, "r");
+  table* t= loadcsvtable(name, f);
+  tablesort(t, -col, NULL);
+  tablesort(t, col, NULL);
+  printtable(t, details);
+  fclose(f);
+}
+
 void tabletest() {
   table* t= NULL;
 
+  int details= -1;
   if (0) {
+    details= +1;
     t= newtable("foo", 1, 3, (char**)&(char*[]){"a", "b", "c"});
   tableaddrow(t, (dbval*)&(dbval[]){mknull(), mknum(42), tablemkstr(t, "foo")});
 
   } else if (1) {
-    char* name= 1?"Test/foo.csv":"Test/happy.csv";
+    char* name= "Test/foo.csv"; details=1;
+    //char* name= "Test/happy.csv";
+    //char* name= "Data/Data7602DescendingYearOrder.csv"; // 100MB
+    //char* name="Data/Sample-Spreadsheet-500000-rows.csv"; // 6MB 10s
     FILE* f= fopen(name, "r");
     t= loadcsvtable(name, f);
   }
 
   if (1) {
-    printtable(t, +1);
-    tablesort(t, 1, NULL);
-    printtable(t, +1);
+    printtable(t, details);
+    
+    tablesort(t, 3, NULL);
+    tablesort(t, -3, NULL);
+    tablesort(t, 3, NULL);
+    
+    printtable(t, details);
   } else {
     printtable(t, -1);
   }
@@ -409,7 +543,13 @@ void tabletest() {
 
 extern int debug= 1;
 
-int main(void) {
+int main(int argc, char** argv) {
+  if (argc>1) {
+    int col=1;
+    if (argc>2) col= atoi(argv[2]);
+    dotable(argv[1], col);
+    exit(0);
+  }
   tabletest(); exit(0);
 
   // compare types!
