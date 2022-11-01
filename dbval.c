@@ -180,6 +180,8 @@ typedef struct table {
   int cols;
   int keys;
   // int ...
+
+  int sort_col;
 } table;
 
 dbval tablemkstr(table* t, char* s) {
@@ -255,6 +257,9 @@ long tableaddline(table* t, char* csv) {
   }
   free(str);
   
+  // TODO:newline gives extra row?
+  //  if (col==1 && isnull(v)) return 0;
+
   // first row?
   // assume it's header if not defined
   if (!t->cols) t->cols= col;
@@ -273,8 +278,10 @@ table* loadcsvtable(char* name, FILE* f) {
   // header is a line!
   char* line= NULL;
   while((line= csvgetline(f))) {
+    if (!*line) continue;
     t->bytesread+= strlen(line);
     tableaddline(t, line);
+    free(line);
   }
   return t;
 }
@@ -301,11 +308,27 @@ int tablecmp(table* t, dbval a, dbval b) {
   return (a.d>b.d)-(b.d>a.d);
 }
 
+table* qsort_table= NULL;
+
+int sorttablecmp(dbval *a, dbval *b) {
+  table* t= qsort_table;
+  int col= t->sort_col ? t->sort_col-1: 0;
+  a+= col; b+= col;
+  return tablecmp(qsort_table, *a, *b);
+}
+
 // Sort the TABLE using N COLUMNS.
 // If a colum number is -col, use desc.
 // Columns start from "1" LOL. (SQL)
 void tablesort(table* t, int n, int* cols) {
-  qsort(t->data, t->count, t->cols*sizeof(dbval), (void*)tablecmp);
+
+  t->sort_col= 5;
+  
+  qsort_table= t;
+  int row_size= t->cols*sizeof(dbval);
+  // skip first row (headers)
+  qsort(t->data->mem+row_size, t->count-1, row_size, (void*)sorttablecmp);
+  qsort_table= NULL;
 }
 
 long printtable(table* t, int details) {
@@ -330,6 +353,7 @@ long printtable(table* t, int details) {
       else printf("%s\t", tablestr(t, v));
     }
     putchar('\n');
+    if (details < 0) break;
 
     // underline col names
     if (!row) {
@@ -338,7 +362,6 @@ long printtable(table* t, int details) {
       putchar('\n');
     }
 
-    if (details < 0) break;
   }
   bytes+= sizeof(table);
   putchar('\n');
@@ -362,13 +385,19 @@ void tabletest() {
   tableaddrow(t, (dbval*)&(dbval[]){mknull(), mknum(42), tablemkstr(t, "foo")});
 
   } else if (1) {
-    FILE* f= fopen("Test/happy.csv", "r");
-    //FILE* f= fopen("Test/foo.csv", "r");
-    t= loadcsvtable("happy.csv", f);
+    char* name= 1?"Test/foo.csv":"Test/happy.csv";
+    FILE* f= fopen(name, "r");
+    t= loadcsvtable(name, f);
   }
 
+  if (1) {
+    printtable(t, +1);
+    tablesort(t, 1, NULL);
+    printtable(t, +1);
+  } else {
+    printtable(t, -1);
+  }
   
-  printtable(t, -1);
   //freetable(t);
 }
 
@@ -377,11 +406,14 @@ void tabletest() {
 
 
 // TODO: remove
-extern int debug= 0;
 
+extern int debug= 1;
 
 int main(void) {
-  if (1) {
+  tabletest(); exit(0);
+
+  // compare types!
+  if (0) {
     table* t= newtable("cmp", 0, 0, NULL);
 
     printf("---NUMS\n");
@@ -419,8 +451,6 @@ int main(void) {
     exit(0);
   }
   
-  tabletest(); exit(0);
-
   dbval n= mknum(42);
   dbval s= mkstrdup("foo");
   for(int i=0; i<10; i++) {
