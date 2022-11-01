@@ -34,7 +34,7 @@ double make53(int64_t l) {
 
 int64_t is53(double d) {
   uint64_t ul= *(uint64_t*)&d;
-  int neg= !!(ul & LSIGN_BIT);
+  int neg= (ul & LSIGN_BIT)!=0;
   ul &= LMASK_53; 
   if (!isnan(d) || ul<2 || ul>L53MAX) return 0;
   ul &= LMASK_53;
@@ -203,9 +203,28 @@ dbval tablemkstr(table* t, char* s) {
   v.d= make53(i);
   return v;
 }
+dbval xtablemkstr(table* t, char* s) {
+  // '' ==> NULL
+  if (!s || !*s) return mknull();
+  hashentry* e= findhash(t->strings, s);
+  long i= -1;
+  if (e) {
+    i= (long)e->data;
+  } else {
+    i= addarena(
+      t->strings->arena, s, strlen(s)+1);
+    e= addhash(t->strings, s, (void*)i);
+  }
+
+  dbval v;
+  v.d= make53(-i);
+  return v;
+}
 
 char* tablestr(table* t, dbval v) {
   long i= is53(v.d);
+  //printf("tablestr => %ld\n", i);
+  if (i<0) i= -i;
   return i<0?NULL:arenaptr(t->strings->arena, i);
 }
 
@@ -371,7 +390,9 @@ table* loadcsvtable(char* name, FILE* f) {
 }
   
 // NULL==NULL < -num < num < "bar" < "foo"
+long ncmp= 0;
 int tablecmp(table* t, dbval a, dbval b) {
+  ncmp++;
   // 10M rows numbers
 
   // - simplified double dmp col 2 
@@ -500,16 +521,139 @@ long printtable(table* t, int details) {
   return bytes;
 }
 
+int sortstrcmp(char** a, char** b) {
+  return strcmp(*a, *b);
+}
+
+// TODO: revisit, if cheaper reorg maybe worth it
+//   sort -3 took 2480 ms
+//   sort 3 took 2562 ms
+
+// tableoptimize: find all strings 70 ms
+// tableoptimization sort took 319 ms
+// tableoptimize: add all strings 702 ms
+// tableoptimize: REPLACE 4721 ms
+// optimizetable took 4859 ms
+
+//   sort -3 took 1124 ms
+//   sort 3 took 825 ms
+
+// SO if SORTED total time is:
+//    326ms+1124 about < 2480/2
+
+// However, the reorg, rebuild, rehash
+// is what's costly about 4031-326 ms
+
+void tableoptimize(table* t) {
+  long ms= timems();
+  
+  long n= t->strings->n;
+  char** ix= calloc(n, sizeof(*ix));
+  char** p= ix;
+  //long nn= t->count * t->cols;
+
+  // find all unique strings
+  long msfind= timems();
+  hashtab* ht= t->strings;
+  int nn= 0;
+  for(int i=0; i<ht->size; i++) {
+    hashentry* e= *(ht->arr + i);
+    while(e) {
+      long si= (long)e->data;
+      dbval v;
+      v.d= make53(si);
+      *p++ = tablestr(t, v);
+
+      nn++;
+      e= e->next;
+    }
+  }
+  if (debug) printf("tableoptimize: find all strings %ld ms\n", timems()-msfind);
+  assert(n==nn);
+
+  // sort'em
+  long sortms= timems();
+  qsort(ix, n, sizeof(*ix), (void*)sortstrcmp);
+  if (debug) printf("tableoptimization sort took %ld ms\n", timems()-sortms);
+
+  // add to new hash/arena (new table)
+  long addms= timems();
+  table* nt= newtable(NULL, 0, 0, NULL);
+  p= ix;
+  for(long i=0; i<n; i++) {
+    char* s= *p++;
+    long si= is53(tablemkstr(t, s).d);
+    //printf("%5ld %-15s %ld\n", i, s, si);
+
+    // TODO: what if we
+    // REWROTE *s to contain new offset?
+    // 2 bytes guaranteed? '' not stored
+
+    // hmm, do alignment? 8
+    // ??? put the double there?
+
+    // NAH:that'd WASTE lot's of space!!
+    // 4 bytes on avg...
+  }
+  if (debug) printf("tableoptimize: add all strings %ld ms\n", timems()-msfind);
+
+  // update dbvals, in old table
+  // TODO: the hash will be indentical
+  // only problem is replacing the
+  // dbvals efficiently
+  long replacms= timems();
+  dbval* vals= (void*)t->data->mem;
+  long nvals= t->count * t->cols;
+  for(int i=0; i<nvals; i++) {
+    // heavy work! lol
+    char* s=  tablestr(t, *vals);
+    if (s && *s) *vals= xtablemkstr(nt, s);
+    vals++;
+  }
+  if (debug) printf("tableoptimize: replace all strings %ld ms\n", timems()-msfind);
+
+  printf("\n------ new order\n");
+
+  // verify
+  p= ix;
+  if (0)
+  for(long i=0; i<n; i++) {
+    char* s= *p++;
+    long si= is53(tablemkstr(nt, s).d);
+    //printf("%5ld %-15s %ld\n", i, s, si);
+  }
+
+  // move around
+  freehash(t->strings);
+  t->strings= nt->strings;
+  nt->strings= NULL;
+
+  ms= timems()-ms;
+
+  if (debug) printf("optimizetable took %ld ms\n", ms);
+  
+  //printtable(t, 1);
+  free(ix);
+  // freetable(nt); TODO:
+}
+
 void dotable(char* name, int col) {
   debug= 1;
   int details= +1024;
 
   FILE* f= fopen(name, "r");
   table* t= loadcsvtable(name, f);
+
+  tablesort(t, -col, NULL);
+  tablesort(t, col, NULL);
+
+  tableoptimize(t);
+
   tablesort(t, -col, NULL);
   tablesort(t, col, NULL);
   printtable(t, details);
   fclose(f);
+  printf("ms lol ncmp=%ld\n", ncmp);
 }
 
 void tabletest() {
