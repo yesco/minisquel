@@ -1092,6 +1092,7 @@ static
     memcpy(z, z+1, strlen(z));
   }
 
+  char delim= decidedelim(header);
   // TODO: read w freadCSV()
   // extract ','-delimited names
   // reads and modifies headers
@@ -1100,8 +1101,8 @@ static
   int col= 0, row= 0;
   cols[0]= h;
   while(*h && *h!='\n') {
-    if (isspace(*h)) ;
-    else if (*h==',' || *h=='\t' || *h=='|' || *h==';') {
+    if (*h==' ') ; // TODO: lol \t?
+    else if (*h==delim) {
       while(*h && isspace(h[1])) h++;
       *h= 0;
       cols[++col]= h+1;
@@ -1136,10 +1137,12 @@ static
   // TODO: use csvgetline !
   col= 0;
   while(1) {
-    r= freadCSV(f, s, sizeof(s), &d);
+    r= freadCSV(f, s, sizeof(s), &d, delim);
     if (debug>2) printf(" {CSV: %2d '%s' %lg} ", r, s, d);
     if (r==RNEWLINE || !r) {
       readrows++;
+      if (debug && readrows%10000==0)
+	{ printf("\rTABCSV: row=%ld", readrows); fflush(stdout); }
 
       // store offset of start of row
       // (ovehead? not measurable)
@@ -1244,6 +1247,7 @@ FILE* openfile(char* spec) {
 
 FILE* expectfile(char* spec) {
   FILE* f= openfile(spec);
+  printf("FILE>%s<\n", spec); fflush(stdout);
   if (!f) expected2("File not exist", spec);
   return f;
 }
@@ -1512,7 +1516,7 @@ int sql() {
   char s[10240];
   int r= 0;
   double d= 0;
-  while((r=freadCSV(f, s, sizeof(s), &d))) {
+  while((r=freadCSV(f, s, sizeof(s), &d, ','))) {
     if (r==RNEWLINE) printf("\n");
     else if (r==RNUM) printf("=> %3d  >%lg<\n", r, d);
     else if (r==RNULL) printf("=> %3d  NULL\n", r);

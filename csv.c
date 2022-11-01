@@ -18,13 +18,36 @@
 
 extern int debug; // lol, you need define!
 
-int freadCSV(FILE* f, char* s, int max, double* d) {
+char decidedelim(char* line) {
+  int comma= strcount(line, ",");
+  int semi= strcount(line, ";");
+  int tab= strcount(line, "\t");
+  int bar= strcount(line, "|");
+  // TODO: ??
+  int spcs= strcount(line, "  ");
+  int bigbest= max(comma, max(semi, max(tab, bar)));
+  char delim= ','; // default
+  if (comma==bigbest) delim= ',';
+  if (semi ==bigbest) delim= ';';
+  if (tab  ==bigbest) delim= '\t';
+  if (bar  ==bigbest) delim= '|';
+  //if (spcs ==bigbest) delim= "  "; //lol'\t';
+  if (debug) {
+    printf("decidedelim: '%c'\n", delim);
+    printf("  DELIM: %d ,%d ;%d \\t%d _%d\n", bigbest, comma, semi, tab, spcs);
+  }
+
+  return delim;
+}
+
+int freadCSV(FILE* f, char* s, int max, double* d, char delim) {
+  if (!delim) delim= ',';
   int c, q= 0, typ= 0;
   char* r= s;
   *r= 0; max--; // zero terminate 1 byte
   //if (debug) printf("{ CSV>");
   while((c= fgetc(f)) != EOF &&
-	(c!=',' || q>0) && (c!='\n' || q>0)) {
+	(c!=delim || q>0) && (c!='\n' || q>0)) {
     if (debug>3) printf("'%c'", c);
     if (c=='\r') continue; // DOS
     if (c==0) { // skip NL+NL*

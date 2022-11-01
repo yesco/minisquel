@@ -284,32 +284,15 @@ long tableaddline(table* t, char* csv, char delim) {
   return 1;
 }
 
-char decidedelim(char* line) {
-  int comma= strcount(line, ",");
-  int semi= strcount(line, ";");
-  int tab= strcount(line, "\t");
-  // TODO: ??
-  int spcs= strcount(line, "  ");
-  int bigbest= max(comma, max(semi, tab));
-  char delim= ','; // default
-  if (comma==bigbest) delim= ',';
-  if (semi ==bigbest) delim= ';';
-  if (tab  ==bigbest) delim= '\t';
-  //if (spcs ==bigbest) delim= "  "; //lol'\t';
-  if (debug) {
-    printf("decidedelim: '%c'\n", delim);
-    printf("  DELIM: %d ,%d ;%d \\t%d _%d\n", bigbest, comma, semi, tab, spcs);
-  }
-
-  return delim;
-}
-
 // 3x slower without storing rows
 table* loadcsvtable_csvgetline(char* name, FILE* f) {
   if (!f) return NULL;
   char delim= 0;
   long ms= timems();
   table* t= newtable(name, 0, 0, NULL);
+  // for testing w only 2 cols
+  // TODO: bring list of cols needed
+  //table* t= newtable(name, 0, 2, NULL);
   // header is a line!
   char* line= NULL;
   while((line= csvgetline(f, delim))) {
@@ -389,6 +372,26 @@ table* loadcsvtable(char* name, FILE* f) {
   
 // NULL==NULL < -num < num < "bar" < "foo"
 int tablecmp(table* t, dbval a, dbval b) {
+  // 10M rows numbers
+
+  // - simplified double dmp col 2 
+  // sort -2 took 412 ms
+  // sort 2 took 300 ms
+
+  // - generic compare col 2
+  // sort -2 took 459 ms
+  // sort 2 took 354 ms 
+
+  // ==> (/ 459 412.0) = 11% difference
+    
+  // - same file but only str cmp col 1
+  // sort -1 took 1718 ms
+  // sort 1 took 1721 ms
+
+  // TODO: compare using "sorted interned strings
+
+  //  return (a.d>b.d)-(b.d>a.d);
+  
   if (a.l==b.l) return 0;
   long la= is53(a.d), lb= is53(b.d);
   // ordered! comparable as -la and -lb

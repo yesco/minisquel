@@ -1,2 +1,2 @@
 printf "$1\n\t"
-head -1 `ls -1 $1 Test/$1 2>/dev/null` | sed 's/,/\n\t/g'
+head -1 `ls -1 $1 Test/$1 2>/dev/null` | sed 's/[,;\t]/\n\t/g'

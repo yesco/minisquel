@@ -211,6 +211,7 @@ void freehash(hashtab* ht) {
     }
   }
   free(ht->arena);
+  free(ht->ars);
   free(ht);
 }
 
