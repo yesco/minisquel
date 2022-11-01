@@ -7,7 +7,7 @@
 
 #include "malloc-count.c"
 //#include "malloc-simple.c"
-#include "mytime.c"
+
 #include "utils.c"
 
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)

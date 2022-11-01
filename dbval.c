@@ -4,7 +4,6 @@
 #include <math.h>
 
 #include "utils.c"
-#include "mytime.c"
 #include "hash.c"
 #include "csv.c"
 

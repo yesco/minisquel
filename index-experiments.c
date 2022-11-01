@@ -180,13 +180,7 @@ keyoffset* searchix(char* s) {
   return NULL;
 }
 
-double drand(double min, double max) {
-  double range = (max - min); 
-  double div = RAND_MAX / range;
-  return min + (rand() / div);
-}
-
-#include "mytime.c"
+#include "utils.c"
 
 long rbytes= 0;
 

@@ -9,7 +9,7 @@
 
 #include <assert.h>
 
-#include "mytime.c"
+#include "utils.c"
 
 long rbytes= 0;
 
