@@ -1,0 +1,25 @@
+My latest minimalist project: MiniSQueL ("miniscule")
+
+a <1000 lines SQL *interpreter*, no parse-trees, no jox, just plain text reparsing expression-strings each time, as done in "older basic interpreters". It has a hand-coded hacky recursive decent parser.
+
+Of course it's high overhead. Still reads a 22MB in about 1.2s on my Android/termux.
+
+I just added functions abilty, like: upper, lower, char, ascii, mod, div.
+
+It almost has"full-file" aggregates, actuelly it shows the running value, just need to supress the output of all but the final row: count, min, max, sum, avg, stdev.
+
+The support for plugging in functions (registerfun("foo", foo)) was only about 66 lines.
+
+If one added a way to define user defined functions It'd be it's own language.
+
+It currently only queries a *single* CSV file:
+select a,b,c from foo.csv foo
+
+It supports enumerators like:
+select i, i*i from int(1,10) i where i*i>25 
+
+The sql parser-interpreter-evaluator is 519 LOC. Functions 109 LOC.
+
+
+
+https://m.facebook.com/groups/minimalistcomputing/permalink/776164480140349/?m

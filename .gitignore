@@ -1,4 +1,3 @@
-*~
 diff
 diff.c
 WWW
@@ -6,6 +5,8 @@ Cache
 fil
 fil.c
 test.c
+test.diff
+test.new
 stderr
 stdout
 wget-log*
@@ -14,16 +15,25 @@ package-lock.json
 node_modules
 
 # - binaries
+minisquel
+minisquel-debug
 *.x
 a.out
 Graphics/font8x8/render
+sql
+sql.log.csv
+wcode
 
 # - temp files
 *#*
+*~
 
 # - copyrighted can't checkin
 Tests/tables-advanced.moz
 Tests/html.com.tables
+
+DuckDB/
+IMDB/
 
 Tests/*.com
 Tests/*.org
