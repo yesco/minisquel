@@ -211,7 +211,7 @@ char* tablestr(table* t, dbval v) {
 
 table* newtable(char* name, int keys, int cols, char* colnames[]){
   table* t= calloc(1, sizeof(*t));
-  t->name= strdup(name);
+  t->name= strdup(name?name:"noname");
   t->keys= keys;
   t->cols= cols;
   t->colnames= colnames;
@@ -306,6 +306,7 @@ char decidedelim(char* line) {
 
 // 3x slower without storing rows
 table* loadcsvtable_csvgetline(char* name, FILE* f) {
+  if (!f) return NULL;
   char delim= 0;
   long ms= timems();
   table* t= newtable(name, 0, 0, NULL);
@@ -320,15 +321,14 @@ table* loadcsvtable_csvgetline(char* name, FILE* f) {
     else
       t->count++;
     free(line); line= NULL;
-    if (debug && t->count%10000==0) { printf("\rloadcsvtable:  %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
+    if (debug && t->count%10000==0) { printf("\rload_csvgl: %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
   }
   ms= timems()-ms;
-  if (debug) printf("\rloadcsvtable_csvgetline: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
+  if (debug) printf("\rload_csvgl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
   return t;
 }
 
-/* TODO: test!
-
+/*
 table* loadcsvtable_newcsvgetline(char* name, FILE* f) {
   char delim= 0;
   long ms= timems();
@@ -337,20 +337,21 @@ table* loadcsvtable_newcsvgetline(char* name, FILE* f) {
   char* line= NULL;
   size_t ln= 0;
   ssize_t r;
-  //  while((r= newcsvgetline(&line, &ln, f, delim))>=0) {
-  while((r= newcsvgetline(&line, &ln, f, delim))>=0) {
+  while((r= newcsvgetline(&line, &ln, f, delim))>=0 && line) {
+    //printf("LINE:%s\n", line);
     if (!*line) continue;
     if (!delim) delim= decidedelim(line);
     t->bytesread+= r;
-    if (0) 
+    if(1) 
       tableaddline(t, line, delim);
     else
       t->count++;
     //free(line); line= NULL;
-    if (debug && t->count%10000==0) { printf("\rloadcsvtable:  %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
+    if (debug && t->count%10000==0) { printf("\rload_newcgl: %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
   }
+  free(line);
   ms= timems()-ms;
-  if (debug) printf("\rloadcsvtable_csvgetline: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
+  if (debug) printf("\rload_newcgl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
   return t;
 }
 */
@@ -372,11 +373,11 @@ table* loadcsvtable_getline(char* name, FILE* f) {
       tableaddline(t, line, delim);
     else
       t->count++;
-    //    if (debug && t->count%10000==0) { printf("\rloadcsvtable:  %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
+    if (debug && t->count%10000==0) { printf("\rload_gl: %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
   }
   free(line); line= NULL;
   ms= timems()-ms;
-  if (debug) printf("\rloadcsvtable_getline: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
+  if (debug) printf("\rload_gl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
   return t;
 }
   
@@ -434,7 +435,11 @@ void tablesort(table* t, int n, int* cols) {
   qsort_table= t;
   int row_size= t->cols*sizeof(dbval);
   // skip first row (headers)
-  qsort(t->data->mem+row_size, t->count-1, row_size, (void*)sorttablecmp);
+  int actual_size= t->data->top+ t->count-1*row_size;
+  if (actual_size > t->data->size)
+    ; // not stored!
+  else
+    qsort(t->data->mem+row_size, t->count-1, row_size, (void*)sorttablecmp);
   qsort_table= NULL;
 
   ms= timems()-ms;
@@ -467,7 +472,6 @@ long printtable(table* t, int details) {
     if (details > 2) details--;
     if (details==2) break;
     if (details < 0) break;
-
     // underline col names
     if (!row) {
       for(int col=0; col<t->cols; col++)
