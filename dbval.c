@@ -263,7 +263,7 @@ long tableaddline(table* t, char* csv, char delim) {
       // TODO: 5km store as suffix + num!
     case RSTRING: v= tablemkstr(t, str); break;
     }
-    // TODO: inefficient call many times?
+    // 1.2% faster if we chunked it - bah
     addarena(t->data, &v, sizeof(v));
   }
   free(str);
@@ -390,7 +390,10 @@ int tablecmp(table* t, dbval a, dbval b) {
 
   // TODO: compare using "sorted interned strings
 
-  //  return (a.d>b.d)-(b.d>a.d);
+  // - Using same table but storing all cols
+  // 2038 ms (str) vs 628 ms (num)
+
+  // return (a.d>b.d)-(b.d>a.d);
   
   if (a.l==b.l) return 0;
   long la= is53(a.d), lb= is53(b.d);
