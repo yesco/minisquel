@@ -135,11 +135,14 @@ dbval dbreadCSV(table* t, char** csv, char* str, int len, char delim) {
 
 // Fill in dbVALS max N using TABLE,
 // parse from a CSV line string using DELIM
-
+//
+// N needs to be at least 1
+// (TODO: reconsider?)
+//
 // Returns: number of vals,
 //   including a mkend() dbval.
 int dbvalsfromline(dbval* vals, int n, table* t, char* csv, char delim) {
-  if (!t || !csv) return -1;
+  if (!t || !csv || !n) return -1;
 
   int len= strlen(csv)+1;
   char str[len];
@@ -147,7 +150,7 @@ int dbvalsfromline(dbval* vals, int n, table* t, char* csv, char delim) {
   int col= 0;
   while(!isend((vals[col++]= dbreadCSV(
       t, &csv, str, len, delim)))) {
-    if (col>n) {
+    if (col+1>=n) {
       vals[col++]= mkend();
       break;
     }
@@ -371,14 +374,15 @@ long printtable(table* t, int details) {
 }
 
 
-
-
+// 5x faster than index.c (create index)!
+// and using less mem.
 void dotable(char* name, int col) {
   debug= 1;
   int details= +1024;
 
   FILE* f= fopen(name, "r");
   table* t= newtable(name, 0, 0, NULL);
+  //table* t= newtable(name, 0, 2, NULL);
   loadcsvtable(t, f);
 
   tablesort(t, -col, NULL);
