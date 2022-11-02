@@ -183,6 +183,20 @@ long timems() {
   //return t.tv_sec*1000 + t.tv_nsec/1000;
 }
 
+// human print
+int hprint(double d, char* unit) {
+  char suffix[]= "afpum kMGTPE";
+  int i=5;
+  // TODO: negative
+  while(d<0 && i>0) {
+    d*= 1000; i--;
+  }
+  while(d>1000 && i<strlen(suffix)) {
+    d/= 1000; i++;
+  }
+  return printf("%.1lf %c%s", d, suffix[i], unit);
+}
+
 #define JSK_INCLUDED_UTILS
 
 #endif

@@ -20,7 +20,13 @@
 //
 
 
+#include <math.h>
+
 #include "dbval.c"
+
+// TODO: remove
+extern int debug;
+extern int stats;
 
 
 struct table;
@@ -66,6 +72,27 @@ typedef struct table {
   int sort_col;
 } table;
 
+
+// TODO: cleanup!
+int bitsforoffset= 0;
+uint64_t maskforoffset= 0;
+uint64_t maskforchs= 0;
+
+// if equal can't really say anything...
+// TODO: remove dbvals....
+long cmptablestr(long a, long b) {
+  long ca= a & maskforchs;
+  long cb= b & maskforchs;
+  // one isn't comparable (illegal char)
+  if (!ca || !cb) return 0;
+  if (debug)
+    printf("CMP:\n%16lx\n%16lx\n", ca, cb);
+  //if (debug) printf("CMP.str: '%s' '%s' %ld\n", sa, sb, ca-cb);
+  // Thwy will never be equal!
+  return ca-cb;
+}
+
+long nbadstrings= 0;
 dbval tablemkstr(table* t, char* s) {
   // '' ==> NULL
   if (!s || !*s) return mknull();
@@ -74,13 +101,101 @@ dbval tablemkstr(table* t, char* s) {
   if (e) {
     i= (long)e->data;
   } else {
+    // TODO: put long strings in bigarena!
+    //   longer strings aren't CMP/ordered
+    //   > 15 chars?
+    // can use negative offset?
     i= addarena(
       t->strings->arena, s, strlen(s)+1);
     e= addhash(t->strings, s, (void*)i);
   }
 
+  // put few chars of string in value!
+  long chs= 0;
+  char* p= s;
+  int c;
+  // more bits chars inline limits storage
+  // space for strings...
+  //
+  // 5*6 = 30   52-30=22 =>2^22= 4 MB str
+  // 4*6 = 24         28 =>    256 MB str
+  int nchars= 4;
+  int nbits= 6*nchars;
+  int bits= nbits;
+
+  bitsforoffset= 52-nbits;
+
+  maskforoffset= (1 << bitsforoffset) -1;
+  maskforchs= (1<<nbits) -1;
+  maskforchs<<= bitsforoffset;
+  
+  assert(!(maskforchs & LINF_MASK));
+  assert(!(maskforchs & maskforoffset));
+  
+  if (debug) printf("\n");
+  if (debug) putchar('>');
+  // doesn't have to be exact chars...
+  while((c= *p++) && bits>=6) {
+    if (debug) putchar(c);
+
+    if (c<'0') c= 0; // 0
+    else if (c<='9') c= c-'0' + 1; // 1-10
+    else if (c<'A') c= 11; // 11
+    else if (c<='Z') c= 12 + c-'A'; // 12-38
+    else if (c<'a') c= 39; // 39
+    else if (c<='z') c= 39 + c-'a';
+    if (c>63) c= 63;
+
+    if (c<0 || c>=64) {
+      // Mostly ' ' and digits.
+      // could map:
+      // ' '     1
+      // ...     1
+      // 0-9    10
+      // ...     1
+      // A..Z = 26 38
+      // a..z = 26 64
+      if (debug)
+	printf("NON-STRING: >%s<\n", s);
+      //error("FOO");
+      nbadstrings++;
+      chs= 0;
+      break;
+    }
+    chs<<= 6;
+    chs|= c;
+    bits-= 6;
+  }
+  bits+= 51-nbits; // 52 ???
+  if (debug) printf("<\n");
+  if (debug) printf("chs= %16lx  %.1f\n", chs, log2f(chs)/log2f(2));
+  //  int nstrings= expl(52-chsbits)/expl(10);
+  //int ndigits= (int)(log2f(nstrings)/log2f(10));
+  //printf("--- %d %c %d digits\n", nstrings, ".kMGTPE"[ndigits/3], ndigits);
+  //chsbits+=1;
+
+  if (bits>0) chs<<= bits;
+
+  chs &= maskforchs;
+  
+  if (debug) {
+    printf("INF= %16lx  %.1f\n", LINF_MASK, LINF_MASK);
+    printf("CHS= %16lx\n", maskforchs);
+    printf("chs= %16lx  %.1f\n", chs, log2f(chs)/log2f(2));
+    printf("i  = %16lx  %.1f\n", i, log2f(i)/log2f(2));
+    printf("OFS= %16lx  %ld  ", maskforoffset, maskforoffset); hprint(maskforoffset, "B\n");
+  }
+  assert(!(chs & LINF_MASK)); // no overlap
+  assert(!(chs & i)); // no overlap
+
+  // mix them!
+  i|= chs;
+  if (debug) printf("OFi= %16lx\n", i);
+  if (debug) printf("\n");
+  
   dbval v;
   v.d= make53(i);
+
   return v;
 }
 
@@ -88,6 +203,9 @@ char* tablestr(table* t, dbval v) {
   long i= is53(v.d);
   //printf("tablestr => %ld\n", i);
   if (i<0) i= -i;
+  if (debug) printf("\ntablestr: %ld\n", i);
+  i&= maskforoffset;
+  if (debug) printf("  offset: %ld\n", i);
   return i<0?NULL:arenaptr(t->strings->arena, i);
 }
 
@@ -208,7 +326,7 @@ int loadcsvtable_csvgetline(table* t, FILE* f) {
     if (debug && t->count%10000==0) { printf("\rload_csvgl: %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
   }
   ms= timems()-ms;
-  if (debug) printf("\rload_csvgl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
+  if (stats || debug) printf("\rload_csvgl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
   return 1;
 }
 
@@ -245,6 +363,7 @@ int loadcsvtable(table* t, FILE* f) {
   
 // NULL==NULL < -num < num < "bar" < "foo"
 long ncmp= 0, ncmpother= 0;
+long ncmptab= 0, ncmptabmiss= 0;
 int tablecmp(table* t, dbval a, dbval b) {
   ncmp++;
   // 1% faster with it here for sort!
@@ -264,18 +383,63 @@ int tablecmp(table* t, dbval a, dbval b) {
   // resort to cmp strings
   if (la>0 && lb>0) {
     if (!t) error("tablecmp: needs table!");
+    ncmptab++;
+    // - previously
+    // sort -3 took 7342 ms
+    // sort 3  took 3701 ms
+    // sort -3 took 3238 ms
+    // sort 3  took 3703 ms
+    // ncmp=545921074
+
+    // - if cmptablestr gets 
+    // sort -3 took 3674 ms
+    // sort 3  took 3652 ms
+    // sort -3 took 2171 ms
+    // sort 3  took 2120 ms
+    //    ncmptab    =404401657
+    //    ncmptabmiss=298383822
+    //    = 17% savings in strcmp
+
+    // - if disabled
+    // sort -3 took 8923 ms
+    // sort 3  took 4377 ms
+    // sort -3 took 4140 ms
+    // sort 3  took 4259 ms
+    //    ncmptab=513121514
+			  
+    long r= cmptablestr(la, lb);
+    //r=0;
+    if (r) return r;
+    ncmptabmiss++;
+    // == undecided
+    // (unless same index, but cannot be)
     char* sa= tablestr(t, a);
     char* sb= tablestr(t, b);
+    //if (debug) printf("CMP MISS: '%s' '%s'\n", sa, sb);
     if (sa==sb) return 0;
     if (!sa) return -1;
     if (!sb) return +1;
+    if (0) {
+      int rt = r<0?-1:(!r?0:1);
+      int rr= strcmp(sa, sb);
+      rr= rr<0?-1:(!r?0:1);
+      if (rt && rt!=rr)
+	error("Strings differ in compare!");
+    } else 
     return strcmp(sa, sb);
   }
   if (isnull(a)) return -1;
   if (isnull(b)) return +1;
   // this sorts all types!
   if ((!!la != !!lb)) return (la>lb)-(lb>la);
-  error("shouldn't end up here!");
+  // ends here for NAN!!!
+  // NAN is bigger than all number!
+  // (same as postgress)
+  if (isnan(a.d)) return +1;
+  if (isnan(b.d)) return -1;
+  // nan is equal (because same bits, lol)
+  //dbprint(t, a, 8); printf("type=%d\n", type(a)); putchar('\n');
+  //dbprint(t, b, 8); printf("type=%d\n", type(b)); putchar('\n');
   return (a.d>b.d)-(b.d>a.d);
 }
 
@@ -312,8 +476,11 @@ void tablesort(table* t, int n, int* cols) {
     qsort(t->data->mem+row_size, t->count-1, row_size, (void*)sorttablecmp);
   qsort_table= NULL;
 
+  // TODO: consider inline qsort?
+  // - https://stackoverflow.com/questions/33726723/why-is-this-implementation-of-quick-sort-slower-than-qsort
+
   ms= timems()-ms;
-  if (debug)
+  if (stats || debug)
     printf("sort %d took %ld ms\n", t->sort_col, ms);
 }
 
@@ -338,8 +505,7 @@ long printtable(table* t, int details) {
     }
     putchar('\n');
     if (details > 2) details--;
-    if (details==2) break;
-    if (details < 0) break;
+    if (details <= 0) break;
     // underline col names
     if (!row) {
       for(int col=0; col<t->cols; col++)
@@ -366,12 +532,13 @@ long printtable(table* t, int details) {
 // 5x faster than index.c (create index)!
 // and using less mem.
 void dotable(char* name, int col) {
-  debug= 1;
-  int details= +1024;
+  debug= 0;
+  stats= 1;
+  int details= debug?+100:0;
 
   FILE* f= fopen(name, "r");
   table* t= newtable(name, 0, 0, NULL);
-  //table* t= newtable(name, 0, 2, NULL);
+  //table* t= newtable(name, 0, 3, NULL);
   loadcsvtable(t, f);
 
   tablesort(t, -col, NULL);
@@ -381,7 +548,7 @@ void dotable(char* name, int col) {
   tablesort(t, col, NULL);
   printtable(t, details);
   fclose(f);
-  printf("ms lol ncmp=%ld ncmpother=%ld\n", ncmp, ncmpother);
+  printf("ms lol ncmp=%ld ncmpother=%ld ncmptab=%ld ncmptabmiss=%ld nbadstrings=%ld\n", ncmp, ncmpother, ncmptab, ncmptabmiss, nbadstrings);
 }
 
 void tabletest() {
@@ -420,6 +587,7 @@ void tabletest() {
 
 
 void dbtypetest() {
+  debug= 0;
   // compare types!
   table* t= newtable("cmp", 0, 0, NULL);
 
@@ -430,15 +598,22 @@ void dbtypetest() {
   printf("nc %d (-1)\n", tablecmp(NULL, mknum(-333), mknum(-3)));
   printf("nd %d (-1)\n", tablecmp(NULL, mknum(-333), mknum(3)));
   printf("ne %d (-1)\n", tablecmp(NULL, mknum(7), mknum(77)));
+  printf("nN %d (-1)\n", tablecmp(NULL, mknum(7), mknum(NAN)));
+  printf("IN %d (-1)\n", tablecmp(NULL, mknum(-INFINITY), mknum(NAN)));
+  printf("-IN %d (-1)\n", tablecmp(NULL, mknum(-INFINITY), mknum(NAN)));
+  printf("+IN %d (-1)\n", tablecmp(NULL, mknum(+INFINITY), mknum(NAN)));
 
   printf("---NULL\n");
   printf("-n %d (0)\n", tablecmp(NULL, mknull(), mknull()));
   printf("-n %d (-1)\n", tablecmp(NULL, mknull(), mknum(0)));
   printf("-s %d (-1)\n", tablecmp(t, mknull(), tablemkstr(t, "foo")));
+  printf("-N %d (-1)\n", tablecmp(NULL, mknull(), mknum(NAN)));
+
 
   printf("---STRINGS\n");
   printf("bb %d (0)\n", tablecmp(t, tablemkstr(t, "bar"), tablemkstr(t, "bar")));
   printf("bf %d (-1)\n", tablecmp(t, tablemkstr(t, "bar"), tablemkstr(t, "foo")));
+  printf("sN %d (-1)\n", tablecmp(NULL, tablemkstr(t, "foo"), mknum(NAN)));
 
   printf("---MIXED\n");
   printf("ns %d (-1)\n", tablecmp(t, mknum(3), tablemkstr(t, "bar")));
@@ -447,8 +622,9 @@ void dbtypetest() {
 
 
 // TODO: remove
-
 extern int debug= 1;
+extern int stats= 1;
+
 
 int main(int argc, char** argv) {
   if (argc>1) {
@@ -457,6 +633,6 @@ int main(int argc, char** argv) {
     dotable(argv[1], col);
     exit(0);
   }
-  dbtypetest();
-  tabletest(); exit(0);
+  dbtypetest(); exit(1);
+  //tabletest(); exit(0);
 }
