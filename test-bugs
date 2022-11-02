@@ -29,6 +29,8 @@ clang minisquel.c -o sql && {
 # FROM ... FROM
 time ./run 'select left(predicted_category, 5) from happy h from int(1,10)) i where 0=1' | tail
 
+# nulls - \N and last empty becomes 0!
+./sql 'select a,b,c,d,e from null n'
 
 # -- end test
 }

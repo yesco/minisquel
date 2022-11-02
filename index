@@ -10,8 +10,8 @@ fi
 
 if [ $# -eq 2 ]
 then 
-  ./run --debug "create index ix on \"$1\"($2)"
-  #./run "create index ix on \"$1\"($2)"
+  #./run --debug "create index ix on \"$1\"($2)"
+  ./run --stats "create index ix on \"$1\"($2)"
 else
   echo "Usage: ./index [TABLE [COLUMN]]"
 fi

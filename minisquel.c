@@ -173,6 +173,7 @@ void clearval(val* v) {
 // quot<0 => no surrounding quot
 // but will quote -quote|quot
 void fprintquoted(FILE* f, char* s, int quot, int delim) {
+  if (!s && delim==',') return; // csv
   if (!s) return (void)printf("NULL");
   if (!*s) return; // NULL
   if (quot>0) fputc(quot, f);
@@ -188,7 +189,9 @@ void fprintquoted(FILE* f, char* s, int quot, int delim) {
 
 // quot: see fprintquoted
 void printval(val* v, int quot, int delim) {
+  if (!v && delim==',') return; // csv
   if (!v) { printf("(null)"); return; }
+  if (!v->not_null && delim==',') return; // csv
   if (!v->not_null) printf("NULL");
   else if (v->s) fprintquoted(stdout, v->s, quot, delim);
   else {
@@ -1420,6 +1423,7 @@ int sqlcreate_function() {
   return 1;
 }
 
+// TODO: make resident in mem! LOL
 int create_index() {
   char name[NAMELEN]= {0};
   expectname(name, "index name");

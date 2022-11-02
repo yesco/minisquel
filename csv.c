@@ -83,6 +83,7 @@ int freadCSV(FILE* f, char* s, int max, double* d, char delim) {
     if (s+strlen(s)==end) return RNUM;
   }
   // Null if empty string
+  if (0==strcmp("\\N", s) || 0==strcmp("null", s) || 0==strcmp("NULL", s)) return RNULL;
   return typ?typ:RNULL;
 }
 
@@ -110,7 +111,7 @@ int sreadCSV(char** f, char* s, int max, double* d, char delim) {
     if (c=='\\') if ('\n'==(c= *(*f)++)) {
 	//printf("QUOTE");
 	c= *(*f)++;
-      }
+      } 
     if (max>0) {
       *r++= c;
       *r= 0;
@@ -132,6 +133,7 @@ int sreadCSV(char** f, char* s, int max, double* d, char delim) {
     if (s+strlen(s)==end) return RNUM;
   }
   // Null if empty string
+  if (0==strcmp("\\N", s) || 0==strcmp("null", s) || 0==strcmp("NULL", s)) return RNULL;
   return typ?typ:RNULL;
 }
 
