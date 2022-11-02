@@ -43,7 +43,9 @@ int dbprint(struct table* t, dbval v, int width) {
     putchar('\t');
   } break;
   case TBAD:  printf("ILLEGAL\t"); break;
+  case TFAIL: printf("FAIL\t"); break;
   case TERROR:printf("ERROR\t"); break;
+  case TEND:  printf("END\t"); break;
   }
   return 1;
 }
@@ -119,24 +121,29 @@ int tableaddrow(table* t, dbval v[]) {
   return addarena(t->data, v, t->cols * sizeof(dbval));
 }
 
+dbval dbreadCSV(table* t, char** csv, char* str, int len, char delim) {
+  double d;
+  int r= sreadCSV(csv, str, len, &d, delim);
+  switch(r){
+  case RNULL:    return mknull();
+  case RNUM:     return mknum(d);
+  case RSTRING:  return tablemkstr(t, str);
+  case RNEWLINE: 
+  default:       return mkend();
+  }
+}
+
 long tableaddline(table* t, char* csv, char delim) {
   if (!t || !csv) return -1;
 
   int len= strlen(csv)+1;
   char* str= strdup(csv); // !
-  double d;
   dbval v;
   
   int col= 0, r;
-  while((r= sreadCSV(&csv, str, len, &d, delim))) {
-    if (r==RNEWLINE) break;
+  while(!isend((v= dbreadCSV(t, &csv, str, len, delim)))) {
     if (t->cols && col >= t->cols) break; 
     col++;
-    switch(r){
-    case RNULL:   v= mknull(); break;
-    case RNUM:    v= mknum(d); break;
-    case RSTRING:  v= tablemkstr(t, str); break;
-    }
     // 1.2% faster if we chunked it - bah
     addarena(t->data, &v, sizeof(v));
   }

@@ -331,7 +331,8 @@ val* setvar(char* table, char* name, val* s) {
   // copy only value (not stats)
   clearval(v);
   v->s= s->s;
-  v->dealloc= s->dealloc;
+  // it's not the owner! I think
+  //v->dealloc= s->dealloc;
   v->d= s->d;
   v->not_null= s->not_null;
   updatestats(v);
@@ -994,6 +995,12 @@ void action_insert_into_index(memindex* ix, char* table, char* joincol) {
 
 // TODO: remove
 int jdebug= 0;
+
+int READFILE(FILE* f, char* table, char* header, int(*action)(char* table)) {
+  return 0;
+}  
+
+// TODO: untangle read/indexing
 
 // TODO: take delimiter as argument?
 // TODO: too big!

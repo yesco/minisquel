@@ -1,3 +1,4 @@
-scc --by-file minisquel.c index.c utils.c mytime.c funs.c malloc-count.c csv.c 
-echo "./wcode <same files>                `(./wcode minisquel.c index.c utils.c mytime.c funs.c malloc-count.c csv.c | tr "\n" "+" ; echo "0") | bc -l`"
+FILES="minisquel.c index.c utils.c funs.c malloc-count.c csv.c"
+scc --by-file $FILES
+echo "./wcode <same files>                `(./wcode $FILES | tr "\n" "+" ; echo "0") | bc -l`"
 
