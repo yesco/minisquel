@@ -69,28 +69,33 @@ typedef union dbval {
   
 #define MAXSTRINGS 1024*1024
 // first 3 values are protected
-#define SNULL 2
+#define INULL 2
+#define IEND   (LMASK_53-3) // EOF
+#define IFAIL  (LMASK_53-2) // ???
+#define IERROR (LMASK_53-1) // max-1
+#define ISTRLIMIT (LMASK_53-16)
+
+#define CNULL  (INULL  | LINF_MASK)
+#define CEND   (IEND   | LINF_MASK)
+#define CFAIL  (IFAIL  | LINF_MASK)
+#define CERROR (IERROR | LINF_MASK)
+
+dbval mknull(){return(dbval){.l=CNULL};}
+dbval mkend() {return(dbval){.l=CEND};}
+dbval mkfail(){return(dbval){.l=CFAIL};}
+dbval mkerr() {return(dbval){.l=CERROR};}
+dbval mknum(double d){return(dbval){d};}
 
 char* dbstrings[MAXSTRINGS]= {NULL,"-INVALID-",NULL};
 int nstrings= 3;
 int nstrfree= 0;
 int strnext= 4;
 
-dbval mknull() {
-  dbval v;
-  v.d= make53(SNULL);
-  return v;
-}
-
-dbval mknum(double d) {
-  return (dbval){d};
-}
-
 dbval mkstrfree(char* s, int free) {
   int start= strnext;
   while(nstrfree && dbstrings[strnext]) {
     printf("TRYING %d\n", strnext);
-    if (++strnext>=nstrings) strnext= SNULL+1;
+    if (++strnext>=nstrings) strnext= INULL+1;
     if (strnext==start) error("mkstrfree: inconsistency says nstrfree!");
   }
   if (!nstrfree) {
@@ -117,27 +122,9 @@ dbval mkstrdup(char* s) {
   return mkstrfree(s?strdup(s):s, 1);
 }
 
-int isnull(dbval v) {
-  return isnan(v.d) && is53(v.d)==SNULL;
-}
-
-int isnum(dbval v) {
-  return isnan(v.d) ? !is53(v.d) : 1;
-}
-
-int isint(dbval v) {
-  int i= v.d;
-  return i==v.d;
-}
-
-#define SFALSE (LMASK_53-3) // just use 0
-#define STRUE  (LMASK_53-3) // just use 1
-#define SFAIL  (LMASK_53-2) // ???
-#define SERROR (LMASK_53-1) // max-1
-
 // These valuies are transient
 // Don't store permanently!
-typedef enum{TNULL=0, TNUM, TSTR, TATOM, TBAD=99,TERROR=100} dbtype;
+typedef enum{TNULL=0, TNUM, TSTR, TATOM, TEND=100,TBAD,TFAIL,TERROR} dbtype;
 
 dbtype type(dbval v) {
   if (!isnan(v.d)) return TNUM;
@@ -146,10 +133,12 @@ dbtype type(dbval v) {
   long u= i<0 ? -i : i;
   if (!i) return TNUM; // +NAN/-NAN
   if (u==1) return TBAD;
-  if (u==SNULL) return TNULL;
+  if (u==INULL) return TNULL;
   if (u==LMASK_53) return TBAD;
-  if (u==LMASK_53-1) return TERROR;
-  if (i>0) return TSTR;
+  if (u==IERROR) return TERROR;
+  if (u==IFAIL) return TFAIL;
+  if (u==IEND) return TEND;
+  if (u>INULL && i<ISTRLIMIT) return TSTR;
   // TODO: use for more types?
   // possibly use lower 4 bits as type
   // xxxx ... xxxx bbbb bbbb tttt
@@ -157,19 +146,32 @@ dbtype type(dbval v) {
   return TATOM;
 }
 	 
-    
-double num(dbval v) {
-  return v.d;
+int isnull(dbval v) {return v.l==CNULL;}
+int isfail(dbval v) {return v.l==CFAIL;}
+int isend(dbval v)  {return v.l==CEND;}
+int iserr(dbval v)  {return v.l==CERROR;}
+int isint(dbval v)  {return((int)v.d)==v.d;}
+int isbad(dbval v)  {return type(v)==TBAD;}    
+// TODO: 1? 2? and max-1?
+int isnum(dbval v) {
+  return isnan(v.d) ? !is53(v.d) : 1;
 }
+
+
+
+double num(dbval v) {return v.d;}
 
 // Get (interned) string from VALUE
 // 
+// TODO: add arena code unless globalatom
 char* str(dbval v) {
-  int i= is53(v.d);
-  return dbstrings[i<0?-i:+i];
+  long i= is53(v.d);
+  // 0 maps to NULL!
+  return i<ISTRLIMIT?dbstrings[i<0?-i:+i]:NULL;
 }
 
 void dbfree(dbval v) {
+  // TODO: use arena code unless globalatom
   // if not nan can't be string!
   if (!isnan(v.d)) return;
   int i= is53(v.d);
@@ -185,7 +187,7 @@ void dumpdb() {
   for(int i=0; i<nstrings; i++) {
     char* s= dbstrings[i];
     printf("%03d : %s %s\n", i,
-      i==1||i>SNULL ? (s?s:"   -"):"-NULL-",
+      i==1||i>INULL ? (s?s:"   -"):"-NULL-",
       nstrfree&&i==strnext?"<--- NEXT":"");
   }
   printf("nstrings=%d nstrfree=%d strnext=%d\n", nstrings, nstrfree, strnext);
