@@ -45,7 +45,7 @@ int dbprint(struct table* t, dbval v, int width) {
   case TBAD:  printf("ILLEGAL\t"); break;
   case TFAIL: printf("FAIL\t"); break;
   case TERROR:printf("ERROR\t"); break;
-  case TEND:  printf("END\t"); break;
+  case TEND:  printf("END\n"); break; // \n!
   }
   return 1;
 }
@@ -133,31 +133,55 @@ dbval dbreadCSV(table* t, char** csv, char* str, int len, char delim) {
   }
 }
 
-long tableaddline(table* t, char* csv, char delim) {
+// Fill in dbVALS max N using TABLE,
+// parse from a CSV line string using DELIM
+
+// Returns: number of vals,
+//   including a mkend() dbval.
+int dbvalsfromline(dbval* vals, int n, table* t, char* csv, char delim) {
   if (!t || !csv) return -1;
 
   int len= strlen(csv)+1;
-  char* str= strdup(csv); // !
-  dbval v;
-  
-  int col= 0, r;
-  while(!isend((v= dbreadCSV(t, &csv, str, len, delim)))) {
-    if (t->cols && col >= t->cols) break; 
-    col++;
-    // 1.2% faster if we chunked it - bah
-    addarena(t->data, &v, sizeof(v));
+  char str[len];
+
+  int col= 0;
+  while(!isend((vals[col++]= dbreadCSV(
+      t, &csv, str, len, delim)))) {
+    if (col>n) {
+      vals[col++]= mkend();
+      break;
+    }
   }
-  free(str);
   
+  return col;
+}
+
+long tableaddline(table* t, char* csv, char delim) {
+  if (!t || !csv) return -1;
+
+  int cols= t->cols;
+  if (!cols) {
+    // estimate no of columns!
+    char DELIM[]={delim?delim:',', 0};
+    cols= strcount(csv, DELIM)+2;
+  }
+
+  dbval vals[cols+1];
+  int col= dbvalsfromline(vals, cols+1, t, csv, delim);
+  if (col<=1) return -1;
+
+  col--;
+  addarena(t->data, vals, sizeof(dbval)*col);
+
   // first row?
   // assume it's header if not defined
   if (!t->cols) t->cols= col;
 
-  // fill with nulls till t->col
-  v= mknull();
+  // fill with nulls if needed
+  dbval v= mknull();
   for(int i=col; i<t->cols; i++)
     addarena(t->data, &v, sizeof(v));
-
+  
   t->count++;
   return 1;
 }
