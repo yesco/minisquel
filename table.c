@@ -244,33 +244,20 @@ int loadcsvtable(table* t, FILE* f) {
 }
   
 // NULL==NULL < -num < num < "bar" < "foo"
-long ncmp= 0;
+long ncmp= 0, ncmpother= 0;
 int tablecmp(table* t, dbval a, dbval b) {
   ncmp++;
-  // 10M rows numbers
-
-  // - simplified double dmp col 2 
-  // sort -2 took 412 ms
-  // sort 2 took 300 ms
-
-  // - generic compare col 2
-  // sort -2 took 459 ms
-  // sort 2 took 354 ms 
-
-  // ==> (/ 459 412.0) = 11% difference
-    
-  // - same file but only str cmp col 1
-  // sort -1 took 1718 ms
-  // sort 1 took 1721 ms
-
-  // TODO: compare using "sorted interned strings
-
-  // - Using same table but storing all cols
-  // 2038 ms (str) vs 628 ms (num)
-
-  // return (a.d>b.d)-(b.d>a.d);
-  
+  // 1% faster with it here for sort!
   if (a.l==b.l) return 0;
+
+  // cheaper do it than test in advance
+  //   468 ms instead of 3400 ms!
+  int ra= (a.d>b.d);
+  int rb= (b.d>a.d);
+  //printf("\t\t\t(%lg %lg => %d %d => %d) =>\n", a.d, b.d, ra, rb, ra-rb);
+  if (ra!=rb) return ra-rb;
+  ncmpother++;
+  
   long la= is53(a.d), lb= is53(b.d);
   // ordered! comparable as -la and -lb
   if (la<0 && lb<0) return (lb>la)-(la>lb);
@@ -286,7 +273,9 @@ int tablecmp(table* t, dbval a, dbval b) {
   }
   if (isnull(a)) return -1;
   if (isnull(b)) return +1;
+  // this sorts all types!
   if ((!!la != !!lb)) return (la>lb)-(lb>la);
+  error("shouldn't end up here!");
   return (a.d>b.d)-(b.d>a.d);
 }
 
@@ -392,7 +381,7 @@ void dotable(char* name, int col) {
   tablesort(t, col, NULL);
   printtable(t, details);
   fclose(f);
-  printf("ms lol ncmp=%ld\n", ncmp);
+  printf("ms lol ncmp=%ld ncmpother=%ld\n", ncmp, ncmpother);
 }
 
 void tabletest() {
@@ -454,8 +443,6 @@ void dbtypetest() {
   printf("---MIXED\n");
   printf("ns %d (-1)\n", tablecmp(t, mknum(3), tablemkstr(t, "bar")));
   printf("sn %d (+1)\n", tablecmp(t, tablemkstr(t, "bar"), mknum(3)));
-
-  exit(0);
 }
 
 
@@ -470,7 +457,6 @@ int main(int argc, char** argv) {
     dotable(argv[1], col);
     exit(0);
   }
-
+  dbtypetest();
   tabletest(); exit(0);
-  dbtypetest(); exit(0);
 }
