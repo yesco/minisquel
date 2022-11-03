@@ -179,7 +179,7 @@ dbval tablemkstr(table* t, char* s) {
   chs &= maskforchs;
   
   if (debug) {
-    printf("INF= %16lx  %.1f\n", LINF_MASK, LINF_MASK);
+    printf("INF= %16lx  %lu\n", LINF_MASK, LINF_MASK);
     printf("CHS= %16lx\n", maskforchs);
     printf("chs= %16lx  %.1f\n", chs, log2f(chs)/log2f(2));
     printf("i  = %16lx  %.1f\n", i, log2f(i)/log2f(2));
@@ -277,6 +277,27 @@ int dbvalsfromline(dbval* vals, int n, table* t, char* csv, char delim) {
   return col;
 }
 
+// - fil10M.csv
+// 41 427 ms ./run 'sel...from..where 1=0'
+//
+// 19 500 ms loading all into memory
+//= 1 000 ms to store in memory)
+// 18 426 ms LOAD + PARSE
+//=15 000 ms PARSE
+//= 2 804 ms LOAD without storing
+//  2 239 ms LOAD _csvgetline (no insert)
+//    856 ms LOAD _getline (no insert)
+
+//    360 ms DuckDB - LOL!
+//    539 ms .output /dev/null "hmid'
+//   1500 ms .   "      "       "*"
+//
+// LOAD: 2.3s (_getline is 856)
+//  - problem: \n in quoted value
+// PARSE: 15s
+// STORE:  1s
+//----------- TOTAL: 18s
+
 long tableaddline(table* t, char* csv, char delim) {
   if (!t || !csv) return -1;
 
@@ -306,6 +327,26 @@ long tableaddline(table* t, char* csv, char delim) {
   t->count++;
   return 1;
 }
+
+long dbread(FILE* f, table* t, dbval action(dbval,void*), void* data) {
+  char *line= NULL, delim= 0;
+  size_t len= 0;
+  ssize_t n= 0;
+  long r= 0;
+  while((n= getline(&line, &len, f))!=EOF) {
+    r+= n;
+    if (!line || !*line) continue;
+    if (delim) delim= decidedelim(line);
+
+    char str[len];
+    char* cur= line;
+    while(!isend(action(dbreadCSV(
+      t, &cur, str, len, delim), data)));
+  }
+  free(line);
+  return 1;
+}
+
 
 // 3x slower without storing rows
 int loadcsvtable_csvgetline(table* t, FILE* f) {
@@ -361,9 +402,10 @@ int loadcsvtable(table* t, FILE* f) {
   else return loadcsvtable_getline(t, f);
 }
   
-// NULL==NULL < -num < num < "bar" < "foo"
 long ncmp= 0, ncmpother= 0;
 long ncmptab= 0, ncmptabmiss= 0;
+
+// NULL==NULL < -num < num < "bar" < "foo"
 int tablecmp(table* t, dbval a, dbval b) {
   ncmp++;
   // 1% faster with it here for sort!
@@ -529,6 +571,18 @@ long printtable(table* t, int details) {
 }
 
 
+typedef struct printerdata {
+  table* t;
+  long n;
+} printerdata;
+
+dbval printer(dbval v, printerdata* data) {
+  return v;
+  data->n++;
+  dbprint(data->t, v, 8);
+  return v;
+}
+
 // 5x faster than index.c (create index)!
 // and using less mem.
 void dotable(char* name, int col) {
@@ -537,6 +591,16 @@ void dotable(char* name, int col) {
   int details= debug?+100:0;
 
   FILE* f= fopen(name, "r");
+
+  struct printerdata {
+    table* t;
+    long n;
+  } data = {newtable(name, 0,0,NULL), 0};
+
+  dbread(f, data.t, (void*)printer, &data);
+
+  exit(0);
+
   table* t= newtable(name, 0, 0, NULL);
   //table* t= newtable(name, 0, 3, NULL);
   loadcsvtable(t, f);
