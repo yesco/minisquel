@@ -27,7 +27,7 @@ SQL> select 3+4*2
 ======= 
      11
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 3+x, x+3
@@ -169,7 +169,7 @@ i	i*i
       9	     81
      10	    100
 
-5 rows in 0 ms (read 0 lines)
+5 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42 where 1=1 and 1=2
@@ -298,7 +298,7 @@ c5
 ======= 
 arfie
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [9 malloc 0 free (leak +9) 43 bytes]
 
 SQL> select left(right(concat("foo", "bar", "fie"), 6),4)
@@ -348,7 +348,7 @@ foo	sum(f..
       1	      9
       1	     10
 
-10 rows in 0 ms (read 0 lines)
+10 rows in 1 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> select count(i), sum(i), min(i), avg(i), max(i), stdev(i) from int(1,10) i
@@ -365,7 +365,7 @@ count..	sum(i)	min(i)	avg(i)	max(i)	stdev..
       9	     45	      1	      5	      9	2.738613
      10	     55	      1	    5.5	     10	3.02765
 
-10 rows in 0 ms (read 0 lines)
+10 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42 as foo,null,1234567890,i+333333333 from int(1,3) as i
@@ -375,7 +375,7 @@ foo	null	12345..	i+333..
      42	NULL	1.235e9	NULL
      42	NULL	1.235e9	NULL
 
-3 rows in 0 ms (read 0 lines)
+3 rows in 1 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> select ta.a, tb.a from foo.csv ta, foo.csv tb where ta.a=tb.a
@@ -388,7 +388,7 @@ ta.a	tb.a
       5	      5
       6	      6
 
-6 rows in 1 ms (read 49 lines)
+6 rows in 2 ms (read 49 lines)
 [63 malloc 70 free (leak -7) 29015 bytes]
 
 before
@@ -406,7 +406,7 @@ i	j	i*j
       9	      9	     81
      10	     10	    100
 
-10 rows in 1 ms (read 0 lines)
+10 rows in 4 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1, foo.csv t2 where t1.a=t2.a
@@ -419,7 +419,7 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 1 ms (read 49 lines)
+6 rows in 2 ms (read 49 lines)
 [63 malloc 70 free (leak -7) 29015 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
@@ -432,7 +432,7 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 0 ms (read 14 lines)
+6 rows in 1 ms (read 14 lines)
 [29 malloc 30 free (leak -1) 8381 bytes]
 
 SQL> select name from "ls Test/*.csv|"(name) file
@@ -444,9 +444,10 @@ Test/foo.csv
 Test/happy.csv
 Test/manynls.csv
 Test/nl.csv
+Test/null.csv
 
-6 rows in 0 ms (read 7 lines)
-[11 malloc 11 free (leak +0) 4229 bytes]
+7 rows in 1 ms (read 8 lines)
+[12 malloc 12 free (leak +0) 4243 bytes]
 
 SQL> select i from one2ten ten
 i
@@ -462,7 +463,7 @@ i
       9
      10
 
-10 rows in 1 ms (read 11 lines)
+10 rows in 0 ms (read 11 lines)
 [6 malloc 7 free (leak -1) 4177 bytes]
 
 SQL> select i from one2ten.sql ten
@@ -515,7 +516,7 @@ Bytes: 96
 
 SQL> set @a=42
 
--1 rows in 0 ms (read 0 lines)
+-1 rows in 1 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 3 bytes]
 
 SQL> select @a
@@ -536,7 +537,7 @@ SQL> select #a
 ======= 
      42
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> create view foo as "ls -1|"
@@ -562,7 +563,7 @@ name	type	params	select	impl
 ======= ======= ======= ======= ======= 
 foo	view	NULL	      0	"ls -1|"
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [1 malloc 0 free (leak +1) 4 bytes]
 
 SQL> CREATE VIEW bar AS SELECT 42
@@ -717,7 +718,7 @@ count..	count..	count()
      10	      9	     99
      10	     10	    100
 
-100 rows in 2 ms (read 0 lines)
+100 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where
@@ -766,7 +767,7 @@ affec
 bondi
 exerc
 
-100535 rows in 1311 ms (read 100536 lines)
+100535 rows in 1276 ms (read 100536 lines)
 [617339 malloc 516805 free (leak +100534) 21382603 bytes]
 
 SQL> select a,b,c,d,e from null n
@@ -774,7 +775,7 @@ a	b	c	d	e
 ======= ======= ======= ======= ======= 
 NULL	NULL	N	NULL	      0
 
-1 rows in 1 ms (read 2 lines)
+1 rows in 0 ms (read 2 lines)
 [5 malloc 6 free (leak -1) 4117 bytes]
 
 ^^^^^^^^^^ BUGS ^^^^^^^^^^^
