@@ -236,7 +236,7 @@ int matchvars(char* table, char* match) {
   for(int i=0; i<=varcount; i++) {
     printf("\t\t- %s.%s\n", tablenames[i], varnames[i]);
     if ((!table || 0==strcmp(table, tablenames[i]))
-	&&  like(varnames[i], match)) {
+	&&  like(varnames[i], match, 0)) {
       n++;
       printf("\tMATCH: %s.%s\n", table, varnames[i]);
     }

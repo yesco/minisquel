@@ -98,6 +98,13 @@ b
 ./sql 'create view foo as "ls -1|"' 'select name, type, params, select, impl from $view bar where bar.name="foo"'
 ./sql 'CREATE VIEW bar AS SELECT 42' 'select name, type, params, select, impl from $view bar'
 
+# --- like operator
+./sql 'select "matches" where "foo" like "%o"'
+./sql 'select "matches" where "foo" like "o%"'
+./sql 'select "matches" where "foo" like "%x"'
+./sql 'select "matches" where "foo" like "%oo"'
+./sql 'select "matches" where "foofoba" like "f%f%a"'
+
 echo "========== BUGS ==========="
 ./test-bugs
 echo "^^^^^^^^^^ BUGS ^^^^^^^^^^^"

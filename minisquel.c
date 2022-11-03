@@ -8,6 +8,12 @@
 #include "malloc-count.c"
 //#include "malloc-simple.c"
 
+// global state "external"
+
+int stats= 1, debug= 0, security= 0;
+
+
+
 #include "utils.c"
 
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
@@ -36,10 +42,10 @@ long lineno= -2, readrows= 0, nfiles= 0;
 
 // -- Options
 
-int stats= 1, debug= 0, batch= 0, force= 0;
+int batch= 0, force= 0;
 int verbose= 0, interactive= 1;
 
-int globalecho= 1, echo= 1, security= 0;
+int globalecho= 1, echo= 1;
 
 char globalformat[30]= {0};
 char format[30]= {0};
@@ -476,6 +482,7 @@ int comparator(char cmp[NAMELEN]) {
   spcs();
   // TODO: not prefix?
   if (got("like")) { strcpy(cmp, "like"); return 1; }
+  if (got("ilike")) { strcpy(cmp, "ilike"); return 1; }
   if (got("in")) { strcpy(cmp, "in"); return 1; }
   // TODO: (not) between...and...
   //   is (not)
@@ -501,8 +508,8 @@ int dcmp(char* cmp, double a, double b) {
   case TWO('i', 'n'): expected("not implemented in");
     // lol
 
-  case TWO('i','l'):  // ilike
-  case TWO('l', 'i'): // like
+  case TWO('i','l'):  // ilike, like
+  case TWO('l','i'):
   case '=':
   case TWO('~','='):
   case TWO('=','='): return eq;
@@ -529,9 +536,8 @@ int scmp(char* cmp, char* a, char* b) {
   switch (TWO(cmp[0], cmp[1])) {
   case TWO('i', 'n'): expected("not implemented in");
 
-  case TWO('i','l'): // ilike
-  case TWO('l', 'i'): // like
-    return 0; // expected("implement like");
+  case TWO('i','l'): return like(a, b, 1);
+  case TWO('l','i'): return like(a, b, 0);
     
   case TWO('~','='): return !strcasecmp(a, b);
 
@@ -564,14 +570,16 @@ int comparison() {
   if (!comparator(op) || !expr(&b))
     expected("comparison");
 
+  int r= LFALSE;
   if (!a.not_null || !b.not_null)
-    return LFALSE;
-  if (a.s && b.s)
-    return scmp(op, a.s, b.s)?LTRUE:LFALSE;
-  else if (!a.s && !b.s)
-    return dcmp(op, a.d, b.d)?LTRUE:LFALSE;
-  else
-    return LFALSE;
+    r= LFALSE;
+  if (a.s && b.s) {
+    r= scmp(op, a.s, b.s)?LTRUE:LFALSE;
+  } else if (!a.s && !b.s)
+    r= dcmp(op, a.d, b.d)?LTRUE:LFALSE;
+
+  clearval(&a); clearval(&b);
+  return r;
 }
 
 int logical();

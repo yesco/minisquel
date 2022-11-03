@@ -53,25 +53,47 @@ char* strdupncat(char* s, int n, char* add) {
     add?add:"", l);
 }
 
-// SQL LIKE function implementation
-int like(char* s, char* match) {
-  printf("\t\tlike '%s' '%s'\n", s, match);
+long nlike= 0, nlike_last= 0;
+
+int like_hlp(char* s, char* match, int ilike) {
+  nlike_last++;
+  if (debug>2) printf("\t\tlike '%s' '%s'\n", s, match);
   if (!s || !match) return 0;
-  if (!*match) return 1; // ?
-  if (!*s && strchr("%*", *match))
-    return !match[1];
-  // actual matching
-  if (*s==*match || strchr("?_", *match))
-    return like(s+1, match+1);
-  if (strchr("%*", *match))
-    return like(s+1, match)
-      ||   like(s, match+1);
+  char c= *s, m= *match;
+  if (!m) return !c;
+  if (!c && *match && strchr("%*", m))
+    return !match[1]; // '*' in last pos!
+  if (ilike) {c=toupper(c);m=toupper(m);}
+  if (c==m || strchr("?_", m))
+    return like_hlp(s+1, match+1, ilike); // eq
+  if (strchr("%*", m)) {
+    if (!match[1]) return 1;
+    if (1) {
+      // fast non-stack-deep '*'
+      char* sp= s;
+      while(*sp)
+	if (like_hlp(sp++, match+1, ilike)) return 1;
+      return 0;
+    } else {
+      // exhausts stack...
+      return like_hlp(s, match+1, ilike)
+	||   like_hlp(s+1, match, ilike);
+    }
+  }
   // fail
   return 0;
 }
 
-
-
+// SQL LIKE function implementation
+int like(char* s, char* match, int ilike) {
+  nlike++;
+  nlike_last= 0;
+  int r= like_hlp(s, match, ilike);
+  if (debug || nlike_last>100000) {
+    printf("\n{ nlike=%ld nlike_last=%ld '%s' '%s' }\n", nlike, nlike_last, s, match);
+  }
+  return r;
+}
 
 // -- Error handling/fatal, exit
 
