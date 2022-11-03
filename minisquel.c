@@ -248,8 +248,14 @@ int call(val* r, char* name) {
   if (parse_only) return 1;
   // caller cleans up in C, so this is safe!
   int rv= ((int(*)(val*,int,val[],val*,val*))f->f)(r, pcount, params, params+1, params+2);
+  // cleanup
+  for(int i=0; i<pcount; i++)
+    clearval(&params[i]);
+
+  // done
   if (rv>0) return 1;
-  // wrong set of parameters
+
+  // - wrong set of parameters
   char msg[NAMELEN];
   sprintf(msg, "%d parameters, got %d", -rv, pcount);
   expected2(name, msg);
