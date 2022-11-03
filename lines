@@ -1,4 +1,4 @@
-FILES="minisquel.c index.c utils.c funs.c malloc-count.c csv.c"
-scc --by-file $FILES
+FILES="minisquel.c vals.c index.c utils.c funs.c malloc-count.c csv.c"
+scc -s name --by-file $FILES
 echo "./wcode <same files>                `(./wcode $FILES | tr "\n" "+" ; echo "0") | bc -l`"
 

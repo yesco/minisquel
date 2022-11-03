@@ -53,6 +53,25 @@ char* strdupncat(char* s, int n, char* add) {
     add?add:"", l);
 }
 
+// SQL LIKE function implementation
+int like(char* s, char* match) {
+  printf("\t\tlike '%s' '%s'\n", s, match);
+  if (!s || !match) return 0;
+  if (!*match) return 1; // ?
+  if (!*s && strchr("%*", *match))
+    return !match[1];
+  // actual matching
+  if (*s==*match || strchr("?_", *match))
+    return like(s+1, match+1);
+  if (strchr("%*", *match))
+    return like(s+1, match)
+      ||   like(s, match+1);
+  // fail
+  return 0;
+}
+
+
+
 
 // -- Error handling/fatal, exit
 
