@@ -1470,7 +1470,7 @@ void runquery(char* cmd) {
   // TODO: clean stats!
 
   // TODO: catch/report parse errors
-  if (r!=1) printf("\n%%result=%d\n", r);
+  if (r!=1) printf("\n%% Couldn't parse that\n");
 
   // TODO: print leftover
   //if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
@@ -1675,6 +1675,7 @@ void print_at_error(char* msg, char* param) {
 
 void bang() {
   printf("%% SIGFAULT, or something...\n\n");
+  install_signalhandlers(bang);
   
   if (interactive) {
     printf("%% Stacktrace? (Y/n/d/q) >"); fflush(stdout);
@@ -1686,10 +1687,9 @@ void bang() {
     case 'y':
     default:  print_stacktrace(); break;
     }
-    install_signalhandlers(bang);
     process_file(stdin, 1);
-  } else
-    exit(77);
+  }
+  //else exit(77);
 }
 
 int main(int argc, char** argv) {
@@ -1708,7 +1708,6 @@ int main(int argc, char** argv) {
     n= process_arg(argv[0], argv[1]);
 
   if (!batch) install_signalhandlers(bang);
-
   if (interactive) process_file(stdin, 1);
 
   return 0;

@@ -57,7 +57,7 @@ long nlike= 0, nlike_last= 0;
 
 int like_hlp(char* s, char* match, int ilike) {
   nlike_last++;
-  if (debug>2) printf("\t\tlike '%s' '%s'\n", s, match);
+  if (debug>4) printf("\t\tlike '%s' '%s'\n", s, match);
   if (!s || !match) return 0;
   char c= *s, m= *match;
   if (!m) return !c;
@@ -89,7 +89,7 @@ int like(char* s, char* match, int ilike) {
   nlike++;
   nlike_last= 0;
   int r= like_hlp(s, match, ilike);
-  if (debug || nlike_last>100000) {
+  if (debug>3 || nlike_last>100000) {
     printf("\n{ nlike=%ld nlike_last=%ld '%s' '%s' }\n", nlike, nlike_last, s, match);
   }
   return r;
@@ -124,6 +124,12 @@ void print_stacktrace() {
   }
 }
  
+void debugger() {
+  char cmd[100]= {};
+  snprintf(cmd, sizeof(cmd), "gdb -p %d -iex 'set pagination off' -n -ex thread -ex where", getpid());
+  system(cmd);
+}
+
 // - https://stackoverflow.com/questions/4636456/how-to-get-a-stack-trace-for-c-using-gcc-with-line-number-information/4732119#4732119
 void (*when_things_go_bang)()= NULL;
 
@@ -154,13 +160,9 @@ void error(char* msg) {
   if (when_things_go_bang)
     when_things_go_bang();
   // else print_stacktrace();
+  //char* null= NULL; *null= 42;
+  // TODO: longjmp!
   exit(1);
-}
-
-void debugger() {
-  char cmd[100]= {};
-  snprintf(cmd, sizeof(cmd), "gdb -p %d -iex 'set pagination off' -n -ex thread -ex where", getpid());
-  system(cmd);
 }
 
 void expected2(char* msg, char* param) {
@@ -172,6 +174,7 @@ void expected2(char* msg, char* param) {
   if (when_things_go_bang)
     when_things_go_bang();
   //else print_stacktrace();
+  //char* null= NULL; *null= 42;
   exit(1);
 }
 
