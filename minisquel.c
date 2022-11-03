@@ -379,6 +379,7 @@ int getname(char name[NAMELEN]) {
     *p++= *ps;
     ps++;
   }
+  *p= 0;
   return p!=&name[0];
 }
 
@@ -387,11 +388,12 @@ void expectname(char name[NAMELEN], char* msg) {
   expected(msg? msg: "name");
 }
 
-// allow: foo or "foo" 
+// allow: foo or "foo" but not 'foo'
 // TODO: foo/bar
 void expectsymbol(char name[NAMELEN], char* msg) {
   char* s= NULL;
-  if (str(&s)) {
+  spcs();
+  if (*ps=='"' && str(&s)) {
     strncpy(name, s, NAMELEN);
   } else {
     expectname(name, "unkown from-iterator");
@@ -547,10 +549,70 @@ int expr(val* v) {
   return 1;
 }
 
-// TODO: configurable action/resultF
-// TODO: mix eval/print(val+header) a bit ugly
-// returns end pointer
+char* print_header(char* e) {
+  char* old_ps= ps;
+  ps= e;
+  
+  int delim= formatdelim();
+  int col= 0;
+  val v= {};
+  do {
+    // TODO: SELECT *, tab.*
+
+    spcs();
+    char* start= ps;
+    if (expr(&v)) {
+      if (col) putchar(abs(delim));
+      col++;
+    } else expected("expression");
+
+    char name[NAMELEN]= {0};
+
+    // select 42 AS foo
+    if (got("as")) expectsymbol(name, NULL);
+    
+    if (!name[0]) {
+      // make a name from expr
+      if (delim!='\t') {
+	// use whole
+	strncpy(name, start, ps-start);
+      } else {
+	// truncate - make 7 char wide
+	size_t end= strcspn(start, " ,;");
+	if (!end) end= 20;
+	strncpy(name, start, end);
+	if (end>7) strcpy(name+5, "..");
+      }
+      // remove trailing spaces - lol
+      while (name[0] && name[strlen(name)-1]==' ' ) name[strlen(name)-1]= 0;
+    }
+
+    fprintquoted(stdout, name, delim==','?'\"':0, delim);
+
+  } while(gotc(','));
+  putchar('\n');
+
+  // To distinguish if print/noprint
+  lineno++; // haha!
+
+  // pretty underline header
+  if (abs(delim)=='|')
+    printf("==============\n");
+  else if (abs(delim)=='\t') {
+    for(int i=col; i; i--)
+      printf("======= ");
+    putchar('\n');
+  }
+
+  e= ps;
+  ps= old_ps;
+  return e;
+}
+
+// returns end pointer so can skip!
 char* print_expr_list(char* e) {
+  if (parse_only) return print_header(e);
+
   char* old_ps= ps;
   ps= e;
   
@@ -566,7 +628,7 @@ char* print_expr_list(char* e) {
     if (expr(&v)) {
       if (col) putchar(abs(delim));
       col++;
-      if (!parse_only) printval(&v, delim==','?'\"':0, delim);
+      printval(&v, delim==','?'\"':0, delim);
     } else expected("expression");
 
     // set column name as 1,2,3...
@@ -575,48 +637,11 @@ char* print_expr_list(char* e) {
     // select 42 AS foo
     if (got("as")) {
       expectname(name, NULL);
-      if (!parse_only) setvar(NULL, name, &v);
-      // TODO: "header" print state?
-    } else {
-      // TODO: this gives error???? why?
-      // - double dealloc?
-      //
-      //sprintf(name, "%d", col);
-      // TODO: link name? (not copy!)
-      // TODO: can we use same val below?
-      // the string will be used twice!
-
-      //if (!parse_only) setvar(NULL, name, &v);
-      //ZERO(name);
-    }
-
-    // use name, or find header name
-    // TODO: move out?
-    if (parse_only) {
-      if (!name[0]) {
-	// make a nmae from expr
-	size_t end= strcspn(start, " ,;");
-	if (!end) end= 20;
-	strncpy(name, start, end);
-	if (end>7) strcpy(name+5, "..");
-      }
-
-      fprintquoted(stdout, name, delim==','?'\"':0, delim);
+      setvar(NULL, name, &v);
     }
   } while(gotc(','));
   putchar('\n');
-
-  // pretty header
-  if (parse_only) {
-    if (abs(delim)=='|')
-      printf("==============\n");
-    else if (abs(delim)=='\t') {
-      for(int i=col; i; i--)
-	printf("======= ");
-      putchar('\n');
-    }
-  }
-
+  
   lineno++;
   
   e= ps;
