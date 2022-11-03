@@ -1342,6 +1342,14 @@ int from_list(char* selexpr, int is_join) {
   char spec[NAMELEN]= {0};
   expectsymbol(spec, "unknow from-iterator");
 
+  // TODO: how to do fulltest search/filter
+  //   like sqlite3 MATCH?
+  //   - https://www.sqlite.org/fts5.html
+  //   - https://www.ibm.com/docs/en/db2/11.1?topic=indexes-full-text-search-methods
+  //  my thinking, "and grep it!"
+  // FROM  "foo.csv" MATCH "+must +have" ftab
+  // FROM GREP("mail.csv" from:jsk subject:fish) myfish
+  
   // dispatch to named iterator
   if (0==strcmp("$view", spec)) {
     char table[NAMELEN]= {0};
