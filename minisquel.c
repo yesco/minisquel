@@ -24,7 +24,7 @@ char *query=NULL, *ps= NULL;
 long foffset= 0;
 
 // stats
-long lineno= 0, readrows= 0, nfiles= 0;
+long lineno= -2, readrows= 0, nfiles= 0;
 
 // TODO: generalize output formats:
 //
@@ -379,7 +379,7 @@ int getval(char* table, char* name, val* v) {
   // special names
   if (*name=='$') {
     if (0==strcmp("$lineno", name)) {
-      v->d= lineno;
+      v->d= lineno+1;
       v->not_null= 1;
       return 1;
     }
@@ -610,7 +610,7 @@ char* print_header(char* e) {
       //   not known until got first row!
       matchvars(NULL,name);
     } else if (expr(&v)) {
-      if (col) putchar(abs(delim));
+      if (col && parse_only<0) putchar(abs(delim));
       col++;
     } else expected("expression");
 
@@ -633,21 +633,24 @@ char* print_header(char* e) {
       while (name[0] && name[strlen(name)-1]==' ' ) name[strlen(name)-1]= 0;
     }
 
-    fprintquoted(stdout, name, delim==','?'\"':0, delim);
+    if (parse_only<0)
+      fprintquoted(stdout, name, delim==','?'\"':0, delim);
 
   } while(gotc(','));
-  putchar('\n');
+  if (parse_only<0) putchar('\n');
 
   // To distinguish if print/noprint
   lineno++; // haha!
 
   // pretty underline header
-  if (abs(delim)=='|')
-    printf("==============\n");
-  else if (abs(delim)=='\t') {
-    for(int i=col; i; i--)
-      printf("======= ");
-    putchar('\n');
+  if (parse_only<0) {
+    if (abs(delim)=='|')
+      printf("==============\n");
+    else if (abs(delim)=='\t') {
+      for(int i=col; i; i--)
+	printf("======= ");
+      putchar('\n');
+    }
   }
 
   e= ps;
@@ -657,7 +660,14 @@ char* print_header(char* e) {
 
 // returns end pointer so can skip!
 char* print_expr_list(char* e) {
-  if (parse_only) return print_header(e);
+  //if (parse_only) return print_header(e);
+  if (lineno<0) {
+    int saved= parse_only;
+    if (!parse_only) parse_only= -1;
+    char* x= print_header(e);
+    parse_only= saved;
+    if (lineno<0) return x;
+  }
 
   char* old_ps= ps;
   ps= e;
@@ -951,7 +961,7 @@ int VIEW(char* table, char* selexpr) {
   linkval(table, "impl", &impl);
 
   dbobj* l= objs;
-  lineno= 0;
+  lineno= -2;
   while(l) {
     lineno++;
 
@@ -1681,9 +1691,12 @@ void runquery(char* cmd) {
   int r= sql();
   ms= timems()-ms;
   
-  if (stats) {
+  // lineno= -2 when starts
+  // lineno= 0 when printed printed header just beore printint one row
+  // if no rows, no header printed so -1
+  if (stats && lineno >= -1) {
     //if (lineno-1 >= 0)
-      printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno-1, ms, readrows);
+    printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno<0 ? 0 : lineno, ms, readrows);
     fprintmallocs(stdout);
   }
 

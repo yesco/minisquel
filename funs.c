@@ -166,7 +166,7 @@ int count(val* r, int n, val* a) {
   r->not_null= 1;
   if (n==0) {
     // select count() == count(*)
-    r->d= lineno;
+    r->d= lineno+1;
   } else if (n==1) {
     agg_check("count", r, a);
     r->d= a->n + a->nstr;
