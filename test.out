@@ -19,7 +19,7 @@ SQL> select 42
 ======= 
      42
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 3+4*2
@@ -47,7 +47,7 @@ $lineno	i
       4	      4
       5	      5
 
-5 rows in 1 ms (read 0 lines)
+5 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select i,+3, 1/3 from int(1,5) i
@@ -86,7 +86,7 @@ fish
 5 F
 6 g
 
-7 rows in 1 ms (read 8 lines)
+7 rows in 0 ms (read 8 lines)
 [11 malloc 11 free (leak +0) 4149 bytes]
 
 SQL> select 12345, 123456, 1234567, 12345678, 123456789
@@ -102,7 +102,7 @@ SQL> select 0.1, 0.02, 0.003, 0.0004, 0.00005, 1.2e5 , 1.2e5, 9.9e99, 9.9e100, 1
 ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= 
     0.1	   0.02	  0.003	 0.0004	  5e-05	 120000	 120000	9.9e+99	9.9e+100	 120000	      3
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 == negatives, can be improved
@@ -111,7 +111,7 @@ SQL> select -12345, -123456, -1234567, -12345678, -123456789
 ======= ======= ======= ======= ======= 
 -1.2e+04	-1.2e+05	-1.2e+06	-1.2e+07	-1.2e+08
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select -0.1, -0.02, -0.003, -0.0004, -0.00005, -1.2e5 , -1.2e5, -9.9e99, -9.9e100, -1.2e5, -3
@@ -119,7 +119,7 @@ SQL> select -0.1, -0.02, -0.003, -0.0004, -0.00005, -1.2e5 , -1.2e5, -9.9e99, -9
 ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= 
    -0.1	  -0.02	 -0.003	-0.0004	 -5e-05	-1.2e+05	-1.2e+05	-9.9e+99	-9.9e+100	-1.2e+05	     -3
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42, "foo"
@@ -186,7 +186,7 @@ SQL> select 42 where not(1=1 and 2=1)
 ======= 
      42
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42 where not(1=1 and 1=2)
@@ -266,7 +266,7 @@ f	F	lower..
 ======= ======= ======= 
 NULL	NULL	NULL
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [2 malloc 0 free (leak +2) 4 bytes]
 
 SQL> select "A" as f, char(ascii(lower(f)))
@@ -282,7 +282,7 @@ ccc
 ======= 
 foobarfie
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [11 malloc 10 free (leak +1) 50 bytes]
 
 SQL> select concat(null, "foo", 42, "bar")
@@ -290,7 +290,7 @@ conca..
 ======= 
 foo42bar
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [7 malloc 7 free (leak +0) 33 bytes]
 
 SQL> select concat(null, "foo", 12345678901234567890, "bar")
@@ -314,7 +314,7 @@ c5
 ======= 
 arfie
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [12 malloc 11 free (leak +1) 55 bytes]
 
 SQL> select left(right(concat("foo", "bar", "fie"), 6),4)
@@ -339,7 +339,7 @@ count..
       9
      10
 
-10 rows in 1 ms (read 0 lines)
+10 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select type(NULL) as tnull, type(foo) as tstr, type(3.3) as tnumber, type(3) as tint
@@ -422,7 +422,7 @@ i	j	i*j
       9	      9	     81
      10	     10	    100
 
-10 rows in 1 ms (read 0 lines)
+10 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1, foo.csv t2 where t1.a=t2.a
@@ -435,7 +435,7 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 2 ms (read 49 lines)
+6 rows in 1 ms (read 49 lines)
 [63 malloc 70 free (leak -7) 29015 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
@@ -448,7 +448,7 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 2 ms (read 14 lines)
+6 rows in 0 ms (read 14 lines)
 [29 malloc 30 free (leak -1) 8381 bytes]
 
 SQL> select name from "ls Test/*.csv|"(name) file
@@ -462,7 +462,7 @@ Test/manynls.csv
 Test/nl.csv
 Test/null.csv
 
-7 rows in 0 ms (read 8 lines)
+7 rows in 1 ms (read 8 lines)
 [12 malloc 12 free (leak +0) 4243 bytes]
 
 SQL> select i from one2ten ten
@@ -565,7 +565,7 @@ name	type	params	select	impl
 foo	view	NULL	      0	"ls -1|"
 
 1 rows in 0 ms (read 0 lines)
-[1 malloc 0 free (leak +1) 4 bytes]
+[1 malloc 1 free (leak +0) 4 bytes]
 
 SQL> CREATE VIEW bar AS SELECT 42
 
@@ -576,6 +576,40 @@ bar	view	NULL	      1	SELECT 42
 
 1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> select "matches" where "foo" like "%o"
+"matc..
+======= 
+matches
+
+1 rows in 0 ms (read 0 lines)
+[5 malloc 5 free (leak +0) 31 bytes]
+
+SQL> select "matches" where "foo" like "o%"
+
+0 rows in 0 ms (read 0 lines)
+[3 malloc 3 free (leak +0) 15 bytes]
+
+SQL> select "matches" where "foo" like "%x"
+
+0 rows in 0 ms (read 0 lines)
+[3 malloc 3 free (leak +0) 15 bytes]
+
+SQL> select "matches" where "foo" like "%oo"
+"matc..
+======= 
+matches
+
+1 rows in 1 ms (read 0 lines)
+[5 malloc 5 free (leak +0) 32 bytes]
+
+SQL> select "matches" where "foofoba" like "f%f%a"
+"matc..
+======= 
+matches
+
+1 rows in 0 ms (read 0 lines)
+[5 malloc 5 free (leak +0) 38 bytes]
 
 ========== BUGS ===========
 SQL> select 42 where (1)=1
@@ -647,7 +681,7 @@ SQL> select 42, 1e-9, 99
 ======= ======= ======= 
      42	     -9	     99
 
-1 rows in 1 ms (read 0 lines)
+1 rows in 0 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select count(i), count(j), count() from int(1,10) i, int(1,10) j
@@ -754,7 +788,7 @@ count..	count..	count()
      10	      9	     99
      10	     10	    100
 
-100 rows in 2 ms (read 0 lines)
+100 rows in 4 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where
@@ -803,7 +837,7 @@ affec
 bondi
 exerc
 
-100535 rows in 1282 ms (read 100536 lines)
+100535 rows in 1265 ms (read 100536 lines)
 [617339 malloc 617340 free (leak -1) 21382603 bytes]
 
 SQL> select a,b,c,d,e from null n
@@ -811,7 +845,7 @@ a	b	c	d	e
 ======= ======= ======= ======= ======= 
 NULL	NULL	N	NULL	      0
 
-1 rows in 0 ms (read 2 lines)
+1 rows in 1 ms (read 2 lines)
 [5 malloc 6 free (leak -1) 4117 bytes]
 
 ^^^^^^^^^^ BUGS ^^^^^^^^^^^

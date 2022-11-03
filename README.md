@@ -111,15 +111,25 @@ This means we have limited subqueries at least in the FROM clause.
 - opening/close same file 100,000 times (in nested loop) almost no overhead!
 
 ## Current Features
+- less memory leaks! LOL
+- LIKE and ILIKE operators added
+- operators
+      !> < <= = ~= == <> != => > !<
+      like ilike
+      and or not
+
+      NOTE: = and ~= are equals 1e-9 relative difference.
+            or for strings: case indiffernt =
+      NOTE: == is c == (for double)
+- rudimentary automatic build of in-memory index 16B/entry
+- LIMITED: tab JOIN tab ON col - speedup is from 30h to 5s! using index on cross-join which becomes nested loop index lookup. 2s is scanning the two (same) tables and building the index ("zero" time)
 - row by row processing
-- cross-product join
+- cross-product join (slow)
 - refer to columns by col or table.col
 - table names can be quoted (getsymbol)
 - plain-text CSV/TAB-file querying
 - SET @varible = 3+4*7
 - variables can/should be '@var'
-- rudimentary automatic build of in-memory index 16B/entry
-- LIMITED: tab JOIN tab ON col - speedup is from 30h to 5s! using index on cross-join which becomes nested loop index lookup. 2s is scanning the two (same) tables and building the index ("zero" time)
 - undefined/not present variables are NULL
 - NULL is always null if not set, LOL ("feature")
 - double as only numeric type (print %lg)

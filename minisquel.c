@@ -510,9 +510,10 @@ int dcmp(char* cmp, double a, double b) {
 
   case TWO('i','l'):  // ilike, like
   case TWO('l','i'):
+  case TWO('=','='): return a==b;
+
   case '=':
-  case TWO('~','='):
-  case TWO('=','='): return eq;
+  case TWO('~','='): return eq;
 
   case TWO('<','>'):
   case TWO('!','='): return !eq;
