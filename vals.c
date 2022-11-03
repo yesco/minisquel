@@ -284,7 +284,13 @@ int getval(char* table, char* name, val* v) {
   }
   // lookup variables
   val* f= findvar(table, name);
-  if (f) { *v= *f; return 1; }
+  if (f) {
+    *v= *f;
+    // It doesn't own the string...
+    // (for this to be safe: copy from table)
+    v->dealloc= NULL;
+    return 1;
+  }
   // failed, null
   ZERO(*v);
   return 0;

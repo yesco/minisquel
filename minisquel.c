@@ -126,6 +126,7 @@ int num(double* d) {
 }
 
 // mallocates string to be free:d
+// if it returns true
 int str(char** s) {
   spcs();
   char q= gotcs("\"'");
@@ -184,7 +185,6 @@ void expectsymbol(char name[NAMELEN], char* msg) {
     if (ps-start >= NAMELEN)
       error("[] name too long");
     strncpy(name, start, ps-start-1);
-    printf("\n=NAME: '%s'\n", name);
   } else { // plain jane name
     expectname(name, msg);
   }
@@ -245,15 +245,20 @@ int call(val* r, char* name) {
     spcs();
     if (*ps!=')' && !gotc(',')) expected("comma");
   } 
-  if (parse_only) return 1;
-  // caller cleans up in C, so this is safe!
-  int rv= ((int(*)(val*,int,val[],val*,val*))f->f)(r, pcount, params, params+1, params+2);
+
+  int rv= 0;
+  if (!parse_only) {
+    // caller cleans up in C, so this is safe!
+    rv= ((int(*)(val*,int,val[],val*,val*))f->f)(r, pcount, params, params+1, params+2);
+
+  }
+
   // cleanup
   for(int i=0; i<pcount; i++)
     clearval(&params[i]);
 
   // done
-  if (rv>0) return 1;
+  if (parse_only || rv>0) return 1;
 
   // - wrong set of parameters
   char msg[NAMELEN];
@@ -287,6 +292,7 @@ int var(val* v) {
 
 int prim(val* v) {
   spcs();
+  char* s= NULL;
   if (gotc('(')) {
     if (!expr(v)) expected("expr");
     spcs();
@@ -294,7 +300,7 @@ int prim(val* v) {
     return 1;
   }
   if (num(&v->d)) { v->not_null= 1; return 1; }
-  if (str(&v->s)) { v->dealloc= v->s; v->not_null= 1; return 1; }
+  if (str(&s)) { setstrfree(v, s); return 1; }
   // only if has name
   if (isid(*ps) && var(v)) return 1;
   return 0;
@@ -317,13 +323,6 @@ int mult(val* v) {
   }
   return 1;
 }
-
-// Aggregators - probably not
-// - https://learn.microsoft.com/en-us/sql/t-sql/functions/aggregate-functions-transact-sql?source=recommendations&view=sql-server-ver16
-
-// TODO: functions
-// - https://learn.microsoft.com/en-us/sql/t-sql/functions/date-and-time-data-types-and-functions-transact-sql?view=sql-server-2017
-// - https://learn.microsoft.com/en-us/sql/t-sql/functions/string-functions-transact-sql?view=sql-server-2017
 
 int expr(val* v) {
   spcs();
@@ -392,6 +391,7 @@ char* print_header(char* e) {
     if (parse_only<0)
       fprintquoted(stdout, name, delim==','?'\"':0, delim);
 
+    clearval(&v);
   } while(gotc(','));
   if (parse_only<0) putchar('\n');
 
@@ -460,6 +460,8 @@ char* print_expr_list(char* e) {
       expectname(name, NULL);
       setvar(NULL, name, &v);
     }
+
+    clearval(&v);
   } while(gotc(','));
   putchar('\n');
   
