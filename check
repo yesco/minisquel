@@ -4,9 +4,9 @@ clang minisquel.c || ( echo "%% Compilation error"; exit 1) || exit 1
 
 rm -f test.diff
 
-diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new > test.diff
+diff -a -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new > test.diff
 
-(diff -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new && echo "OK - all tests passed") || {
+(diff -a -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new && echo "OK - all tests passed") || {
 diff=$?
 
 echo

@@ -20,7 +20,7 @@ int parse_only= 0;
 #define VARCOUNT 256
 #define MAXCOLS 32
 
-char* ps= NULL;
+char *query=NULL, *ps= NULL;
 long foffset= 0;
 
 // stats
@@ -58,7 +58,7 @@ char formatdelim() {
 #define ZERO(z) memset(&z, 0, sizeof(z))
 
 int parse(char* s) {
-  ps= s;
+  query= ps= s;
   return 1;
 }
 
@@ -197,8 +197,10 @@ void printval(val* v, int quot, int delim) {
   else {
     if (delim==',') {
       printf("%.15lg", v->d);
-    } else if (v->d > 0 && v->d < 1e7) {
+    } else if (v->d > 0.000001 && v->d < 1e7) {
       printf("%7.7lg", v->d);
+    } else if (delim!=',' && hprint(v->d, "")) {
+      ; // if hprint is 0 try other
     } else if (v->d > 0 && v->d < 1e10) {
       char s[NAMELEN]= {0};
       sprintf(s, "%7.4lg", v->d);
@@ -208,7 +210,7 @@ void printval(val* v, int quot, int delim) {
       printf("%s", s);
     } else {
       // TODO: negatives!
-      printf("% 7.2lg", v->d);
+      printf("%7.2lg", v->d);
     }
   }
 }
@@ -323,6 +325,37 @@ val* findvar(char* table, char* name) {
   return NULL;
 }
 
+int like(char* s, char* match) {
+  printf("\t\tlike '%s' '%s'\n", s, match);
+  if (!s || !match) return 0;
+  if (!*match) return 1; // ?
+  if (!*s && strchr("%*", *match))
+    return !match[1];
+  // actual matching
+  if (*s==*match || strchr("?_", *match))
+    return like(s+1, match+1);
+  if (strchr("%*", *match))
+    return like(s, match)
+      ||   like(s, match+1);
+  // fail
+  return 0;
+}
+
+int matchvars(char* table, char* match) {
+  // search names in defined order
+  // works better for column names
+  int n= 0;
+  for(int i=0; i<=varcount; i++) {
+    printf("\t\t- %s.%s\n", tablenames[i], varnames[i]);
+    if ((!table || 0==strcmp(table, tablenames[i]))
+	&&  like(varnames[i], match)) {
+      n++;
+      printf("\tMATCH: %s.%s\n", table, varnames[i]);
+    }
+  }
+  return n;
+}
+
 // TODO:setnum/setstr?
 // returns variable's &val
 val* setvar(char* table, char* name, val* s) {
@@ -393,10 +426,17 @@ void expectname(char name[NAMELEN], char* msg) {
 void expectsymbol(char name[NAMELEN], char* msg) {
   char* s= NULL;
   spcs();
-  if (*ps=='"' && str(&s)) {
+  if (*ps=='"' && str(&s)) { // "foo bar"
     strncpy(name, s, NAMELEN);
-  } else {
-    expectname(name, "unkown from-iterator");
+  } else if (gotc('[')) { // [foo bar]
+    char* start= ps;
+    while(!end() && !gotc(']')) ps++;
+    if (ps-start >= NAMELEN)
+      error("[] name too long");
+    strncpy(name, start, ps-start-1);
+    printf("\n=NAME: '%s'\n", name);
+  } else { // plain jane name
+    expectname(name, msg);
   }
   if (s) free(s);
 }
@@ -561,12 +601,18 @@ char* print_header(char* e) {
 
     spcs();
     char* start= ps;
-    if (expr(&v)) {
+    char name[NAMELEN]= {};
+    if (gotc('[')) {
+      ps--;
+      expectsymbol(name, "[] column name");
+      printf("\n=COLUMN(S): %s\n", name);
+      // TODO: find all vars that match!
+      //   not known until got first row!
+      matchvars(NULL,name);
+    } else if (expr(&v)) {
       if (col) putchar(abs(delim));
       col++;
     } else expected("expression");
-
-    char name[NAMELEN]= {0};
 
     // select 42 AS foo
     if (got("as")) expectsymbol(name, NULL);
@@ -625,14 +671,23 @@ char* print_expr_list(char* e) {
 
     spcs();
     char* start= ps;
-    if (expr(&v)) {
+    char name[NAMELEN]= {0};
+
+    if (gotc('[')) {
+      ps--;
+      expectsymbol(name, "[] column name");
+      printf("\n=COLUMN(S): %s\n", name);
+      // TODO: find all vars that match!
+      //   not known until got first row!
+      matchvars(NULL,name);
+
+      // TODO: list the values?
+      
+    } else if (expr(&v)) {
       if (col) putchar(abs(delim));
       col++;
       printval(&v, delim==','?'\"':0, delim);
     } else expected("expression");
-
-    // set column name as 1,2,3...
-    char name[NAMELEN]= {0};
 
     // select 42 AS foo
     if (got("as")) {
@@ -1340,7 +1395,7 @@ int from_list(char* selexpr, int is_join) {
 
   // filename.csv or "filename.csv"
   char spec[NAMELEN]= {0};
-  expectsymbol(spec, "unknow from-iterator");
+  expectsymbol(spec, "from-iterator");
 
   // TODO: how to do fulltest search/filter
   //   like sqlite3 MATCH?
@@ -1433,7 +1488,7 @@ int from(char* selexpr) {
 // just an aggregator!
 int sqlselect() {
   strcpy(format, globalformat);
-  if (got("format") && !getname(format)) expected("expected format name");
+  if (got("format") && !getname(format)) expected("format name");
   if (!got("select")) return 0;
   char* expr= ps;
   // "skip" (dummies) to get beyond
@@ -1614,7 +1669,8 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readrows, long ro
 void runquery(char* cmd) {
 
   if (echo) printf("SQL> %s\n", cmd);
-
+  if (!*cmd) return;
+  
   // log and time
   sqllog(cmd, "start", NULL, NULL, 0, 0, 0);
 
@@ -1828,7 +1884,39 @@ void speedtest() {
   exit(0);
 }
 
+
+void print_at_error(char* msg, char* param) {
+  printf("\nquery:\n%s\n", query);
+  for(int i=0; i< ps-query; i++) putchar(' '); printf("|------>\n");
+  if (msg) printf("\nWANTED(?): %s\n", msg);
+  if (param) printf("\t%s\n", param);
+  printf("\nAT: '%s'\n\n", ps);
+}
+
+void bang() {
+  printf("%% SIGFAULT, or something...\n\n");
+  
+  if (interactive) {
+    printf("%% Stacktrace? (Y/n/d/q) >"); fflush(stdout);
+    char key= tolower(getchar());
+    switch(key) {
+    case 'n': break;
+    case 'q': exit(77); break;
+    case 'd': debugger(); break;
+    case 'y':
+    default:  print_stacktrace(); break;
+    }
+    install_signalhandlers(bang);
+    process_file(stdin, 1);
+  } else
+    exit(77);
+}
+
 int main(int argc, char** argv) {
+  print_exit_info= print_at_error;
+  
+  //char* null= NULL; *null= 42;
+  
   register_funcs();
   
   //speedtest();
@@ -1838,6 +1926,8 @@ int main(int argc, char** argv) {
   int n=1;
   while (*((argv+=n)) && (argc+=n)>0)
     n= process_arg(argv[0], argv[1]);
+
+  if (!batch) install_signalhandlers(bang);
 
   if (interactive) process_file(stdin, 1);
 

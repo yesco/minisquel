@@ -1,6 +1,8 @@
-gcc -g minisquel.c -o minisquel-debug && {
-    echo "DEBUG.sql>" "$@"
-    echo "gdb> run" "$@" > .fil
-    cat .fil
-    (cat .fil ; echo "break exit" ; echo "where" ; cat -) | gdb minisquel-debug
+clang -g minisquel.c -o minisquel-debug && {
+   rm -f core
+   ulimit -c unlimited
+   ./minisquel-debug "$@"
+   test -e core && {
+     gdb minisquel-debug core
+   }
 }

@@ -56,21 +56,81 @@ char* strdupncat(char* s, int n, char* add) {
 
 // -- Error handling/fatal, exit
 
+void (*print_exit_info)(char*,char*);
+
+#include <unistd.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <sys/prctl.h>
+
+// - https://stackoverflow.com/questions/4636456/how-to-get-a-stack-trace-for-c-using-gcc-with-line-number-information/4732119#4732119
+void print_stacktrace() {
+  char pid_buf[30];
+  sprintf(pid_buf, "%d", getpid());
+  char name_buf[512];
+  name_buf[readlink("/proc/self/exe", name_buf, 511)]=0;
+  prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
+  int child_pid = fork();
+  if (!child_pid) {
+    dup2(2,1); // redirect output to stderr - edit: unnecessary?
+    execl("/usr/bin/gdb", "gdb", "--batch", "-n", "-ex", "thread", "-ex", "bt", name_buf, pid_buf, NULL);
+    abort(); /* If gdb failed to start */
+  } else {
+    waitpid(child_pid,NULL,0);
+  }
+}
+ 
+// - https://stackoverflow.com/questions/4636456/how-to-get-a-stack-trace-for-c-using-gcc-with-line-number-information/4732119#4732119
+void (*when_things_go_bang)()= NULL;
+
+void install_signalhandlers(void* bang) {
+  /* Install our signal handler */
+  struct sigaction sa;
+
+  when_things_go_bang= bang;
+  
+  sa.sa_handler = (bang?(void*)bang:(void*)print_stacktrace);
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESTART;
+
+  sigaction(SIGSEGV, &sa, NULL);
+  sigaction(SIGUSR1, &sa, NULL);
+  /* ... add any other signal here */
+}
+
+// TODO: I had a errorf?
+
 void error(char* msg) {
   fprintf(stdout, "Error: %s\n", msg);
   fprintf(stderr, "Error: %s\n", msg);
   // TODO: return 1 for shortcut?
   //fprintf(stderr, "At>%s<\n", ps);
+  printf("! EXIT\n");
+  print_stacktrace();
+  if (when_things_go_bang)
+    when_things_go_bang();
+  // else print_stacktrace();
   exit(1);
 }
 
-// TODO: I had a errorf?
+void debugger() {
+  char cmd[100]= {};
+  snprintf(cmd, sizeof(cmd), "gdb -p %d -iex 'set pagination off' -n -ex thread -ex where", getpid());
+  system(cmd);
+}
 
 void expected2(char* msg, char* param) {
-  fprintf(stdout, "Error: expected %s\n", msg);
-  fprintf(stderr, "Error: expected %s\n", msg);
+  fprintf(stdout, "%% Error: expected %s\n", msg);
+  fprintf(stderr, "%% Error: expected %s\n", msg);
   if (param) printf("  %s\n", param);
-  //fprintf(stderr, "At>%s<\n", ps);
+  if (print_exit_info) print_exit_info(msg, param);
+  printf("! EXIT\n");
+  if (when_things_go_bang)
+    when_things_go_bang();
+  //else print_stacktrace();
   exit(1);
 }
 
@@ -185,16 +245,27 @@ long timems() {
 
 // human print
 int hprint(double d, char* unit) {
+  // TODO: add width? now assumes 8
+  // TODO: negative
+  if (d<0 || d>1e20) return 0;
+
   char suffix[]= "afpum kMGTPE";
   int i=5;
-  // TODO: negative
-  while(d<0 && i>0) {
-    d*= 1000; i--;
-  }
-  while(d>1000 && i<strlen(suffix)) {
-    d/= 1000; i++;
-  }
-  return printf("%.1lf %c%s", d, suffix[i], unit);
+  if (d<0.0001)
+    while(d>0 && d<1 && i>0) {
+      d*= 1000; i--;
+    }
+  if (d>1000*1000)
+    while(d>1000 && i<strlen(suffix)+1) {
+      d/= 1000; i++;
+    }
+  char c= suffix[i];
+  // indicate using ≈ ??
+  if (c==' ')
+    printf("%7.5lg%s", d, unit);
+  else
+    printf("%6.4lg%c%s", d, suffix[i], unit);
+  return 1;
 }
 
 #define JSK_INCLUDED_UTILS
