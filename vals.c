@@ -76,13 +76,13 @@ void clearval(val* v) {
 
 // quot: see fprintquoted
 void printval(val* v, int quot, int delim) {
-  if (!v && delim==',') return; // csv
+  if (!v && abs(delim)==',') return; // csv
   if (!v) { printf("(null)"); return; }
-  if (!v->not_null && delim==',') return; // csv
+  if (!v->not_null && abs(delim)==',') return; // csv
   if (!v->not_null) printf("NULL");
   else if (v->s) fprintquoted(stdout, v->s, 7, quot, delim);
   else {
-    if (delim==',') {
+    if (abs(delim)==',') {
       printf("%.15lg", v->d);
     } else if (v->d > 0.000001 && v->d < 1e7) {
       printf("%7.7lg", v->d);

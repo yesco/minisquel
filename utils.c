@@ -223,8 +223,8 @@ void optmessage(char* name, char* s, int n) {
 // Print to FILE a STRING with surrounding QUOTE char and quote DELIMITER
 // quot>0 quote it, ignore width
 // quot<0 => no surrounding quot, width respected
-// delimiter>0 quote it
-// delimiter<0 ok
+// delimiter>0 quote c==delim
+// delimiter<=0 ignore width
 // but will backslash \ -quote|quot
 void fprintquoted(FILE* f, char* s, int width, int quot, int delim) {
   if (!s && delim==',') return; // csv: null
@@ -232,7 +232,7 @@ void fprintquoted(FILE* f, char* s, int width, int quot, int delim) {
   if (!*s) return; // NULL
   if (debug) printf("[Q%dD%dW%d]", quot, delim, width);
   if (quot>0) { width-= 2; fputc(quot, f); }
-  while(*s && (quot>0 || width-->1)) {
+  while(*s && (quot>0 || width-- > 1 || delim<=0)) {
     // TODO:corner case where one extra
     if (*s==quot) { width--; fputc(abs(quot), f); }
     if (*s==abs(delim)) { width--; fputc('\\', f); }

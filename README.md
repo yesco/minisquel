@@ -114,7 +114,9 @@ Select column names by 'like'-style expression:
 - 1000x1000 iterations <1s (1.4M "where"-evals)
 - opening/close same file 100,000 times (in nested loop) almost no overhead!
 
-## Current Features
+## Current Features - DONE
+- last column in fancy mode not truncate, also for header...
+- truncate print strings to 7 cols showing * at end if truncated, only for "formatted" not "csv"
 - select [foo.*] from foo foo order by 1
 - less memory leaks! LOL
 - LIKE and ILIKE operators added
@@ -161,9 +163,9 @@ Select column names by 'like'-style expression:
 
 ## functions
 - mod div
-- ascii char lower upper
+- ascii char concat ilike left like lower right timestamp upper
 - count sum min max avg stdev
-- type
+- type (!)
 
 ## ./minisquel - "help"
 

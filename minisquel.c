@@ -350,14 +350,16 @@ int expr(val* v) {
   return 1;
 }
 
-void print_colname(char* name, char* start, char* ps, char delim) {
+void print_colname(char* name, char* start, char* ps, int delim) {
   if (parse_only>=0) return;
 
   if (!name[0]) {
     // make a name from expr
-    if (delim!='\t') {
+    if (delim!='\t' || delim<=0) {
       // use whole
-      strncpy(name, start, ps-start);
+      int n= ps-start;
+      if (n>=NAMELEN-1) n= NAMELEN;
+      strncpy(name, start, n);
     } else {
       // truncate - make 7 char wide
       size_t end= strcspn(start, " ,;");
@@ -368,7 +370,7 @@ void print_colname(char* name, char* start, char* ps, char delim) {
     rtrim(name);
   }
 
-  fprintquoted(stdout, name, 7, delim==','?'\"':0, delim);
+  fprintquoted(stdout, name, 7, abs(delim)==','?'\"':0, delim);
 }
 
 char* print_header(char* e) {
@@ -378,6 +380,7 @@ char* print_header(char* e) {
   int delim= formatdelim();
   int col= 0;
   val v= {};
+  int more= 0;
   do {
     // TODO: SELECT *, tab.*
 
@@ -404,18 +407,20 @@ char* print_header(char* e) {
 	  }
 	}
       }
+      spcs(); more= gotc(',');
     } else if (expr(&v)) {
       // select 42 AS foo
       if (got("as")) expectsymbol(name, NULL);
+      spcs(); more= gotc(',');
       if (parse_only<0) {
 	if (col) putchar(abs(delim));
 	col++;
-	print_colname(name, start, ps, delim);
+	print_colname(name, start, ps-(more?1:0), more?delim:-delim);
       }
     } else expected("expression");
 
     clearval(&v);
-  } while(gotc(','));
+  } while(more);
   if (parse_only<0) putchar('\n');
 
   // To distinguish if print/noprint
@@ -455,6 +460,7 @@ char* print_expr_list(char* e) {
   spcs();
   int col= 0;
   val v= {};
+  int more= 0;
   do {
     spcs();
     char* start= ps;
@@ -480,7 +486,8 @@ char* print_expr_list(char* e) {
 	  printval(&v, delim==','?'\"':0, delim);
 	}
       }
-    } else if (expr(&v)) {
+      spcs(); more= gotc(',');
+  } else if (expr(&v)) {
       // select 42 AS foo
       if (got("as")) {
 	expectname(name, NULL);
@@ -491,12 +498,12 @@ char* print_expr_list(char* e) {
       if (col) putchar(abs(delim));
       col++;
       // TODO: Don't truncate if last col!
-      // gotc?
-      printval(&v, delim==','?'\"':0, delim);
+      spcs(); more= gotc(',');
+      printval(&v, delim==','?'\"':0, more?delim:-delim);
     } else expected("expression");
 
     clearval(&v);
-  } while(gotc(','));
+  } while(more);
   putchar('\n');
   
   lineno++;
