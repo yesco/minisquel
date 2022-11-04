@@ -240,6 +240,15 @@ table* newtable(char* name, int keys, int cols, char* colnames[]){
   return t;
 }
 
+void freetable(table* t) {
+  if (!t) return;
+  if (t->name) free(t->name);
+  //if (t->colnames) free(t->colnames);  only used for testing? there it's constant!
+  freearena(t->data);
+  freehash(t->strings);
+  free(t);
+}
+
 int tableaddrow(table* t, dbval v[]) {
   t->count++;
   return addarena(t->data, v, t->cols * sizeof(dbval));
@@ -576,3 +585,50 @@ long printtable(table* t, int details) {
   return bytes;
 }
 
+void pretty_printtable(table *t, long row, long rows) {
+  dbval* start= (void*)t->data->mem;
+  dbval* v= start;
+  dbval* end= (void*)(start + t->data->top);
+
+  printf("\n\n--BROWSE TABLE-- %s\n", t->name);
+  long line= -1;
+  if (rows<0) rows= (end-start);// % t->cols;
+  while (v<end) {
+    if (((v-start) % t->cols)==0) {
+      if (!line || line>row || rows<0) putchar('\n');
+      line++;
+      if (!line) printf("#r\\col:\t");
+      else if (line>row || rows<0)
+	tdbprint(t, mknum(line), 8);
+    }
+    if (!line || line>=row || rows<0)
+      tdbprint(t, *v, 8);
+    v++;
+    if (line>=row+rows) break;
+  }
+  putchar('\n');
+  printf("%ld rows\n", end-v);
+}
+
+void browsetable(table* t) {
+  const long pagerows= 3;
+  char* cmd= NULL;
+  size_t len= 0;
+  long row= 0;
+  while(1) {
+    pretty_printtable(t, row, pagerows);
+    if (getline(&cmd, &len, stdin)<0) break;
+    if (!cmd) break;
+    switch(*cmd) {
+    case 0: row+= pagerows;
+    case 'q': return;
+    case ' ': case '_': row++; break; // page
+    case 'o': break;
+    case 'g': break;
+    case 'a': pretty_printtable(t, 0, -1); continue;
+    case '#': row= atoi(&cmd[1]); break;
+    case '?': case 'h':
+      printf("Usage: q)uit o)rder:3 g)group:2\n h)elp\n"); break;
+    }
+  }
+}

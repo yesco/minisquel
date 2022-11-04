@@ -42,7 +42,7 @@ long lineno= -2, readrows= 0, nfiles= 0;
 
 // -- Options
 
-int batch= 0, force= 0;
+int batch= 0, force= 0, browse= 0;
 int verbose= 0, interactive= 1;
 
 int globalecho= 1, echo= 1;
@@ -353,22 +353,30 @@ int expr(val* v) {
 #include "dbval.c"
 #include "table.c"
 
-table* resulttable= NULL;
+table* results= NULL;
 
-void result_action(char* name, val* v, long row, int col) {
-  if (debug) {
+void do_result_action(char* name, val* v, long row, int col) {
+  if (debug>1) {
     printf("\nRESULT: '%s' ", name); printval(v, '"', 0); printf(" %ld, %d  ", row, col);
     val dummy= {.not_null=1, .s= name};
     dbval dbv= val2dbval(v?v:&dummy);
     printf("===> "); dbprint(dbv, 8); putchar('\n');
   }
 
-  if (resulttable) {
+  if (results) {
+    if (col > results->cols) results->cols= col;
+
     val dummy= {.not_null=1, .s= name};
-    dbval dbv= val2tdbval(resulttable, v?v:&dummy);
-    printf("===> "); tdbprint(resulttable, dbv, 8); putchar('\n');
+    dbval dbv= val2tdbval(results, v?v:&dummy);
+    if (debug) {
+      printf("===> "); tdbprint(results, dbv, 8); putchar('\n');
+    }
+    addarena(results->data, &dbv, sizeof(dbv));
   }
 }
+
+void (*result_action)(char* name, val* v, long row, int col)= do_result_action;
+  
 
 void print_colname(char* name, int col, char* start, char* ps, int delim) {
   if (parse_only>=0) return;
@@ -392,7 +400,8 @@ void print_colname(char* name, int col, char* start, char* ps, int delim) {
 
   if (parse_only<0)
     fprintquoted(stdout, name, 7, abs(delim)==','?'\"':0, delim);
-  result_action(name, NULL, lineno+1, col);
+  if (result_action)
+    result_action(name, NULL, lineno+1, col);
 }
 
 char* print_header(char* e) {
@@ -502,7 +511,8 @@ char* print_expr_list(char* e) {
 	  // TODO: Don't truncate if last col!
 	  // difficult to tell if will find more...
 	  printval(&v, delim==','?'\"':0, delim);
-	  result_action(varname, NULL, lineno+1, col);
+	  if (result_action)
+	    result_action(varname, NULL, lineno+1, col);
 	}
       }
       spcs(); more= gotc(',');
@@ -519,7 +529,8 @@ char* print_expr_list(char* e) {
       // TODO: Don't truncate if last col!
       spcs(); more= gotc(',');
       printval(&v, delim==','?'\"':0, more?delim:-delim);
-      result_action(NULL, &v, lineno+1, col);
+      if (result_action)
+	result_action(NULL, &v, lineno+1, col);
     } else expected("expression");
 
     clearval(&v);
@@ -1430,9 +1441,18 @@ int setvarexp() {
 int sql() {
   spcs();
   if (end()) return 1;
+
+  if (browse) {
+    if (results) freetable(results);
+    results= newtable("result", 0, 0, NULL);
+  }
+
   int r= sqlselect() ||
     setvarexp() ||
     sqlcreate() ;
+
+  if (browse) browsetable(results);
+
   return r;
 }
 
@@ -1550,6 +1570,7 @@ int process_arg(char* arg, char* next) {
     optint("-v", &verbose, arg) ||
     optint("interactive", &interactive, arg) ||
     optint("-t", &interactive, arg) ||
+    optint("browse", &browse, arg) ||
     0;
 
   int foo=0;

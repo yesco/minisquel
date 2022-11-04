@@ -58,6 +58,12 @@ arena* newarena(int size, int align) {
   return a;
 }
 
+void freearena(arena *a) {
+  if (!a) return;
+  free(a->mem);
+  free(a);
+}
+
 long arenaoptimize(arena* a) {
   // more like "truncate" waste
   long bytes= a->size - a->top;
