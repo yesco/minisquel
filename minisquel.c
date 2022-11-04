@@ -51,8 +51,6 @@ char globalformat[30]= {0};
 char format[30]= {0};
 
 
-
-
 char formatdelim() {
   if (!*format) return '\t';
   if (0==strcmp("csv", format)) return ',';
@@ -157,6 +155,7 @@ int parse_str(char** s) {
   return 1;
 }
 
+#include "csv.c"
 #include "vals.c"
 
 // TODO: sql allows names to be quoted!
@@ -352,13 +351,22 @@ int expr(val* v) {
 
 // TODO: pass around dbval
 #include "dbval.c"
+#include "table.c"
+
+table* resulttable= NULL;
 
 void result_action(char* name, val* v, long row, int col) {
   if (debug) {
     printf("\nRESULT: '%s' ", name); printval(v, '"', 0); printf(" %ld, %d  ", row, col);
     val dummy= {.not_null=1, .s= name};
-    dbval db= val2dbval(v?v:&dummy);
-    printf("===> "); dbprint(db, 8); putchar('\n');
+    dbval dbv= val2dbval(v?v:&dummy);
+    printf("===> "); dbprint(dbv, 8); putchar('\n');
+  }
+
+  if (resulttable) {
+    val dummy= {.not_null=1, .s= name};
+    dbval dbv= val2tdbval(resulttable, v?v:&dummy);
+    printf("===> "); tdbprint(resulttable, dbv, 8); putchar('\n');
   }
 }
 

@@ -173,8 +173,6 @@ void setstrconst(val* v, char* s) {
   updatestats(v);
 }
 
-#include "csv.c"
-
 void setval(val* v, int r, double d, char* s) {
   clearval(v);
   v->not_null= (r != RNULL);

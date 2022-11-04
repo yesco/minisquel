@@ -1,4 +1,4 @@
-clang minisquel.c -o sql && {
+clang -lm -O3 minisquel.c -o sql && {
 
 # header/formatting
 ./sql 'select 1234567, 42' 

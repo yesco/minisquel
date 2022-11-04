@@ -1,4 +1,4 @@
-clang -g minisquel.c -o minisquel-debug && {
+clang -lm -g minisquel.c -o minisquel-debug && {
    rm -f core
    ulimit -c unlimited
    ./minisquel-debug "$@"
