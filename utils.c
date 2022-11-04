@@ -190,12 +190,64 @@ void expected(char* msg) {
 #include <strings.h>
 #include <string.h>
 
+// Deletes trailing white space
+char* rtrim(char* s) {
+  if (!s) return s;
+  int len= strlen(s);
+  while (isspace(s[--len]))
+    s[len]= 0;
+  return s;
+}
+
+// Return pointer *INTO* string skipping whit espace
+//
+// BEWARE: if malloced...
+char* ltrim(char* s) {
+  return s? s+strspn(s, " \t\n\r") : s;
+}
+
+// Returns pointer *INTO* string, after truncating whitespace at end.
+//
+// BEWARE: if malloced...
+char* trim(char* s) {
+  return rtrim(ltrim(s));
+}
+
 void optmessage(char* name, char* s, int n) {
   if (s)
     printf("Variable '%s' set to '%s'\n", name, s);
   else 
     printf("Variable '%s' set to %d\n", name, n);
 }
+
+// Print to FILE a STRING with surrounding QUOTE char and quote DELIMITER
+// quot>0 quote it, ignore width
+// quot<0 => no surrounding quot, width respected
+// delimiter>0 quote it
+// delimiter<0 ok
+// but will backslash \ -quote|quot
+void fprintquoted(FILE* f, char* s, int width, int quot, int delim) {
+  if (!s && delim==',') return; // csv: null
+  if (!s) return (void)printf("NULL");
+  if (!*s) return; // NULL
+  if (debug) printf("[Q%dD%dW%d]", quot, delim, width);
+  if (quot>0) { width-= 2; fputc(quot, f); }
+  while(*s && (quot>0 || width-->1)) {
+    // TODO:corner case where one extra
+    if (*s==quot) { width--; fputc(abs(quot), f); }
+    if (*s==abs(delim)) { width--; fputc('\\', f); }
+    else if (*s=='\\') {width--; fputc(*s, f); }
+    // TODO: newline etc?
+    fputc(*s, f);
+    s++;
+  }
+  // print last char only or '*' for truncation
+  if (quot<=0 && *s) fputc(s[1]?'*':*s, f);
+  if (quot>0) fputc(quot, f);
+}
+
+// Arguments ala Program Options
+// -----------------------------
 
 // variable, set to message reporter for variable changes
 void (*optmsg)(char* name, char* s, int num) = optmessage;

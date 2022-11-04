@@ -92,6 +92,10 @@ Basically, we're saying that a sql script (with one statement) *IS* a table!
 
 This means we have limited subqueries at least in the FROM clause.
 
+Select column names by 'like'-style expression:
+
+     select [foo.*] from foo foo order by 1
+
 ### Schema
 
      UNIX> ./tables
@@ -111,6 +115,7 @@ This means we have limited subqueries at least in the FROM clause.
 - opening/close same file 100,000 times (in nested loop) almost no overhead!
 
 ## Current Features
+- select [foo.*] from foo foo order by 1
 - less memory leaks! LOL
 - LIKE and ILIKE operators added
 - operators
@@ -197,10 +202,12 @@ Error: Unkonwn option
 
 
 ## TODO:
+- make alias table name optional, but maybe need to test for "uniqueness" (self-joins) select [foo.*] from foo foo order by 1
+- allow = and operators inside SELECT, maybe:
+- maybe: need a boolean type? (duckdb has, sqlite uses 0, 1)
 - tab JOIN tab USING(c, ...)
 - CREATE TABLE xxx AS SELECT ...
 - LIKE/REGEXP
-- select *,tab.*
 - CREATE FUNCTION Bigtable UDF:s - https://cloud.google.com/bigquery/docs/reference/standard-sql/user-defined-functions
 - val with altname/num/table.col
 - where not/and/or...

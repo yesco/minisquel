@@ -74,30 +74,13 @@ void clearval(val* v) {
   v->not_null= 0;
 }
 
-// quot<0 => no surrounding quot
-// but will quote -quote|quot
-void fprintquoted(FILE* f, char* s, int quot, int delim) {
-  if (!s && delim==',') return; // csv
-  if (!s) return (void)printf("NULL");
-  if (!*s) return; // NULL
-  if (quot>0) fputc(quot, f);
-  while(*s) {
-    if (*s==quot) fputc(abs(quot), f);
-    if (*s==abs(delim)) fputc('\\', f);
-    else if (*s=='\\') fputc(*s, f);
-    fputc(*s, f);
-    s++;
-  }
-  if (quot>0) fputc(quot, f);
-}
-
 // quot: see fprintquoted
 void printval(val* v, int quot, int delim) {
   if (!v && delim==',') return; // csv
   if (!v) { printf("(null)"); return; }
   if (!v->not_null && delim==',') return; // csv
   if (!v->not_null) printf("NULL");
-  else if (v->s) fprintquoted(stdout, v->s, quot, delim);
+  else if (v->s) fprintquoted(stdout, v->s, 7, quot, delim);
   else {
     if (delim==',') {
       printf("%.15lg", v->d);

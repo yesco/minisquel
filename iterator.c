@@ -369,7 +369,11 @@ for(int i=0; i<10; i++) {
  
 }
 
-void speed_cols() {
+int debug=0, stats=0;
+
+#include "utils.c"
+
+void speed_cols(int m) {
   const int rows= 110000; // 110K rows
   char *chars= malloc(rows*sizeof(char));
   int *ints= malloc(rows*sizeof(int));
@@ -380,8 +384,10 @@ void speed_cols() {
   long n= 0;
   //exit(0); // 5ms
 
-  for(int nn=0; nn<200; nn++)
-    { int m= 100;
+  long NN= 200;
+  
+  for(int nn=0; nn<NN; nn++)
+    { 
   
     n=0;
   
@@ -445,6 +451,7 @@ void speed_cols() {
   case 100: {
     // 110K^2 = 5.177s !!!
     // same as duckdb x product!
+    long ms= timems();
     int* aa= ints;
     for(int a=0; a<rows; a++) {
       int* bb= ints;
@@ -454,10 +461,28 @@ void speed_cols() {
       }
       aa++;
     }
+    printf("int 110K^2= %ld ms\n", timems()-ms);
     break; }
-  }
 
-  if (n) printf("%4d %lu\n", m, n);
+  case 101: {
+    // DOUBLES:
+    // 110K^2 = 5.2s !@!!
+    // - double same perf as int!
+    long ms= timems();
+    double* aa= doubles;
+    for(int a=0; a<rows; a++) {
+      double* bb= doubles;
+      for(int b=0; b<rows; b++) {
+	//if (ints[a]==ints[b]) n++;
+	if (*aa == *bb++) n++;
+      }
+      aa++;
+    }
+    printf("doubles 110K^2= %ld ms\n", timems()-ms);
+    break; }
+}
+
+  if (n) printf("%d %4d %lu\n", nn, m, n);
  }
   if (n) printf("%lu\n", n);
  
@@ -466,9 +491,15 @@ void speed_cols() {
 int main(int argc, char** argv) {
   //example_slines(); exit(0);
 
-  if (1)
-    speed_cols();
-  else if (1)
+  if (1) {
+    if (argc<2) {
+      printf("Usage: ./a.out  M\n");
+      exit(3);
+    }
+    int m= atoi(argv[1]);
+    if (!m) m= 200;
+    speed_cols(m);
+  } else if (1)
     speed_happy();
   else if (1)
     speed_slines();

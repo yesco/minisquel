@@ -47,12 +47,12 @@ echo "== negatives, can be improved"
 # strings
 ./sql 'select foo as f, upper(f) as F, lower(F)'
 ./sql 'select "A" as f, char(ascii(lower(f)))'
-./sql 'select concat("foo", "bar", "fie") as ccc'
-./sql 'select concat(null, "foo", 42, "bar")'
-./sql 'select concat(null, "foo", 12345678901234567890, "bar")'
-./sql 'select left(concat("foo", "bar", "fie"),5) as c5'
-./sql 'select right(concat("foo", "bar", "fie"),5) as c5'
-./sql 'select left(right(concat("foo", "bar", "fie"), 6),4)'
+./sql --format=csv 'select concat("foo", "bar", "fie") as ccc'
+./sql --format=csv 'select concat(null, "foo", 42, "bar")'
+./sql --format=csv 'select concat(null, "foo", 12345678901234567890, "bar")'
+./sql --format=csv 'select left(concat("foo", "bar", "fie"),5) as c5'
+./sql --format=csv 'select right(concat("foo", "bar", "fie"),5) as c5'
+./sql --format=csv 'select left(right(concat("foo", "bar", "fie"), 6),4)'
 
 # aggregates
 ./sql 'select count(i) from int(1,10) i'
@@ -77,7 +77,7 @@ echo "before"
 ./sql 'select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a'
 
 # --- popen, subqueries!
-./sql 'select name from "ls Test/*.csv|"(name) file'
+./sql --format=csv 'select name from "ls Test/*.csv|"(name) file'
 
 # magic find file and popen (search .csv .sql)
 ./sql 'select i from one2ten ten'

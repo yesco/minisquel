@@ -350,6 +350,27 @@ int expr(val* v) {
   return 1;
 }
 
+void print_colname(char* name, char* start, char* ps, char delim) {
+  if (parse_only>=0) return;
+
+  if (!name[0]) {
+    // make a name from expr
+    if (delim!='\t') {
+      // use whole
+      strncpy(name, start, ps-start);
+    } else {
+      // truncate - make 7 char wide
+      size_t end= strcspn(start, " ,;");
+      if (!end) end= 20;
+      strncpy(name, start, end);
+      if (end>7) strcpy(name+5, "..");
+    }
+    rtrim(name);
+  }
+
+  fprintquoted(stdout, name, 7, delim==','?'\"':0, delim);
+}
+
 char* print_header(char* e) {
   char* old_ps= ps;
   ps= e;
@@ -363,39 +384,35 @@ char* print_header(char* e) {
     spcs();
     char* start= ps;
     char name[NAMELEN]= {};
+
     if (gotc('[')) {
       ps--;
       expectsymbol(name, "[] column name");
-      printf("\n=COLUMN(S): %s\n", name);
-      // TODO: find all vars that match!
-      //   not known until got first row!
-      matchvars(NULL,name);
-    } else if (expr(&v)) {
-      if (col && parse_only<0) putchar(abs(delim));
-      col++;
-    } else expected("expression");
 
-    // select 42 AS foo
-    if (got("as")) expectsymbol(name, NULL);
-    
-    if (!name[0]) {
-      // make a name from expr
-      if (delim!='\t') {
-	// use whole
-	strncpy(name, start, ps-start);
-      } else {
-	// truncate - make 7 char wide
-	size_t end= strcspn(start, " ,;");
-	if (!end) end= 20;
-	strncpy(name, start, end);
-	if (end>7) strcpy(name+5, "..");
+      // search names in defined order
+      int n= 0;
+      char varname[NAMELEN]= {};
+      for(int i=0; i<=varcount; i++) {
+	// format name to test
+	char* t= tablenames[i];
+	snprintf(varname, sizeof(varname), "%s.%s", t?t:"", varnames[i]);
+	if (like(varname, name, 0)) {
+	  if (parse_only<0) {
+	    if (col) putchar(abs(delim));
+	    col++;
+	    print_colname(varname, NULL, NULL, delim);
+	  }
+	}
       }
-      // remove trailing spaces - lol
-      while (name[0] && name[strlen(name)-1]==' ' ) name[strlen(name)-1]= 0;
-    }
-
-    if (parse_only<0)
-      fprintquoted(stdout, name, delim==','?'\"':0, delim);
+    } else if (expr(&v)) {
+      // select 42 AS foo
+      if (got("as")) expectsymbol(name, NULL);
+      if (parse_only<0) {
+	if (col) putchar(abs(delim));
+	col++;
+	print_colname(name, start, ps, delim);
+      }
+    } else expected("expression");
 
     clearval(&v);
   } while(gotc(','));
@@ -439,33 +456,44 @@ char* print_expr_list(char* e) {
   int col= 0;
   val v= {};
   do {
-    // TODO: SELECT *, tab.*
-
     spcs();
     char* start= ps;
     char name[NAMELEN]= {0};
 
+    // [foo.*]
     if (gotc('[')) {
       ps--;
       expectsymbol(name, "[] column name");
-      printf("\n=COLUMN(S): %s\n", name);
-      // TODO: find all vars that match!
-      //   not known until got first row!
-      matchvars(NULL,name);
-
-      // TODO: list the values?
-      
+      // search names in defined order
+      char varname[NAMELEN]= {};
+      for(int i=0; i<=varcount; i++) {
+	// format name to test
+	char* t= tablenames[i];
+	snprintf(varname, sizeof(name), "%s.%s", t?t:"", varnames[i]);
+	if (like(varname, name, 0)) {
+	  getval(t, varnames[i], &v);
+	  // print it
+	  if (col) putchar(abs(delim));
+	  col++;
+	  // TODO: Don't truncate if last col!
+	  // difficult to tell if will find more...
+	  printval(&v, delim==','?'\"':0, delim);
+	}
+      }
     } else if (expr(&v)) {
+      // select 42 AS foo
+      if (got("as")) {
+	expectname(name, NULL);
+	setvar(NULL, name, &v);
+      }
+
+      // print it
       if (col) putchar(abs(delim));
       col++;
+      // TODO: Don't truncate if last col!
+      // gotc?
       printval(&v, delim==','?'\"':0, delim);
     } else expected("expression");
-
-    // select 42 AS foo
-    if (got("as")) {
-      expectname(name, NULL);
-      setvar(NULL, name, &v);
-    }
 
     clearval(&v);
   } while(gotc(','));
@@ -1423,14 +1451,14 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readrows, long ro
 
   if (sql) {
     fprintf(f, "%s,%s,", isotime(), state);
-    fprintquoted(f, sql, '"', 0);
+    fprintquoted(f, sql, 7, '"', 0);
   }
 
   if (err || msg || readrows || rows || ms) {
     fputc(',', f);
-    fprintquoted(f, err?err:"", '"', 0);
+    fprintquoted(f, err?err:"", 7, '"', 0);
     fputc(',', f);
-    fprintquoted(f, msg?msg:"", '"', 0);
+    fprintquoted(f, msg?msg:"", 7, '"', 0);
     fputc(',', f);
     fprintf(f, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld",
       readrows, rows, ms, nfiles, nalloc, nfree, nalloc-nfree, nbytes);
