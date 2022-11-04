@@ -591,46 +591,53 @@ void pretty_printtable(table *t, long row, long rows) {
   dbval* v= start;
   dbval* end= (void*)(start + t->data->top);
 
-  printf("\n\n--BROWSE TABLE-- %s\n", t->name);
-  long line= -1;
-  if (rows<0) rows= (end-start);// % t->cols;
-  while (v<end) {
-    if (((v-start) % t->cols)==0) {
-      if (!line || line>row || rows<0) putchar('\n');
-      line++;
-      if (!line) printf("#r\\col:\t");
-      else if (line>row || rows<0)
-	tdbprint(t, mknum(line), 8);
-    }
-    if (!line || line>=row || rows<0)
-      tdbprint(t, *v, 8);
-    v++;
-    if (line>=row+rows) break;
+  printf("\n\n-- %s\n", t->name);
+  for(long r=0; r< t->count+1; r++) {
+    if (!r || r>row) {
+      for(long c=0; c< t->cols; c++) {
+	if (c==0) {
+	  if (!r) printf("#r\\col:\t");
+	  else tdbprint(t, mknum(r), 8);
+	}
+	tdbprint(t, *v++, 8);
+      }
+      putchar('\n');
+    } else v+= t->cols;
+    if (r+1>row+rows && rows>0) break;
   }
-  putchar('\n');
-  printf("%ld rows\n", end-v);
+  printf("%ld rows\n", t->count);
 }
 
 void browsetable(table* t) {
-  const long pagerows= 3;
+  tablesort(t, 2, NULL);
+  const long pagerows= 16;
   char* cmd= NULL;
   size_t len= 0;
   long row= 0;
+  pretty_printtable(t, row, pagerows);
   while(1) {
-    pretty_printtable(t, row, pagerows);
-    if (getline(&cmd, &len, stdin)<0) break;
+    printf("> "); fflush(stdout);
+    getline(&cmd, &len, stdin);
     char* arg= &cmd[1];
-    if (!cmd) break;
-    switch(*cmd) {
-    case 0: row+= pagerows;
+    char c= cmd[0];
+    switch(c) {
     case 'q': return;
-    case ' ': case '_': row++; break; // page
+
+    case 'f': case 'n': case '\n':
+      row+= pagerows; break;
+    case 'b': case 'p':
+      row-= pagerows; break;
+    case '<': row= 0; break;
+    case '>': row= t->count - pagerows; break;
+
     case 'o': tablesort(t, atoi(arg), NULL); break;
     case 'g': break;
-    case 'a': pretty_printtable(t, 0, 70); continue;
-    case '#': row= atoi(arg); break;
+    case 'a': pretty_printtable(t, 0, -1); continue;
+    case '#': row= atoi(arg)-1; break;
     case '?': case 'h':
-      printf("Usage: q)uit o)rder:3 g)group:2\n h)elp\n"); break;
+      printf("Usage: q)uit o)rder:3 g)group:2  h)elp a)ll <start >end n)ext p)rev #35 \n"); break;
     }
+
+    pretty_printtable(t, row, pagerows);
   }
 }

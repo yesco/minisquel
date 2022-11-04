@@ -365,6 +365,7 @@ void do_result_action(char* name, val* v, long row, int col) {
 
   if (results) {
     if (col > results->cols) results->cols= col;
+    if (col==1 && v) results->count++;
 
     val dummy= {.not_null=1, .s= name};
     dbval dbv= val2tdbval(results, v?v:&dummy);
