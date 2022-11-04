@@ -1,3 +1,10 @@
+#include "vals.c // TODO: temporary!
+
+// needed by dbval
+#include "utils.c"
+#include "vals.c" 
+//#include "csv.c" 
+
 #include "dbval.c"
 
 void testint(dbval v) {

@@ -5,8 +5,6 @@
 
 #include "utils.c"
 #include "hash.c"
-#include "csv.c"
-
 
 const uint64_t LINF_MASK= 0x7ff0000000000000l; // 11 bits exp
 const uint64_t LMASK    = 0x7ff0000000000000l;
@@ -81,8 +79,11 @@ typedef union dbval {
 #define CERROR (IERROR | LINF_MASK)
 
 dbval mknull(){return(dbval){.l=CNULL};}
+// end/last of something
 dbval mkend() {return(dbval){.l=CEND};}
+// db eval "fail" but not program error
 dbval mkfail(){return(dbval){.l=CFAIL};}
+// programming error
 dbval mkerr() {return(dbval){.l=CERROR};}
 dbval mknum(double d){return(dbval){d};}
 
@@ -193,3 +194,34 @@ void dumpdb() {
   printf("nstrings=%d nstrfree=%d strnext=%d\n", nstrings, nstrfree, strnext);
 }
 
+dbval val2dbval(val* v) {
+  if (!v) return mkerr();
+  dbval d= {v->d};
+  if (!v->not_null) d= mknull();
+  else if (v->s) d= mkstrconst(v->s);
+  return d;
+}
+
+int dbprint(dbval v, int width) {
+  switch(type(v)) {
+  case TNULL: printf("NULL\t"); break;
+  case TNUM:  printf("%7.7lg\t", v.d); break;
+  case TATOM: 
+  case TSTR:  {
+    char* s= str(v);
+    int i= 6;
+    while(*s && i--) {
+      if (*s=='\n') { printf("\\n"); i--;}
+      else if (*s=='\r') { printf("\\r"); i--;}
+      else putchar(*s++);
+    }
+    if (*s) putchar(s[1] ? '*' : *s);
+    putchar('\t');
+  } break;
+  case TBAD:  printf("ILLEGAL\t"); break;
+  case TFAIL: printf("FAIL\t"); break;
+  case TERROR:printf("ERROR\t"); break;
+  case TEND:  printf("END\n"); break; // \n!
+  }
+  return 1;
+}

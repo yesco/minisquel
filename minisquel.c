@@ -17,7 +17,7 @@ int stats= 1, debug= 0, security= 0;
 #include "utils.c"
 
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
-// TODO: change to enum(disable_call, disable_print, print_header)
+// TODO: change to eparse_num(disable_call, disable_print, print_header)
 //   to handle header name def/print
 //   to handle aggregates (not print every row, only last (in group))
 int parse_only= 0;
@@ -118,7 +118,7 @@ int got(char* s) {
   return 1;
 }
 
-int num(double* d) {
+int parse_num(double* d) {
   spcs();
   int neg= gotc('-')? -1: 1;
   gotc('+');
@@ -133,7 +133,7 @@ int num(double* d) {
 
 // mallocates string to be free:d
 // if it returns true
-int str(char** s) {
+int parse_str(char** s) {
   spcs();
   char q= gotcs("\"'");
   if (!q) return 0;
@@ -183,7 +183,7 @@ void expectname(char name[NAMELEN], char* msg) {
 void expectsymbol(char name[NAMELEN], char* msg) {
   char* s= NULL;
   spcs();
-  if (*ps=='"' && str(&s)) { // "foo bar"
+  if (*ps=='"' && parse_str(&s)) { // "foo bar"
     strncpy(name, s, NAMELEN);
   } else if (gotc('[')) { // [foo bar]
     char* start= ps;
@@ -305,8 +305,8 @@ int prim(val* v) {
     if (!gotc(')')) expected("')'");
     return 1;
   }
-  if (num(&v->d)) { v->not_null= 1; return 1; }
-  if (str(&s)) { setstrfree(v, s); return 1; }
+  if (parse_num(&v->d)) { v->not_null= 1; return 1; }
+  if (parse_str(&s)) { setstrfree(v, s); return 1; }
   // only if has name
   if (isid(*ps) && var(v)) return 1;
   return 0;
@@ -350,7 +350,19 @@ int expr(val* v) {
   return 1;
 }
 
-void print_colname(char* name, char* start, char* ps, int delim) {
+// TODO: pass around dbval
+#include "dbval.c"
+
+void result_action(char* name, val* v, long row, int col) {
+  if (debug) {
+    printf("\nRESULT: '%s' ", name); printval(v, '"', 0); printf(" %ld, %d  ", row, col);
+    val dummy= {.not_null=1, .s= name};
+    dbval db= val2dbval(v?v:&dummy);
+    printf("===> "); dbprint(db, 8); putchar('\n');
+  }
+}
+
+void print_colname(char* name, int col, char* start, char* ps, int delim) {
   if (parse_only>=0) return;
 
   if (!name[0]) {
@@ -370,7 +382,9 @@ void print_colname(char* name, char* start, char* ps, int delim) {
     rtrim(name);
   }
 
-  fprintquoted(stdout, name, 7, abs(delim)==','?'\"':0, delim);
+  if (parse_only<0)
+    fprintquoted(stdout, name, 7, abs(delim)==','?'\"':0, delim);
+  result_action(name, NULL, lineno+1, col);
 }
 
 char* print_header(char* e) {
@@ -400,11 +414,9 @@ char* print_header(char* e) {
 	char* t= tablenames[i];
 	snprintf(varname, sizeof(varname), "%s.%s", t?t:"", varnames[i]);
 	if (like(varname, name, 0)) {
-	  if (parse_only<0) {
-	    if (col) putchar(abs(delim));
-	    col++;
-	    print_colname(varname, NULL, NULL, delim);
-	  }
+	  if (parse_only<0 && col) putchar(abs(delim));
+	  col++;
+	  print_colname(varname, col, NULL, NULL, delim);
 	}
       }
       spcs(); more= gotc(',');
@@ -412,11 +424,9 @@ char* print_header(char* e) {
       // select 42 AS foo
       if (got("as")) expectsymbol(name, NULL);
       spcs(); more= gotc(',');
-      if (parse_only<0) {
-	if (col) putchar(abs(delim));
-	col++;
-	print_colname(name, start, ps-(more?1:0), more?delim:-delim);
-      }
+      if (parse_only<0 && col) putchar(abs(delim));
+      col++;
+      print_colname(name, col, start, ps-(more?1:0), more?delim:-delim);
     } else expected("expression");
 
     clearval(&v);
@@ -484,6 +494,7 @@ char* print_expr_list(char* e) {
 	  // TODO: Don't truncate if last col!
 	  // difficult to tell if will find more...
 	  printval(&v, delim==','?'\"':0, delim);
+	  result_action(varname, NULL, lineno+1, col);
 	}
       }
       spcs(); more= gotc(',');
@@ -500,6 +511,7 @@ char* print_expr_list(char* e) {
       // TODO: Don't truncate if last col!
       spcs(); more= gotc(',');
       printval(&v, delim==','?'\"':0, more?delim:-delim);
+      result_action(NULL, &v, lineno+1, col);
     } else expected("expression");
 
     clearval(&v);
@@ -804,8 +816,8 @@ int INT(char* selexpr) {
   char name[NAMELEN]= {};
   double start= 0, stop= 0, step= 1;
   // TODO: generalize, use functions?
-  if (gotc('(') && num(&start) && gotc(',')
-      && num(&stop) && gotc(')')) {
+  if (gotc('(') && parse_num(&start) && gotc(',')
+      && parse_num(&stop) && gotc(')')) {
     stop+= 0.5;
     spcs();
     expectname(name, NULL);

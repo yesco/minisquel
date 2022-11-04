@@ -5,8 +5,6 @@
 #include <strings.h>
 #include <ctype.h>
 
-#include "utils.c"
-
 // freadCSV reads from FILE a STRING of MAXLEN
 // and sets a DOUBLE if it's a number.
 //

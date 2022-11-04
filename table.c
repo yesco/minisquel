@@ -32,7 +32,7 @@ extern int stats;
 struct table;
 char* tablestr(struct table*, dbval);
 
-int dbprint(struct table* t, dbval v, int width) {
+int tdbprint(struct table* t, dbval v, int width) {
   switch(type(v)) {
   case TNULL: printf("NULL\t"); break;
   case TNUM:  printf("%7.7lg\t", v.d); break;
@@ -480,8 +480,8 @@ int tablecmp(table* t, dbval a, dbval b) {
   if (isnan(a.d)) return +1;
   if (isnan(b.d)) return -1;
   // nan is equal (because same bits, lol)
-  //dbprint(t, a, 8); printf("type=%d\n", type(a)); putchar('\n');
-  //dbprint(t, b, 8); printf("type=%d\n", type(b)); putchar('\n');
+  //tdbprint(t, a, 8); printf("type=%d\n", type(a)); putchar('\n');
+  //tdbprint(t, b, 8); printf("type=%d\n", type(b)); putchar('\n');
   return (a.d>b.d)-(b.d>a.d);
 }
 
@@ -543,7 +543,7 @@ long printtable(table* t, int details) {
     for(int col=0; col<t->cols; col++) {
       long i= row * t->cols + col;
       dbval v= vals[i];
-      dbprint(t, v, 8);
+      tdbprint(t, v, 8);
     }
     putchar('\n');
     if (details > 2) details--;
@@ -579,7 +579,7 @@ typedef struct printerdata {
 dbval printer(dbval v, printerdata* data) {
   return v;
   data->n++;
-  dbprint(data->t, v, 8);
+  tdbprint(data->t, v, 8);
   return v;
 }
 

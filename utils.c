@@ -230,7 +230,7 @@ void fprintquoted(FILE* f, char* s, int width, int quot, int delim) {
   if (!s && delim==',') return; // csv: null
   if (!s) return (void)printf("NULL");
   if (!*s) return; // NULL
-  if (debug) printf("[Q%dD%dW%d]", quot, delim, width);
+  if (debug>3) printf("[Q%dD%dW%d]", quot, delim, width);
   if (quot>0) { width-= 2; fputc(quot, f); }
   while(*s && (quot>0 || width-- > 1 || delim<=0)) {
     // TODO:corner case where one extra
