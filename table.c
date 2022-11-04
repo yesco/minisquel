@@ -518,6 +518,7 @@ int sorttablecmp(dbval *a, dbval *b) {
 // If a colum number is -col, use desc.
 // Columns start from "1" LOL. (SQL)
 void tablesort(table* t, int n, int* cols) {
+  printf("TABLESORT %d\n", n);
   long ms= timems();
 
   // TODO:lol
@@ -618,15 +619,16 @@ void browsetable(table* t) {
   while(1) {
     pretty_printtable(t, row, pagerows);
     if (getline(&cmd, &len, stdin)<0) break;
+    char* arg= &cmd[1];
     if (!cmd) break;
     switch(*cmd) {
     case 0: row+= pagerows;
     case 'q': return;
     case ' ': case '_': row++; break; // page
-    case 'o': break;
+    case 'o': tablesort(t, atoi(arg), NULL); break;
     case 'g': break;
-    case 'a': pretty_printtable(t, 0, -1); continue;
-    case '#': row= atoi(&cmd[1]); break;
+    case 'a': pretty_printtable(t, 0, 70); continue;
+    case '#': row= atoi(arg); break;
     case '?': case 'h':
       printf("Usage: q)uit o)rder:3 g)group:2\n h)elp\n"); break;
     }
