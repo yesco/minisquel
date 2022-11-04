@@ -105,6 +105,10 @@ b
 ./sql 'select "matches" where "foo" like "%oo"'
 ./sql 'select "matches" where "foofoba" like "f%f%a"'
 
+# -- selecting * columns
+
+./sql 'select [foo.*] from foo foo'
+
 echo "========== BUGS ==========="
 ./test-bugs
 echo "^^^^^^^^^^ BUGS ^^^^^^^^^^^"
