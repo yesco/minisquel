@@ -1,2 +1,2 @@
-gcc -lm minisquel.c -o minisquel && ./minisquel "$@"
+gcc -lm -O3 minisquel.c -o minisquel && ./minisquel "$@"
 

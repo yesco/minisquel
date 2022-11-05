@@ -132,6 +132,7 @@ dbtype type(dbval v) {
   // In NAN number we
   long i= is53(v.d);
   long u= i<0 ? -i : i;
+  if (u>INULL && u<ISTRLIMIT) return TSTR;
   if (!i) return TNUM; // +NAN/-NAN
   if (u==1) return TBAD;
   if (u==INULL) return TNULL;
@@ -139,7 +140,6 @@ dbtype type(dbval v) {
   if (u==IERROR) return TERROR;
   if (u==IFAIL) return TFAIL;
   if (u==IEND) return TEND;
-  if (u>INULL && i<ISTRLIMIT) return TSTR;
   // TODO: use for more types?
   // possibly use lower 4 bits as type
   // xxxx ... xxxx bbbb bbbb tttt
@@ -152,6 +152,7 @@ int isfail(dbval v) {return v.l==CFAIL;}
 int isend(dbval v)  {return v.l==CEND;}
 int iserr(dbval v)  {return v.l==CERROR;}
 int isint(dbval v)  {return((int)v.d)==v.d;}
+int islong(dbval v)  {return((long)v.d)==v.d;}
 int isbad(dbval v)  {return type(v)==TBAD;}    
 // TODO: 1? 2? and max-1?
 int isnum(dbval v) {

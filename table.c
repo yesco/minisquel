@@ -30,10 +30,19 @@ extern int stats;
 struct table;
 char* tablestr(struct table*, dbval);
 
-int tdbprint(struct table* t, dbval v, int width) {
+int tdbprinth(struct table* t, dbval v, int width, int human) {
+  long i= is53(v.d);
+
+  // Save 31% (when printing 3 "long" & 1 string)
+  // Save additionally 2.5% by not doing type check!
+  // It's safeb because num, NAN, INF not double equal
+  long l= (long)v.d;
+  if (l==v.d) return human
+   ? hprint(l, "\t") : printf("%8ld\5", l);
+  
   switch(type(v)) {
-  case TNULL: printf("NULL\t"); break;
-  case TNUM:  printf("%7.7lg\t", v.d); break;
+  case TNULL: return printf("NULL\t");
+  case TNUM:  return printf("%7.7lg\t", v.d);
   case TATOM: 
   case TSTR:  {
     char* s= tablestr(t, v);
@@ -45,11 +54,12 @@ int tdbprint(struct table* t, dbval v, int width) {
     }
     if (*s) putchar(s[1] ? '*' : *s);
     putchar('\t');
-  } break;
-  case TBAD:  printf("ILLEGAL\t"); break;
-  case TFAIL: printf("FAIL\t"); break;
-  case TERROR:printf("ERROR\t"); break;
-  case TEND:  printf("END\n"); break; // \n!
+    return 1;
+  }
+  case TBAD:  return printf("ILLEGAL\t");
+  case TFAIL: return printf("FAIL\t");
+  case TERROR:return printf("ERROR\t");
+  case TEND:  return printf("END\n"); // \n!
   }
   return 1;
 }
@@ -203,9 +213,9 @@ char* tablestr(table* t, dbval v) {
   long i= is53(v.d);
   //printf("tablestr => %ld\n", i);
   if (i<0) i= -i;
-  if (debug) printf("\ntablestr: %ld\n", i);
+  //if (debug) printf("\ntablestr: %ld\n", i);
   i&= maskforoffset;
-  if (debug) printf("  offset: %ld\n", i);
+  //if (debug) printf("  offset: %ld\n", i);
   return i<0?NULL:arenaptr(t->strings->arena, i);
 }
 
@@ -495,8 +505,8 @@ int tablecmp(table* t, dbval a, dbval b) {
   if (isnan(a.d)) return +1;
   if (isnan(b.d)) return -1;
   // nan is equal (because same bits, lol)
-  //tdbprint(t, a, 8); printf("type=%d\n", type(a)); putchar('\n');
-  //tdbprint(t, b, 8); printf("type=%d\n", type(b)); putchar('\n');
+  //tdbprinth(t, a, 8, 1); printf("type=%d\n", type(a)); putchar('\n');
+  //tdbprinth(t, b, 8, 1); printf("type=%d\n", type(b)); putchar('\n');
   return (a.d>b.d)-(b.d>a.d);
 }
 
@@ -559,7 +569,7 @@ long printtable(table* t, int details) {
     for(int col=0; col<t->cols; col++) {
       long i= row * t->cols + col;
       dbval v= vals[i];
-      tdbprint(t, v, 8);
+      tdbprinth(t, v, 8, 1);
     }
     putchar('\n');
     if (details > 2) details--;
@@ -595,11 +605,35 @@ void mode_lineno(){B(gray(5));C(green);}
 void mode_body(){B(black);C(white);clearend();}
 
 void pretty_printtable(table *t, long row, long rows) {
-  dbval* start= (void*)t->data->mem;
+  // TODO: why neeed to skip first value?
+  dbval* start= (void*)(t->data->mem);
   dbval* v= start;
-  dbval* end= (void*)(start + t->data->top);
+  dbval* end= (void*)(t->data->mem + t->data->top);
+  //  dbval* end= (void*)(start + t->count*t->cols);
 
   gotorc(0, 0);
+
+  if (1) { // simple fast print all
+    // TODO:takes between 2000-900 ms!
+    //   insert in table takes same time
+    //   as print the original. Why is it so slow
+    //   to print dbval? inline? data type
+    //   detetion order?
+    // = pretending type() saying all is TNUM
+    //   800 ms, little fster, but very stable
+    // = must be cost of strings... random access!
+    //   MOVING UP string test in type() made it
+    //   900ms mostly, code w too many ifs?
+    long ms= timems();
+    int n=0;
+    while(v<end) {
+      tdbprinth(t, *v++, 8, 1);
+      if (++n % t->cols==0) putchar('\n');
+    }
+    printf("\nPrinting table took %ld ms\n", timems()-ms);
+    return;
+  }
+
   inverse(1);
   printf("MiniSQueL BROWSER\n");
   inverse(0);
@@ -608,16 +642,18 @@ void pretty_printtable(table *t, long row, long rows) {
   for(long r=0; r< t->count+1; r++) {
     if (!r || r>row) {
       for(long c=0; c< t->cols; c++) {
+	// print row number column
 	if (c==0) {
-	  if (!r) printf("#r\\col:\t");
+	  if (!r) printf("#       ");
 	  else {
 	    mode_lineno();
-	    tdbprint(t, mknum(r), 8);
+	    tdbprinth(t, mknum(r), 8, 1);
 	    mode_body();
 	  }
 	  if (!r) mode_header();
 	}
-	tdbprint(t, *v++, 8);
+	// print value
+	tdbprinth(t, *v++, 8, 1);
       }
       if (!r) mode_body();
       putchar('\n'); clearend();
@@ -671,6 +707,7 @@ void browsetable(table* t) {
     pretty_printtable(t, row, pagerows);
   }
   cursoron();
-
+  printtable(t, 0);
+  
   _jio_exit();
 }

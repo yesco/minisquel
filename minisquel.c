@@ -360,7 +360,9 @@ void do_result_action(char* name, val* v, long row, int col) {
     printf("\nRESULT: '%s' ", name); printval(v, '"', 0); printf(" %ld, %d  ", row, col);
     val dummy= {.not_null=1, .s= name};
     dbval dbv= val2dbval(v?v:&dummy);
-    printf("===> "); dbprint(dbv, 8); putchar('\n');
+    printf(">>>"); dbprint(dbv, 0);
+    printf("<<< ps=>>%s<", ps);
+    putchar('\n');
   }
 
   if (results) {
@@ -370,7 +372,7 @@ void do_result_action(char* name, val* v, long row, int col) {
     val dummy= {.not_null=1, .s= name};
     dbval dbv= val2tdbval(results, v?v:&dummy);
     if (debug) {
-      printf("===> "); tdbprint(results, dbv, 8); putchar('\n');
+      printf("===> "); tdbprinth(results, dbv, 8, 1); putchar('\n');
     }
     addarena(results->data, &dbv, sizeof(dbv));
   }
@@ -380,8 +382,6 @@ void (*result_action)(char* name, val* v, long row, int col)= do_result_action;
   
 
 void print_colname(char* name, int col, char* start, char* ps, int delim) {
-  if (parse_only>=0) return;
-
   if (!name[0]) {
     // make a name from expr
     if (delim!='\t' || delim<=0) {
@@ -401,7 +401,7 @@ void print_colname(char* name, int col, char* start, char* ps, int delim) {
 
   if (parse_only<0)
     fprintquoted(stdout, name, 7, abs(delim)==','?'\"':0, delim);
-  if (result_action)
+  if (result_action && parse_only==-1)
     result_action(name, NULL, lineno+1, col);
 }
 
@@ -489,6 +489,9 @@ char* print_expr_list(char* e) {
   int col= 0;
   val v= {};
   int more= 0;
+
+  int doprint= !browse;
+  int printprogress= browse;
   do {
     spcs();
     char* start= ps;
@@ -507,17 +510,18 @@ char* print_expr_list(char* e) {
 	if (like(varname, name, 0)) {
 	  getval(t, varnames[i], &v);
 	  // print it
-	  if (col) putchar(abs(delim));
+	  if (doprint && col) putchar(abs(delim));
 	  col++;
 	  // TODO: Don't truncate if last col!
 	  // difficult to tell if will find more...
-	  printval(&v, delim==','?'\"':0, delim);
+	  if (doprint)
+	    printval(&v, delim==','?'\"':0, delim);
 	  if (result_action)
-	    result_action(varname, NULL, lineno+1, col);
+	    result_action(NULL, &v, lineno+1, col);
 	}
       }
       spcs(); more= gotc(',');
-  } else if (expr(&v)) {
+    } else if (expr(&v)) {
       // select 42 AS foo
       if (got("as")) {
 	expectname(name, NULL);
@@ -529,14 +533,17 @@ char* print_expr_list(char* e) {
       col++;
       // TODO: Don't truncate if last col!
       spcs(); more= gotc(',');
-      printval(&v, delim==','?'\"':0, more?delim:-delim);
+      if (doprint)
+	printval(&v, delim==','?'\"':0, more?delim:-delim);
       if (result_action)
 	result_action(NULL, &v, lineno+1, col);
     } else expected("expression");
 
     clearval(&v);
+    if (printprogress && lineno%100==0)
+      fprintf(stderr, "\r%ld rows produced\r", lineno);
   } while(more);
-  putchar('\n');
+  if (doprint) putchar('\n');
   
   lineno++;
   
@@ -1443,16 +1450,9 @@ int sql() {
   spcs();
   if (end()) return 1;
 
-  if (browse) {
-    if (results) freetable(results);
-    results= newtable("result", 0, 0, NULL);
-  }
-
   int r= sqlselect() ||
     setvarexp() ||
     sqlcreate() ;
-
-  if (browse) browsetable(results);
 
   return r;
 }
@@ -1524,10 +1524,12 @@ void runquery(char* cmd) {
   if (echo) printf("SQL> %s\n", cmd);
   if (!*cmd) return;
   
-  // log and time
-  sqllog(cmd, "start", NULL, NULL, 0, 0, 0);
-
   mallocsreset();
+
+  if (browse) {
+    if (results) freetable(results);
+    results= newtable("result", 0, 0, NULL);
+  }
 
   long ms= timems();
   parse(cmd);
@@ -1547,6 +1549,10 @@ void runquery(char* cmd) {
 
   // TODO: catch/report parse errors
   if (r!=1) printf("\n%% Couldn't parse that\n");
+
+  if (browse && results && results->count)
+    browsetable(results);
+  if (results) { freetable(results); results= NULL; }
 
   // TODO: print leftover
   //if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
@@ -1644,6 +1650,8 @@ int process_arg(char* arg, char* next) {
   } else {
     //  no option match: assume sql
     runquery(arg);
+    if (results) freetable(results);
+
     interactive= 0;
   }
 

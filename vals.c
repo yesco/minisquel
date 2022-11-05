@@ -202,6 +202,7 @@ val* linkval(char* table, char* name, val* v) {
 }
 
 val* findvar(char* table, char* name) {
+  if (!name) return NULL;
   // Search names from last to first
   //   would work better w recursive func
   for(int i=varcount-1; i>=0; i--)
@@ -245,6 +246,8 @@ val* setvar(char* table, char* name, val* s) {
 }
 
 int getval(char* table, char* name, val* v) {
+  if (!v) return 0;
+  if (!name) { ZERO(*v); return 0; }
   // special names
   if (*name=='$') {
     if (0==strcmp("$lineno", name)) {
