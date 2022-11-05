@@ -440,7 +440,7 @@ char* print_header(char* e) {
       spcs(); more= gotc(',');
     } else if (expr(&v)) {
       // select 42 AS foo
-      if (got("as")) expectsymbol(name, NULL);
+      if (got("as")) expectsymbol(name, "alias name");
       spcs(); more= gotc(',');
       if (parse_only<0 && col) putchar(abs(delim));
       col++;
@@ -524,7 +524,7 @@ char* print_expr_list(char* e) {
     } else if (expr(&v)) {
       // select 42 AS foo
       if (got("as")) {
-	expectname(name, NULL);
+	expectsymbol(name, NULL);
 	setvar(NULL, name, &v);
       }
 
