@@ -72,8 +72,8 @@ a	b	c	d
       5	foobar	  55555	  11111
       6	foobar*	 666666	 111111
 
-6 rows in 0 ms (read 7 lines)
-[9 malloc 10 free (leak -1) 4145 bytes]
+6 rows in 1 ms (read 7 lines)
+[10 malloc 10 free (leak +0) 6896 bytes]
 
 SQL> select fish from count.txt(fish) f
 fish
@@ -86,8 +86,8 @@ fish
 5 F
 6 g
 
-7 rows in 0 ms (read 8 lines)
-[11 malloc 11 free (leak +0) 4149 bytes]
+7 rows in 1 ms (read 8 lines)
+[12 malloc 11 free (leak +1) 6900 bytes]
 
 SQL> select 12345, 123456, 1234567, 12345678, 123456789
 12345	123456	1234567	12345..	123456789
@@ -186,7 +186,7 @@ SQL> select 42 where not(1=1 and 2=1)
 ======= 
      42
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select 42 where not(1=1 and 1=2)
@@ -314,7 +314,7 @@ c5
 ======= 
 arfie
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [12 malloc 11 free (leak +1) 55 bytes]
 
 SQL> select left(right(concat("foo", "bar", "fie"), 6),4)
@@ -322,7 +322,7 @@ left(right(concat("foo", "bar", "fie"), 6),4)
 ======= 
 barf
 
-1 rows in 0 ms (read 0 lines)
+1 rows in 1 ms (read 0 lines)
 [12 malloc 12 free (leak +0) 58 bytes]
 
 SQL> select count(i) from int(1,10) i
@@ -339,7 +339,7 @@ count(i)
       9
      10
 
-10 rows in 0 ms (read 0 lines)
+10 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select type(NULL) as tnull, type(foo) as tstr, type(3.3) as tnumber, type(3) as tint
@@ -405,7 +405,7 @@ ta.a	tb.a
       6	      6
 
 6 rows in 1 ms (read 49 lines)
-[63 malloc 70 free (leak -7) 29015 bytes]
+[64 malloc 70 free (leak -6) 31766 bytes]
 
 before
 SQL> select i,j,i*j from int(1,20) i, int(1,10) j where i=j
@@ -422,7 +422,7 @@ i	j	i*j
       9	      9	     81
      10	     10	    100
 
-10 rows in 1 ms (read 0 lines)
+10 rows in 2 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1, foo.csv t2 where t1.a=t2.a
@@ -435,8 +435,8 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 1 ms (read 49 lines)
-[63 malloc 70 free (leak -7) 29015 bytes]
+6 rows in 2 ms (read 49 lines)
+[64 malloc 70 free (leak -6) 31766 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
 t1.a	t2.a	b
@@ -448,8 +448,8 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 0 ms (read 14 lines)
-[29 malloc 30 free (leak -1) 8381 bytes]
+6 rows in 1 ms (read 14 lines)
+[30 malloc 30 free (leak +0) 11132 bytes]
 
 SQL> select name from "ls Test/*.csv|"(name) file
 name
@@ -463,7 +463,7 @@ Test/nl.csv
 Test/null.csv
 
 7 rows in 1 ms (read 8 lines)
-[12 malloc 12 free (leak +0) 4243 bytes]
+[13 malloc 12 free (leak +1) 6994 bytes]
 
 SQL> select i from one2ten ten
 i
@@ -480,7 +480,7 @@ i
      10
 
 10 rows in 1 ms (read 11 lines)
-[6 malloc 7 free (leak -1) 4177 bytes]
+[7 malloc 7 free (leak +0) 6928 bytes]
 
 SQL> select i from one2ten.sql ten
 i
@@ -497,7 +497,7 @@ i
      10
 
 10 rows in 1 ms (read 11 lines)
-[4 malloc 5 free (leak -1) 4161 bytes]
+[5 malloc 5 free (leak +0) 6912 bytes]
 
 Variable 'debug' set to 1
 SQL> create index ix on foo.csv(a)
@@ -621,8 +621,8 @@ foo.a	foo.b	foo.c	foo.d	foo.e
       5	foobar	  55555	  11111	      0
       6	foobar*	 666666	 111111	     -1
 
-6 rows in 0 ms (read 7 lines)
-[10 malloc 11 free (leak -1) 4145 bytes]
+6 rows in 1 ms (read 7 lines)
+[11 malloc 11 free (leak +0) 6896 bytes]
 
 ========== BUGS ===========
 SQL> select 42 where (1)=1
@@ -801,7 +801,7 @@ count..	count..	count()
      10	      9	     99
      10	     10	    100
 
-100 rows in 2 ms (read 0 lines)
+100 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where
@@ -820,7 +820,7 @@ t1.a	t2.a	b
       6	      6	foobarfie
 
 11 rows in 1 ms (read 14 lines)
-[29 malloc 30 free (leak -1) 8381 bytes]
+[30 malloc 30 free (leak +0) 11132 bytes]
 
 SQL> select t1.a, t2.a, t2.b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
 t1.a	t2.a	t2.b
@@ -833,7 +833,7 @@ t1.a	t2.a	t2.b
       6	      6	NULL
 
 6 rows in 1 ms (read 14 lines)
-[29 malloc 30 free (leak -1) 8381 bytes]
+[30 malloc 30 free (leak +0) 11132 bytes]
 
 SQL> select "foo"
 "foo"
@@ -850,8 +850,8 @@ affec
 bondi
 exerc
 
-100535 rows in 1286 ms (read 100536 lines)
-[617339 malloc 617340 free (leak -1) 21382603 bytes]
+100535 rows in 1137 ms (read 100536 lines)
+[617340 malloc 617340 free (leak +0) 21385354 bytes]
 
 SQL> select a,b,c,d,e from null n
 a	b	c	d	e
@@ -859,6 +859,6 @@ a	b	c	d	e
 NULL	NULL	N	NULL	      0
 
 1 rows in 0 ms (read 2 lines)
-[5 malloc 6 free (leak -1) 4117 bytes]
+[6 malloc 6 free (leak +0) 6868 bytes]
 
 ^^^^^^^^^^ BUGS ^^^^^^^^^^^
