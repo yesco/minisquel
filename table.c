@@ -527,11 +527,11 @@ void tablesort(table* t, int n, int* cols) {
   qsort_table= t;
   int row_size= t->cols*sizeof(dbval);
   // skip first row (headers)
-  int actual_size= t->data->top+ t->count-1*row_size;
+  int actual_size= t->data->top+ t->count;
   if (actual_size > t->data->size)
     ; // not stored!
   else
-    qsort(t->data->mem+row_size, t->count-1, row_size, (void*)sorttablecmp);
+    qsort(t->data->mem+row_size, t->count, row_size, (void*)sorttablecmp);
   qsort_table= NULL;
 
   // TODO: consider inline qsort?
@@ -586,43 +586,71 @@ long printtable(table* t, int details) {
   return bytes;
 }
 
+
+
+#include "ansi.c"
+
+void mode_header(){B(green);C(black);clearend();}
+void mode_lineno(){B(gray(5));C(green);}
+void mode_body(){B(black);C(white);clearend();}
+
 void pretty_printtable(table *t, long row, long rows) {
   dbval* start= (void*)t->data->mem;
   dbval* v= start;
   dbval* end= (void*)(start + t->data->top);
 
-  printf("\n\n-- %s\n", t->name);
+  gotorc(0, 0);
+  inverse(1);
+  printf("MiniSQueL BROWSER\n");
+  inverse(0);
+  printf("\n-- %s\n", t->name);
+  clearend();
   for(long r=0; r< t->count+1; r++) {
     if (!r || r>row) {
       for(long c=0; c< t->cols; c++) {
 	if (c==0) {
 	  if (!r) printf("#r\\col:\t");
-	  else tdbprint(t, mknum(r), 8);
+	  else {
+	    mode_lineno();
+	    tdbprint(t, mknum(r), 8);
+	    mode_body();
+	  }
+	  if (!r) mode_header();
 	}
 	tdbprint(t, *v++, 8);
       }
-      putchar('\n');
+      if (!r) mode_body();
+      putchar('\n'); clearend();
+
     } else v+= t->cols;
     if (r+1>row+rows && rows>0) break;
   }
-  printf("%ld rows\n", t->count);
+  printf("===%ld rows\n", t->count);
+
+  cleareos();
 }
 
 void browsetable(table* t) {
-  tablesort(t, 2, NULL);
-  const long pagerows= 16;
+  jio();
+
+  clear();
+  
+  const long pagerows= screen_rows-10;
+  
   char* cmd= NULL;
   size_t len= 0;
   long row= 0;
   pretty_printtable(t, row, pagerows);
   while(1) {
     printf("> "); fflush(stdout);
+    cursoron();
     getline(&cmd, &len, stdin);
+    cursoroff();
     char* arg= &cmd[1];
     char c= cmd[0];
     switch(c) {
     case 'q': return;
-
+    case 'L'-64: clear(); break;
     case 'f': case 'n': case '\n':
       row+= pagerows; break;
     case 'b': case 'p':
@@ -635,9 +663,14 @@ void browsetable(table* t) {
     case 'a': pretty_printtable(t, 0, -1); continue;
     case '#': row= atoi(arg)-1; break;
     case '?': case 'h':
-      printf("Usage: q)uit o)rder:3 g)group:2  h)elp a)ll <start >end n)ext p)rev #35 \n"); break;
+      printf("\nUsage: q)uit o)rder:3 g)group:2  h)elp a)ll <start >end n)ext p)rev #35 \n"); continue;
     }
+    if (row < 0) row= 0;
+    if (row > t->count - pagerows) row= t->count - pagerows;
 
     pretty_printtable(t, row, pagerows);
   }
+  cursoron();
+
+  _jio_exit();
 }
