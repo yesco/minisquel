@@ -6,6 +6,142 @@
 #include "utils.c"
 #include "hash.c"
 
+/* --- double float64 binary64
+    64-bit doubles are encoded as follows:
+
+    -- s52
+(* 6 8)
+1 -----11---- ------------------------- 52 -----------------------------
+                 1       2   3   4   5     6 bytes 
+s eeeeeeeeeee BBBBBBBB BBBBB-----BBBBBB BBBBBBBB bbbb = number/int53
+s 11111111111                                         = +INF/-INF
+s 11111111111 0 = NAN                                 = NAN normal
+s 11111111111 1 = NAN                                 = NAN -SigNNA
+  11111111111 11111111 11111-----111111 11111111 1111 = NAN arm x86
+
+0             nnnnnnnn nnnnn-----nnnnnn nnnnnnnn nnn0 = "+offset" 
+0             dddddddd ddddd-----dddddd dddddddd nnn1 = typed data
+1             NNNNNNNN NNNNN-----NNNNNN NNNNNNNN NNN0 = "-offset"
+1             DDDDDDDD DDDDD-----DDDDDD DDDDDDDD DDD1 = TYPED DATA
+
+Let's look at what we can hide behind redundant NAN numbers!
+
+48 bits => 2^48 addresses a terabyte!
+
+   6 bytes  type
+   -------  ----
+0  NNN NNN  bnk0 = use for string offset
+0  DDD DDD  typ1 = encode linear types
+
+1  NNN NNN  BNK0 = big (file) offset
+1  DDD DDD  TYP1 = various encodings
+
+We've observed that string sort/ccmp takes
+time to search as it gives many cache misses.
+
+
+
+STRING COMPARABLE OFFSETS!
+--------------------------
+
+We will store a prefix of the string inside
+the "offset" pointer!
+
+The alphabet of strings is binned into 64
+nubmers. Thus 6 bits:
+
+4 chars a 6 bits is 24 bits
+
+52-24 => 28 bits = 2^28 = 256 MB addresses
+If strings are aligned on 2 bytes, then
+low bit is always zero, indicating this type.
+
+  24 bits  256 MB hash strings
+  4 chars        28 bits
+  -------  -------------------
+0   cccc   nnnnnnn--nnnnnn n 0
+
+
+VARIOUS SMALL TYPES
+===================
+
+
+     48 bits     3 bits
+    -----------  --/  
+0   ddddd---ddd  typ  1
+
+0   AAAA AAAAAA  a00  1  \
+0                000  1   } 7 ASCII !
+0                100  1  /
+		 
+
+    TSTSTSTSTST  001  1  5k years Timestamp
+
+                 010  1      maybe date
+		 011  1      maybe time
+
+                 101  1         free
+                 110  1         free
+		 111  1         free
+
+7 INLINE ASCII CHARACTERS
+\-------------------------
+
+        48   +   1
+	  49 bits
+     ===============
+     'H i W o r l d'
+
+
+
+TIME STAMP - UNIX TIME
+----------------------
+
+--- Unix Time
+10k years 365.25 days
+              24h 60m 60s 1000ms
+bc> 10000*365.25*24*60*60*1000
+315576000000000.00
+bc> l(last)/l(2)
+bc> 48.16498081895322801908
+
+ ==> so we need 49 bits
+    to store 10000 years!
+    48 for 5000 years
+
+
+BIG DATA, lol 
+=========----
+When it's "negative" we can have a differnt
+meanings:
+
+       48 bits  
+1   DDDDDDD---DDDDDD 1  = 51 bits (D)
+1   DDDDD---DDD  TYP 1  = or 48 bits
+
+    48 bits 281474976710656 = 281 474 976 710 656 = 256 T
+    
+    40 bits 1099511627776 = 109 9511 627 776 = 1 TB
+    
+    heap heap index to 256 different heaps?
+
+    tttt = 4 bit "type" info
+
+    double lmax= 4503599627370496l;
+    long lmax= 2251799813685248l;
+*/
+
+// TODO: same for 64-bit double:
+//    => 53 bits (one sign + 52 bits)
+//   Values excluded 0, 1, 1111...1111
+//
+//   2^52 ==  4 503 599 627 370 496 = 4.5 Exa
+// 
+// REF: https://en.m.wikipedia.org/wiki/Double-precision_floating-point_format
+
+
+
+
 const uint64_t LINF_MASK= 0x7ff0000000000000l; // 11 bits exp
 const uint64_t LMASK    = 0x7ff0000000000000l;
 const uint64_t LNAN_MASK= 0x7ff8000000000000l;
@@ -68,10 +204,22 @@ typedef union dbval {
 #define MAXSTRINGS 1024*1024
 // first 3 values are protected
 #define INULL 2
-#define IEND   (LMASK_53-3) // EOF
-#define IFAIL  (LMASK_53-2) // ???
-#define IERROR (LMASK_53-1) // max-1
+// ... strings ...
 #define ISTRLIMIT (LMASK_53-16)
+// logic
+#define IFALSE (LMASK_53-15) // -1
+#define IFAIL  (LMASK_53-14) //  0
+#define ITRUE  (LMASK_53-13) // +1
+// query state
+#define IDEL   (LMASK_53-13) // DELeted
+
+// ... to be used ...
+
+// control flow
+#define IWAIT  (LMASK_53-3) // call again?
+#define IEND   (LMASK_53-2) // EOF
+// variants of error
+#define IERROR (LMASK_53-1) // max-1
 
 #define CNULL  (INULL  | LINF_MASK)
 #define CEND   (IEND   | LINF_MASK)

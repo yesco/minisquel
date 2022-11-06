@@ -528,7 +528,7 @@ int sorttablecmp(dbval *a, dbval *b) {
 // If a colum number is -col, use desc.
 // Columns start from "1" LOL. (SQL)
 void tablesort(table* t, int n, int* cols) {
-  printf("TABLESORT %d\n", n);
+  if (debug || stats) printf("TABLESORT %d\n", n);
   long ms= timems();
 
   // TODO:lol
@@ -549,7 +549,7 @@ void tablesort(table* t, int n, int* cols) {
 
   ms= timems()-ms;
   if (stats || debug)
-    printf("sort %d took %ld ms\n", t->sort_col, ms);
+    printf("sort %s on %d took %ld ms\n", t->name, t->sort_col, ms);
 }
 
 long printtable(table* t, int details) {
@@ -600,7 +600,11 @@ long printtable(table* t, int details) {
 
 #include "ansi.c"
 
-void mode_header(){B(green);C(black);clearend();}
+void mode_header(int odd) {
+  B(odd ? rgb(0,5,0) : green); 
+  C(black);
+  clearend();
+}
 void mode_lineno(){B(gray(5));C(green);}
 void mode_body(){B(black);C(white);clearend();}
 
@@ -611,58 +615,48 @@ void pretty_printtable(table *t, long row, long rows) {
   dbval* end= (void*)(t->data->mem + t->data->top);
   //  dbval* end= (void*)(start + t->count*t->cols);
 
-  gotorc(0, 0);
 
-  if (1) { // simple fast print all
-    // TODO:takes between 2000-900 ms!
-    //   insert in table takes same time
-    //   as print the original. Why is it so slow
-    //   to print dbval? inline? data type
-    //   detetion order?
-    // = pretending type() saying all is TNUM
-    //   800 ms, little fster, but very stable
-    // = must be cost of strings... random access!
-    //   MOVING UP string test in type() made it
-    //   900ms mostly, code w too many ifs?
-    long ms= timems();
-    int n=0;
-    while(v<end) {
-      tdbprinth(t, *v++, 8, 1);
-      if (++n % t->cols==0) putchar('\n');
-    }
-    printf("\nPrinting table took %ld ms\n", timems()-ms);
-    return;
-  }
+  // TODO:takes between 2000-900 ms!
+  //   insert in table takes same time
+  //   as print the original. Why is it so slow
+  //   to print dbval? inline? data type
+  //   detetion order?
+  // = pretending type() saying all is TNUM
+  //   800 ms, little fster, but very stable
+  // = must be cost of strings... random access!
+  //   MOVING UP string test in type() made it
+  //   900ms mostly, code w too many ifs?
 
   inverse(1);
-  printf("MiniSQueL BROWSER\n");
-  inverse(0);
-  printf("\n-- %s\n", t->name);
-  clearend();
-  for(long r=0; r< t->count+1; r++) {
-    if (!r || r>row) {
-      for(long c=0; c< t->cols; c++) {
-	// print row number column
-	if (c==0) {
-	  if (!r) printf("#       ");
-	  else {
-	    mode_lineno();
-	    tdbprinth(t, mknum(r), 8, 1);
-	    mode_body();
-	  }
-	  if (!r) mode_header();
-	}
-	// print value
-	tdbprinth(t, *v++, 8, 1);
-      }
-      if (!r) mode_body();
+  printf("MiniSQueL BROWSER:");
+  inverse(0); reset();  printf("   ");
+  B(rgb(0,0,10)); C(yellow+8); printf(" %s \n", t->name);
+  B(black); C(white); clearend();
+
+  long ms= timems();
+  int n=0;
+  mode_body();
+  mode_header(1);
+  printf("\t");
+  while(v<end) {
+    // header alternating colors
+    if (n < t->cols) mode_header(n%2);
+    int r= ++n / t->cols;
+    tdbprinth(t, *v++, 8, 1);
+
+    // print rowno as first column
+    if (n % t->cols==0 && v!=end) {
+      if (r==1) mode_body();
       putchar('\n'); clearend();
+      mode_lineno();
+      tdbprinth(t, mknum(r), 8, 1);
+      mode_body();
+    }
 
-    } else v+= t->cols;
-    if (r+1>row+rows && rows>0) break;
+    if (r >= row+rows && rows >= 0) break;
   }
-  printf("===%ld rows\n", t->count);
-
+  printf("\n%s: %ld rows\n", t->name, t->count);
+  if (debug) printf("\nPrinting table took %ld ms\n", timems()-ms);
   cleareos();
 }
 
@@ -676,6 +670,7 @@ void browsetable(table* t) {
   char* cmd= NULL;
   size_t len= 0;
   long row= 0;
+  gotorc(0, 0);
   pretty_printtable(t, row, pagerows);
   while(1) {
     printf("> "); fflush(stdout);

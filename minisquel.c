@@ -314,7 +314,7 @@ int prim(val* v) {
 int mult(val* v) {
   if (!prim(v)) return 0;
   char op;
-  while ((op= gotcs("*/"))) {
+  while ((op= gotcs("*/%"))) {
     val vv= {};
     if (prim(&vv)) {
       // TODO: type checking?
@@ -322,7 +322,9 @@ int mult(val* v) {
 	v->d= v->d * vv.d;
       } else if (op == '/') {
 	v->d= v->d / vv.d;
-      }
+      } else if (op == '%') {
+	v->d= ((long)v->d) % ((long)vv.d);
+      } else error("Undefined operator!");
       v->not_null &= vv.not_null;
     }
   }
@@ -332,7 +334,9 @@ int mult(val* v) {
 int expr(val* v) {
   spcs();
   ZERO(*v);
+  int neg= gotc('-')? -1 : +1;
   if (!mult(v)) return 0;
+  v->d= neg * v->d;
   char op;
   while ((op= gotcs("+-"))) {
     val vv= {};
@@ -371,7 +375,7 @@ void do_result_action(char* name, val* v, long row, int col) {
 
     val dummy= {.not_null=1, .s= name};
     dbval dbv= val2tdbval(results, v?v:&dummy);
-    if (debug) {
+    if (debug>1) {
       printf("===> "); tdbprinth(results, dbv, 8, 1); putchar('\n');
     }
     addarena(results->data, &dbv, sizeof(dbv));
@@ -634,8 +638,8 @@ int scmp(char* cmp, char* a, char* b) {
 }
 
 // returns "extended boolean"
-#define LFAIL 0
 #define LFALSE (-1)
+#define LFAIL 0
 #define LTRUE 1
 // NOTE: -LFALSE==LTRUE !!
 
@@ -695,21 +699,74 @@ int logical() {
   return r;
 }
 
+int after_where(char* selexpr) {
+  // TODO: only call after LAST where!
+  //   (now called every time... lol)
+  parse_only= 0;
+
+  // select * from groups;
+  //   a,b,c
+  //   1,2,3
+  //   1,2,6
+  //   2,2,7
+  //   2,2,9
+  //   1,3,3
+  // CREATE FUNCTION groups AS VALUES (1,2,3), (1,2,6);, (2,2,7), (2,2,9), (1,3,3);
+  
+  // select 1000+sum(a) as col1,b,sum(c) from groups group by 2
+  
+  // GROUP BY and HAVING
+  if (got("group by")) {
+    // ? implies sorting, unless hash
+    // first variant could just sort on
+    // the group by columns (must be mentioned in the select?)
+    error("GROUP BY: not yet implemented");
+  }
+  if (got("having")) {
+    // to test after aggregation of group
+    // can "invalidate" rows by changin
+    // col1 to DELETED (or all cols)
+    error("NOT HAVING fun yet!");
+  }
+
+  if (got("order by")) {
+    // will order on groups already generated... valuies order by might be aggregate
+    double d;
+    // TODO: or column name...
+    //   now -4 also works as "ASC" lol
+    if (!parse_num(&d)) expected("order by COL");
+    int col= d;
+    got("ASC") || got("ASCENDING");
+    if (got("DESC") || got("DESCENDING"))
+      col= -col;
+    // We're OK, before generating rows
+    if (!results) results= newtable("result", 0, 0, NULL);
+    results->sort_col= col;
+    // TODO: several columns...
+    if (debug) printf("ORDER BY %d\n", col);
+  }
+
+  if (selexpr) return !!print_expr_list(selexpr);
+  return 1;
+}
+
 int where(char* selexpr) {
   // ref - https://www.sqlite.org/lang_expr.html
   val v= {};
   char* saved= ps;
   if (got("where")) {
-    // TODO: logocal expr w and/or
-    v.not_null= (logical()==LTRUE);
+    int r= logical();
+    //printf("WHERE => %d\n", r);
+    v.not_null= (r==LTRUE);
   } else {
     v.not_null= 1;
   }
   
   if (v.not_null) {
     parse_only= 0;
-    if (selexpr) print_expr_list(selexpr);
+    after_where(selexpr);
   }
+
   ps= saved;
   
   return 1;
@@ -1539,6 +1596,10 @@ void runquery(char* cmd) {
   // lineno= -2 when starts
   // lineno= 0 when printed printed header just beore printint one row
   // if no rows, no header printed so -1
+
+  // just shows FROM ... 
+  //printf("AT> '%s'\n", ps);
+
   if (stats && lineno >= -1) {
     //if (lineno-1 >= 0)
     printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno<0 ? 0 : lineno, ms, readrows);
@@ -1550,8 +1611,17 @@ void runquery(char* cmd) {
   // TODO: catch/report parse errors
   if (r!=1) printf("\n%% Couldn't parse that\n");
 
-  if (browse && results && results->count)
-    browsetable(results);
+  if (results && results->count) {
+    tablesort(results, results->sort_col, NULL);
+    if (browse) 
+      browsetable(results);
+    else if (0==strcmp(format, "csv")) {
+      error("Not implemented for sorted table yet");
+    } else {
+      pretty_printtable(results, 0, -1);
+      printf("Use --browse to browse interactively\n");
+    }
+  }
   if (results) { freetable(results); results= NULL; }
 
   // TODO: print leftover
