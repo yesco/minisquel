@@ -1612,7 +1612,8 @@ void runquery(char* cmd) {
   if (r!=1) printf("\n%% Couldn't parse that\n");
 
   if (results && results->count) {
-    tablesort(results, results->sort_col, NULL);
+    if (results->sort_col)
+      tablesort(results, results->sort_col, NULL);
     if (browse) 
       browsetable(results);
     else if (0==strcmp(format, "csv")) {

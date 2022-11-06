@@ -634,26 +634,36 @@ void pretty_printtable(table *t, long row, long rows) {
   B(black); C(white); clearend();
 
   long ms= timems();
-  int n=0;
   mode_body();
   mode_header(1);
   printf("\t");
+  int r= 0, n= 0;
   while(v<end) {
     // header alternating colors
     if (n < t->cols) mode_header(n%2);
-    int r= ++n / t->cols;
-    tdbprinth(t, *v++, 8, 1);
 
-    // print rowno as first column
-    if (n % t->cols==0 && v!=end) {
-      if (r==1) mode_body();
-      putchar('\n'); clearend();
-      mode_lineno();
-      tdbprinth(t, mknum(r), 8, 1);
-      mode_body();
+    // print only after "row" rows
+    n++;
+    if (r>=0 && r < row) {
+      if (n % t->cols==0) r++; // hmm
+      v++;
+    } else {
+      tdbprinth(t, *v++, 8, 1);
+
+      // print rowno as first column
+      if (n % t->cols==0) {
+	r++; // hmmm
+	if (v<end) {
+	  if (r==1) mode_body();
+	  putchar('\n'); clearend();
+	  mode_lineno();
+	  tdbprinth(t, mknum(r), 8, 1);
+	  mode_body(); clearend();
+	}
+      }
+
+      if (r > row+rows && rows >= 0) break;
     }
-
-    if (r >= row+rows && rows >= 0) break;
   }
   printf("\n%s: %ld rows\n", t->name, t->count);
   if (debug) printf("\nPrinting table took %ld ms\n", timems()-ms);
@@ -672,6 +682,7 @@ void browsetable(table* t) {
   long row= 0;
   gotorc(0, 0);
   pretty_printtable(t, row, pagerows);
+  
   while(1) {
     printf("> "); fflush(stdout);
     cursoron();
@@ -699,10 +710,11 @@ void browsetable(table* t) {
     if (row < 0) row= 0;
     if (row > t->count - pagerows) row= t->count - pagerows;
 
+    gotorc(0, 0);
     pretty_printtable(t, row, pagerows);
   }
+  //printtable(t, 0);
   cursoron();
-  printtable(t, 0);
   
   _jio_exit();
 }
