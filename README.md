@@ -28,12 +28,12 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 
 ## NON-goals
 - NO: full standard SQL (we go for subset)
-- NO:high optimial efficency (go download DuckDB instead!)
-- NO: tokenizer/parser-tree/internal represenation
+- NO: high optimial efficency (go download DuckDB instead!)
+- NO: tokenizer/parser-tree/internal represenation (yet... lol)
 - NO: optimizer
 - NO: more datatypes (but funtions on strings: xml/json etc)
 - NO: ODBC, NO: JDBC - no fxxing way!
-- NO: stored prepared queries
+- NO: stored procedures P/SQL
 
 ## Working Examples
 
@@ -96,6 +96,22 @@ Select column names by 'like'-style expression:
 
      select [foo.*] from foo foo order by 1
 
+ORDER BY colnum [ ASC[ENDING] | DESC[ENDING] ]
+
+     select -i, i from int(1,10) ORDER BY 1 ASC
+
+     select -i, i from int(1,10) ORDER BY 2 DESCENDING
+
+or happen to work...
+
+     select -i, i from int(1,10) ORDER BY -2
+
+### Pretty Browsing
+
+Only one column for now. This stores the result set in a main memory results table. By giving the --browse option, you can. GUI/browse a pretty printed variant of the table. More features coming!
+
+     ./sql --browse select -i, i from int(1,10) 
+
 ### Schema
 
      UNIX> ./tables
@@ -103,6 +119,8 @@ Select column names by 'like'-style expression:
      UNIX> ./describe foo.csv
 
 ### Create Index
+
+It's a dummy for now, it uses a special in-memory 12 byte structure. It's being replaced by the new in-memory double value table structure.
 
      SQL> create index ix on foo.csv(a)
 
