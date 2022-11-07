@@ -1,8 +1,25 @@
 #include <stdio.h>
 #include <ctype.h>
+#include <math.h>
 
+int alphabet(char* s) {
+  long a[128/8]= {0};
+  int c, n= 0;
+  while((c= *s++)) {
+    c= tolower(c); // mostly correct
+    // TODO: CAP WRODS w prefix/shift
+    int i= c/64;
+    long m= 1l<<(c & 63);
+    if (!(a[i] & m)) {
+      n++;
+      a[i] |= m;
+    }
+  }
+  return n;
+}
 
 long compress(char* s) {
+  printf("\n  DATA  %s\n", s);
   char* p;
   int n, c;
 
@@ -117,10 +134,22 @@ long compress(char* s) {
     printf("  %c %3d\n", c, d-lowest); n++;
     p++;
   }
+
+  int alpha= alphabet(s);
+  alpha+= 5;
+  int abits= log2f(alpha)/log2f(2)+0.9999;
+  printf("DATA = alphabet %d alphabits=%d\n", alpha, abits);
+  float nabits= n * abits;
+  int nabytes= (int)(nabits+7)/8 + 8;
+  printf("DATA n=%d bits=%d nbits=%d bytes= %d /%lu ALPHA\n", n, abits, (int)nabits, nabytes, strlen(s));  
+
+  float apercent= 100.0-100*(nabytes+0.0)/strlen(s);
+  printf("DATA = savings %4.3f %% ALPHA\n", apercent);
+
   printf("DATA = # %d outputs\n", n);
   int bits= log2f(highest-lowlowest)/log2f(2)+0.9999;
   float nbits= n * bits;
-  printf("DATA n=%d bits=%d nbits=%d bytes=%d (%lu)\n", n, bits, (int)nbits, (int)(nbits+7)/8, strlen(s));
+  printf("DATA n=%d bits=%d nbits=%d bytes= %d /%lu\n", n, bits, (int)nbits, (int)(nbits+7)/8, strlen(s));
 
   free(tofree);
   return nbits;
@@ -133,7 +162,7 @@ long report(char* s) {
   float percent= 100.0-100*(double)nbits/8/strlen(s);
   printf("DATA nbits=%ld bytes=%d (%lu)\n", (long)nbits, (int)(nbits/8), strlen(s));
   printf("DATA = savings %4.3f %%\n", percent);
-  return nbits/8;
+  return (nbits+7)/8;
 }
 
 int main(int argc, char** argv) {
@@ -141,9 +170,10 @@ int main(int argc, char** argv) {
 
   char* str= NULL;
   size_t ln= 0;
+
   long bytes= 0, cbytes= 0;
   int len= 0;
-  while((len=getline(&str, &len, stdin))!=EOF) {
+  while((len=getline(&str, &ln, stdin))!=EOF) {
     bytes+= len;
     cbytes+= report(str);
     //printf("data ===== bytes=%ld cbytes=%ld\n" , bytes, cbytes);
