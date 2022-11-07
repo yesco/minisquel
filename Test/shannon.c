@@ -14,33 +14,25 @@ long  freq[MAXSYMS]= {};
 char* sym[MAXSYMS]= {};
 int narr= 0;
 
-// Note: prefix bits are reversed!
-
+// Note: prefix are "aligned" on right
 void findmidpoint(int start, int end, long prefix, int depth) {
   if (start>end) return;
   if (start==end) {
 
-    printf("MID: ");
-    for(int i=0; i<start; i++) putchar(' ');
-    printf("*  - ");
-    for(int i=0; i<depth; i++) {
-      putchar('0'+(prefix&1));
+    char bits[depth+1];
+    bits[depth]= 0;
+    for(int i=depth-1; i>=0; i--) {
+      bits[i]= '0' + (prefix&1);
       prefix>>= 1;
     }
-    putchar('\n');
-    
-    for(int i=0; i<depth; i++) {
-      putchar('0'+(prefix&1));
-      prefix>>= 1;
-    }
+
+    printf("%s", bits);
     printf("\ti=%3d ", start);
     printf(" (%2d) %s # %ld OUT\n", depth, sym[start], freq[start]);
+
     return;
   }
 
-  printf("= ");
-  for(int i=0; i<depth; i++) putchar(' ');
-  printf("%2d %2d (%d)\n", start, end, depth);
   long suma= 0, sumb= 0;
   int s= start, e= end;
   printf("\n");
@@ -54,20 +46,17 @@ void findmidpoint(int start, int end, long prefix, int depth) {
     }
   }
   int mid= s;
-  //printf("= %4d %4d %8ld %8ld\n", s, e, suma, sumb);
   depth++;
   prefix<<= 1;
   if (end-start>0) {
     if (!(start>=mid || mid>=end)) {
-    printf("MID: ");
-    for(int i=0; i<start; i++) putchar(' ');
-    for(int i=start; i<mid; i++) putchar('0');
-    for(int i=mid; i<end; i++) putchar('1');
-    printf("\n");
-  }
+      printf("MID: ");
+      for(int i=0; i<start; i++) putchar(' ');
+      for(int i=start; i<mid; i++) putchar('0');
+      for(int i=mid; i<end; i++) putchar('1');
+      printf("\n");
+    }
 
-    // must be a bug here somewhere? lol
-    // code isn't unique, shouldn't happen
     findmidpoint(start, mid-1, prefix+0, depth);
     findmidpoint(mid, end, prefix+1, depth);
   }
