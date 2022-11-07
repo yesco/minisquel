@@ -362,7 +362,7 @@ void do_result_action(char* name, val* v, long row, int col) {
     printf("\nRESULT: '%s' ", name); printval(v, '"', 0); printf(" %ld, %d  ", row, col);
     val dummy= {.not_null=1, .s= name};
     dbval dbv= val2dbval(v?v:&dummy);
-    printf(">>>"); dbprint(dbv, 0);
+    printf(">>>"); dbprinth(dbv, 0, 1);
     printf("<<< ps=>>%s<", ps);
     putchar('\n');
   }
