@@ -21,14 +21,16 @@ void findmidpoint(int start, int end, long prefix, int depth) {
 
     char bits[depth+1];
     bits[depth]= 0;
+    long p= prefix;
     for(int i=depth-1; i>=0; i--) {
-      bits[i]= '0' + (prefix&1);
-      prefix>>= 1;
+      bits[i]= '0' + (p & 1);
+      p>>= 1;
     }
 
+    printf("%lx:%x\t", prefix, depth);
+    printf("%6ld %-15s ", freq[start], sym[start]);
     printf("%s", bits);
-    printf("\ti=%3d ", start);
-    printf(" (%2d) %s # %ld OUT\n", depth, sym[start], freq[start]);
+    printf("(%2d) i=%3d OUT\n", depth, start);
 
     return;
   }
