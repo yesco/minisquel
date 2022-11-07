@@ -19,20 +19,22 @@ extern int debug; // lol, you need define!
 char decidedelim(char* line) {
   int comma= strcount(line, ",");
   int semi= strcount(line, ";");
+  int colon= strcount(line, ":");
   int tab= strcount(line, "\t");
   int bar= strcount(line, "|");
   // TODO: ??
   int spcs= strcount(line, "  ");
-  int bigbest= max(comma, max(semi, max(tab, bar)));
+  int bigbest= max(comma, max(semi, max(colon, max(tab, bar))));
   char delim= ','; // default
   if (comma==bigbest) delim= ',';
   if (semi ==bigbest) delim= ';';
+  if (colon==bigbest) delim= ':';
   if (tab  ==bigbest) delim= '\t';
   if (bar  ==bigbest) delim= '|';
   //if (spcs ==bigbest) delim= "  "; //lol'\t';
   if (debug) {
     printf("decidedelim: '%c'\n", delim);
-    printf("  DELIM: %d ,%d ;%d \\t%d _%d\n", bigbest, comma, semi, tab, spcs);
+    printf("  DELIM: %d ,%d ;%d :%d \\t%d _%d\n", bigbest, comma, semi, colon, tab, spcs);
   }
 
   return delim;

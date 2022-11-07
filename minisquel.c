@@ -59,8 +59,6 @@ char formatdelim() {
   return '\t';
 }
 
-#define ZERO(z) memset(&z, 0, sizeof(z))
-
 int parse(char* s) {
   query= ps= s;
   return 1;

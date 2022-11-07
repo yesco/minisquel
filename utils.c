@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <math.h>
 
+#define ZERO(z) memset(&z, 0, sizeof(z))
+
 int min(int a, int b) { return a<b?a:b; }
 int max(int a, int b) { return a>b?a:b; }
 

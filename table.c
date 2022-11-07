@@ -36,14 +36,14 @@ int tdbprinth(struct table* t, dbval v, int width, int human) {
   // Save 31% (when printing 3 "long" & 1 string)
   // Save additionally 2.5% by not doing type check!
   // It's safeb because num, NAN, INF not double equal
-  long l= (long)v.d;
-  if (l==v.d) return human
-   ? hprint(l, "\t") : printf("%8ld\5", l);
-  
+
+  // TODO: benchmark and remove?
+  if (0) {
+    long l= (long)v.d;
+    if (l==v.d) return human
+      ? hprint(l, "\t") : printf("%8ld\5", l);
+  }  
   switch(type(v)) {
-  case TNULL: return printf("NULL\t");
-  case TNUM:  return printf("%7.7lg\t", v.d);
-  case TATOM: 
   case TSTR:  {
     char* s= tablestr(t, v);
     int i= 6;
@@ -56,10 +56,8 @@ int tdbprinth(struct table* t, dbval v, int width, int human) {
     putchar('\t');
     return 1;
   }
-  case TBAD:  return printf("ILLEGAL\t");
-  case TFAIL: return printf("FAIL\t");
-  case TERROR:return printf("ERROR\t");
-  case TEND:  return printf("END\n"); // \n!
+    // TODO: does this slow stuff down?
+  default: dbprinth(v, width, human);
   }
   return 1;
 }
@@ -104,6 +102,10 @@ long nbadstrings= 0;
 dbval tablemkstr(table* t, char* s) {
   // '' ==> NULL
   if (!s || !*s) return mknull();
+
+  dbval v= mkstr7ASCII(s);
+  if (!isfail(v)) return v;
+
   hashentry* e= findhash(t->strings, s);
   long i= -1;
   if (e) {
@@ -203,7 +205,6 @@ dbval tablemkstr(table* t, char* s) {
   if (debug) printf("OFi= %16lx\n", i);
   if (debug) printf("\n");
   
-  dbval v;
   v.d= make53(i);
 
   return v;

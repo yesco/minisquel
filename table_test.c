@@ -1,3 +1,19 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+// TODO: remove
+int debug= 1;
+int stats= 1;
+int delim= 0;
+
+int lineno;
+int foffset;
+
+#define NAMELEN 64
+#define VARCOUNT 256
+#define MAXCOLS 32
+
+#include "utils.c"
 #include "csv.c"
 #include "vals.c"
 #include "dbval.c"
@@ -11,7 +27,7 @@ typedef struct printerdata {
 dbval printer(dbval v, printerdata* data) {
   return v;
   data->n++;
-  tdbprint(data->t, v, 8);
+  tdbprinth(data->t, v, 8, 1);
   return v;
 }
 
@@ -116,19 +132,25 @@ void dbtypetest() {
   printf("sn %d (+1)\n", tablecmp(t, tablemkstr(t, "bar"), mknum(3)));
 }
 
-
-// TODO: remove
-extern int debug= 1;
-extern int stats= 1;
-
-
 int main(int argc, char** argv) {
+  //dbval a7= mkstr7ASCII("foo");
+  dbval a7= mkstr7ASCII("foobarfabc");
+  printf("7ASCII: %16lx\n", a7.l);
+  printf("7ASCII: %16lg\n", a7.d);
+  //printf("is7A..: %16lx\n", is7ASCII(a7));
+  printf("7ASCII: dbprinth: '");
+  dbprinth(a7, 8, 1);
+  printf("'\n");
+
+  exit(0);
+  // TODO:make strings align 2 bytes...
+  
   if (argc>1) {
     int col=1;
     if (argc>2) col= atoi(argv[2]);
     dotable(argv[1], col);
     exit(0);
   }
-  dbtypetest(); exit(1);
+  dbtypetest(); exit(0);
   //tabletest(); exit(0);
 }

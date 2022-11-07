@@ -235,12 +235,132 @@ dbval mkfail(){return(dbval){.l=CFAIL};}
 dbval mkerr() {return(dbval){.l=CERROR};}
 dbval mknum(double d){return(dbval){d};}
 
+// These valuies are transient
+// Don't store permanently!
+typedef enum{TNULL=0, TNUM, TSTR, T7ASCII, TATOM, TEND=100,TBAD,TFAIL,TERROR} dbtype;
+
+	 
+int isnull(dbval v) {return v.l==CNULL;}
+int isfail(dbval v) {return v.l==CFAIL;}
+int isend(dbval v)  {return v.l==CEND;}
+int iserr(dbval v)  {return v.l==CERROR;}
+int isint(dbval v)  {return((int)v.d)==v.d;}
+int islong(dbval v)  {return((long)v.d)==v.d;}
+long is7ASCII(dbval v) {
+  long l= is53(v.d);
+  return (((l & 0x03) == 0x01) && l<ISTRLIMIT) ?
+    l>>2 : 0;
+}
+
+dbtype type(dbval v) {
+  if (!isnan(v.d)) return TNUM;
+  // In NAN number we
+  long i= is53(v.d);
+  long u= i<0 ? -i : i;
+  if (u>INULL && u<ISTRLIMIT) {
+    if ((u & 0x03)==0x01) return T7ASCII;
+    else return TSTR;
+  }
+  if ((u&0x03)==0x01) return T7ASCII;
+  if (!i) return TNUM; // +NAN/-NAN
+  if (u==1) return TBAD;
+  if (u==INULL) return TNULL;
+  if (u==LMASK_53) return TBAD;
+  if (u==IERROR) return TERROR;
+  if (u==IFAIL) return TFAIL;
+  if (u==IEND) return TEND;
+  // TODO: use for more types?
+  // possibly use lower 4 bits as type
+  // xxxx ... xxxx bbbb bbbb tttt
+  // b...b: bank number (arena!)
+  return TATOM;
+}
+
+int isbad(dbval v)  {return type(v)==TBAD;}    
+
+// TODO: 1? 2? and max-1?
+int isnum(dbval v) {
+  return isnan(v.d) ? !is53(v.d) : 1;
+}
+
+double num(dbval v) {return v.d;}
+
 char* dbstrings[MAXSTRINGS]= {NULL,"-INVALID-",NULL};
 int nstrings= 3;
 int nstrfree= 0;
 int strnext= 4;
 
-dbval mkstrfree(char* s, int free) {
+// TODO:concider it to use "s" bit instead?
+
+// 52 bits alternatives:
+// - 4b (16 alp) * 13 chars + 0 bits
+// - 5b (32 alp) * 10 chars + 2 bits
+// - 6b (64 alp) *  8 chars + 4 bits
+// - 7b (ascii)  *  7 chars + 3 bits 
+// - 8b (utf8)   *  6 chars + 0 bits
+
+// 52 = 5 bits * 10 char = 50 bits
+// 2 bits more
+//
+//     1234567890
+// 00:  ---  OFFSET ---
+// 01: amsterdam  san jose
+// 10: Amsterdam  San Jose
+// 11: AMSTERDAM  SAN JOSE
+
+// below:
+//   50 bits:
+//   12 (hex)digits + 2 bits
+//   '2022-06-15T15:42:60.123'
+//    1234 56 78 90 12 3   = nah
+
+//  1 6bit letter    
+// 11 4bit hexdigits?
+// 11 or ' 0123456789-/.()' (16 chars)
+// not good/enough for phone nums
+// +14155551234 (sf)
+// 123456789012
+
+// - only IMDB 'NM0000042' - 9 chars
+//  2  6bit letter  'TT' / 12
+// 10  4bit digits       / 40
+
+
+dbval mkstr7ASCII(char* s) {
+  if (!s) return mknull();
+  int len= strlen(s);
+  if (len>7) return mkfail();
+  // 64: 0 eee---eee AAA AAAA a01
+  // eee---eee= 111---111
+  // 7*7 = 49+3 = 52 !
+  // 52+1+11=64
+  long l= 0;
+  for(int i=0; i<7; i++) {
+    printf("7ASCII: %16lx\n", l);
+    l<<= 7;
+    printf("7ASCII: %16lx\n", l);
+    if (*s & 0x80) return mkfail();
+    l|= *s & 0x7f;
+    printf("7ASCII: %16lx\n", l);
+    s++;
+  }
+  printf("7ASCII: %16lx\n", l);
+  l<<= 2;
+  l|= 1;
+  printf("7ASCII: %16lx\n", l);
+  // l|= LINF_MASK;
+  // return *(dbval*)&l;
+  dbval v;
+  v.d= make53(l);
+  return v;
+}
+
+dbval mkstrfree(char* s, int tofree) {
+  dbval v= mkstr7ASCII(s);
+  if (!isfail(v)) {
+    if (tofree) free(s);
+    return v;
+  }
   int start= strnext;
   while(nstrfree && dbstrings[strnext]) {
     printf("TRYING %d\n", strnext);
@@ -255,8 +375,7 @@ dbval mkstrfree(char* s, int free) {
   if (dbstrings[strnext])
     error("mkstringfree: inconsistency, found non-free");
 
-  dbval v;
-  v.d= make53(free?-strnext:+strnext);
+  v.d= make53(tofree?-strnext:+strnext);
   dbstrings[strnext]= s;
   return v;
 }
@@ -271,50 +390,12 @@ dbval mkstrdup(char* s) {
   return mkstrfree(s?strdup(s):s, 1);
 }
 
-// These valuies are transient
-// Don't store permanently!
-typedef enum{TNULL=0, TNUM, TSTR, TATOM, TEND=100,TBAD,TFAIL,TERROR} dbtype;
-
-dbtype type(dbval v) {
-  if (!isnan(v.d)) return TNUM;
-  // In NAN number we
-  long i= is53(v.d);
-  long u= i<0 ? -i : i;
-  if (u>INULL && u<ISTRLIMIT) return TSTR;
-  if (!i) return TNUM; // +NAN/-NAN
-  if (u==1) return TBAD;
-  if (u==INULL) return TNULL;
-  if (u==LMASK_53) return TBAD;
-  if (u==IERROR) return TERROR;
-  if (u==IFAIL) return TFAIL;
-  if (u==IEND) return TEND;
-  // TODO: use for more types?
-  // possibly use lower 4 bits as type
-  // xxxx ... xxxx bbbb bbbb tttt
-  // b...b: bank number (arena!)
-  return TATOM;
-}
-	 
-int isnull(dbval v) {return v.l==CNULL;}
-int isfail(dbval v) {return v.l==CFAIL;}
-int isend(dbval v)  {return v.l==CEND;}
-int iserr(dbval v)  {return v.l==CERROR;}
-int isint(dbval v)  {return((int)v.d)==v.d;}
-int islong(dbval v)  {return((long)v.d)==v.d;}
-int isbad(dbval v)  {return type(v)==TBAD;}    
-// TODO: 1? 2? and max-1?
-int isnum(dbval v) {
-  return isnan(v.d) ? !is53(v.d) : 1;
-}
-
-
-
-double num(dbval v) {return v.d;}
-
 // Get (interned) string from VALUE
 // 
 // TODO: add arena code unless globalatom
 char* str(dbval v) {
+  if (!is7ASCII(v)) error("Can't get string from 7ASCII use ...cmp");
+  
   long i= is53(v.d);
   // 0 maps to NULL!
   return i<ISTRLIMIT?dbstrings[i<0?-i:+i]:NULL;
@@ -351,11 +432,30 @@ dbval val2dbval(val* v) {
   return d;
 }
 
-int dbprint(dbval v, int width) {
+int dbprinth(dbval v, int width, int human) {
+  // Save 31% (when printing 3 "long" & 1 string)
+  // Save additionally 2.5% by not doing type check!
+  // It's safeb because num, NAN, INF not double equal
+  long l= (long)v.d;
+  if (l==v.d) return human
+   ? hprint(l, "\t") : printf("%8ld\5", l);
+  
   switch(type(v)) {
   case TNULL: printf("NULL\t"); break;
   case TNUM:  printf("%7.7lg\t", v.d); break;
   case TATOM: 
+  case T7ASCII: { // or TSTR and detect?
+    char c7[8]= "1234567";
+    long l= is7ASCII(v);
+    int i= 6;
+    while(l && i>=0) {
+      char c= c7[i--]= l & 0x7f;
+      l>>= 7;
+    }
+    // It fits for sure!
+    // (TODO: width)
+    printf("%s", c7);
+  } break;
   case TSTR:  {
     char* s= str(v);
     int i= 6;
