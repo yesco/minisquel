@@ -1860,21 +1860,26 @@ int main(int argc, char** argv) {
   // WRONG! on android it's negative
   // hibyte == b400000....
   {
+    // stack
     long lomem= 1l << (10*3); // 1 GB
     long himem= 1l << (48+3); // 2 PB !
-
-    long a= ((long)&argc) & ~0xff00000000000000l;
+    long mask= ~0xff00000000000000l;
+    long a= ((long)&argc) & mask;
     if (debug) printf("stack= %16p %ld\n", &argc,a);
     assert(labs(a) > lomem);
     assert(labs(a) < himem);
+
+    // heap
     char* foo= strdup("bar");
-    long f= ((long)foo) & ~0xff00000000000000l;
+    long f= ((long)foo) & mask;
     if (debug) printf(" heap= %16p %ld\n", foo,f);
     if (debug) printf(" lome= %16lx %ld\n", lomem,lomem);
     assert(labs(f) > lomem);
     assert(labs(f) < himem);
     // lowest 3 bits are 0 (align 8)
     assert((((long)foo) & 0x07)==0);
+    assert((((long)foo) & 0x0f)==0); // 16
+
     free(foo);
   }
   // END assumptions

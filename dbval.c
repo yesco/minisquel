@@ -28,13 +28,29 @@ Let's look at what we can hide behind redundant NAN numbers!
 
 48 bits => 2^48 addresses a terabyte!
 
-   48 bits  3bit
-   6 bytes  type
-   -------  ----
-0  NNN NNN  bnk0 = use for string offset
-0  DDD DDD  typ1 = encode linear types
+1b 48 bits  4bit
+s  6 bytes  type
+=  =======  ====
+0  NNN NNN  ntyp
+---
+0  666 6oo  ooo0 = 6b ASCII(x4)+27b offset
+0  777 777  7701 = 7ASCII inline 49b
+
+0  PPP PPp  0011 = inline 48b POINTER
+                   p = xxxx x000 typically
+		   8 byte alignment heap
+0  MMM MMm  0111 = malloced, FREE it!
+1  PPP PPP  PPPP = ??? 52b AMD64 future...
+(-- see memory-count.c for more info --)
+(-- and below section for Android    --)
+
+0  TSTSTSTS 1011 = timestamps 48b (+-5Kyr)
+
+0  III IIB  1111 = 8b bank num, 40b index
+0        0  1111 =   ? Free 40b ANY ?
 
 1  NNN NNN  BNK0 = big (file) offset
+1  PPP PPP  PPPP = ??? 52b AMD64 future...
 1  DDD DDD  TYP1 = various encodings
 
   
@@ -131,6 +147,32 @@ meanings:
 
     double lmax= 4503599627370496l;
     long lmax= 2251799813685248l;
+
+ANDROID TAGGED POINTERS
+=======================
+- https://source.android.com/docs/security/test/tagged-pointers
+
+        |47= 8 not set, but hibyte???
+  645648v         /- 0 bit
+  b400007a'82eb0050
+  TxyyzzPP'PPPPPPPP
+  
+The T(op) 4 bits contain a key specific to
+the memory region in question. 
+
+So, *assuming* that xxyyzz are all zero,
+to "shrink" a pointer to an allocated
+object (to it store in a double) we can
+store TPP_--PPPP which is 4+48-3=49 bits
+as the lowest 3 are going to be all 0
+(8B alignment).
+
+This assumption on xyyzz may not be true
+on all platforms... Some may put the tag
+in more bits, or memory mapped areas may
+be put in other places...
+
+
 */
 
 // TODO: same for 64-bit double:

@@ -700,18 +700,18 @@ void browsetable(table* t) {
 
   clear();
   
-  const long pagerows= screen_rows-10;
-  
   char* cmd= NULL;
   size_t len= 0;
   long row= 0;
   gotorc(0, 0);
+  int pagerows= screen_rows-10;
   pretty_printtable(t, row, pagerows);
   
   while(1) {
     printf("> "); fflush(stdout);
     cursoron();
     getline(&cmd, &len, stdin);
+    pagerows= screen_rows-10; // update! may have resized!
     cursoroff();
     char* arg= &cmd[1];
     char c= cmd[0];
