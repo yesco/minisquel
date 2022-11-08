@@ -13,7 +13,7 @@ clang -lm -O3 minisquel.c -o sql && {
 ./sql 'select a,b,c,d from foo.csv as foo' 
 
 # specify col names for txt-file
-./run 'select fish from count.txt(fish) f'
+./sql 'select fish from count.txt(fish) f'
 
 # numbers
 ./sql 'select 12345, 123456, 1234567, 12345678, 123456789'

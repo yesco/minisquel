@@ -12,6 +12,7 @@
 
 int min(int a, int b) { return a<b?a:b; }
 int max(int a, int b) { return a>b?a:b; }
+double absl(double a) { return a>0?a:-a;}
 
 double drand(double min, double max) {
   double range = (max - min); 
@@ -347,35 +348,37 @@ long timems() {
 }
 
 // human print call hprint!
-int hprint_hlp(double d, char* unit) {
+int hprint_hlp(double d, char* unit, int width) {
   // TODO: add width? now assumes 8
   // TODO: negative
-  if (d<0 || d>1e20) return 0;
+  //if (d<0 || d>1e20) return 0;
+  if (d>1e20) return 0;
 
   char suffix[]= "afpum kMGTPE";
   int i=5;
-  if (d<0.0001)
-    while(d>0 && d<1 && i>0) {
+  if (absl(d)<0.0001)
+    while(absl(d)>0 && absl(d)<1 && i>0) {
       d*= 1000; i--;
     }
-  if (d>1000*1000)
-    while(d>1000 && i<strlen(suffix)+1) {
+  if (absl(d)>1000*10)
+    while(absl(d)>1000 && i<strlen(suffix)+1) {
       d/= 1000; i++;
     }
   char c= suffix[i];
   // indicate using ≈ ??
   if (c==' ')
-    printf("%7.5lg%s", d, unit);
+    printf("%*.5lg%s", width+1, d, unit);
   else
-    printf("%7.4lg%c%s", d, suffix[i], unit);
+    printf("%*.4lg%c%s", width, d, suffix[i], unit);
   return 1;
 }
 
 int hprint(double d, char* unit) {
-  int r= hprint_hlp(d, unit);
-  if (r) return 0;
+  int width= (int)(6-strlen(unit)+strcount(unit, "\t"));
+  int r= hprint_hlp(d, unit, width);
+  if (r) return r;
   // fallback
-  return printf("%*.5lg%s", 8-strlen(unit), d, unit);
+  return printf("%*.5lg%s", width, d, unit);
 }
 
 #define JSK_INCLUDED_UTILS
