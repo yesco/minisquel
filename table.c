@@ -41,7 +41,7 @@ int tdbprinth(struct table* t, dbval v, int width, int human) {
   if (0) {
     long l= (long)v.d;
     if (l==v.d) return human
-      ? hprint(l, "\t") : printf("%8ld\5", l);
+      ? hprint(l, "\t") : printf("%8ld\t", l);
   }  
   switch(type(v)) {
   case TSTR:  {

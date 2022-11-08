@@ -346,8 +346,8 @@ long timems() {
   //return t.tv_sec*1000 + t.tv_nsec/1000;
 }
 
-// human print
-int hprint(double d, char* unit) {
+// human print call hprint!
+int hprint_hlp(double d, char* unit) {
   // TODO: add width? now assumes 8
   // TODO: negative
   if (d<0 || d>1e20) return 0;
@@ -367,8 +367,15 @@ int hprint(double d, char* unit) {
   if (c==' ')
     printf("%7.5lg%s", d, unit);
   else
-    printf("%6.4lg%c%s", d, suffix[i], unit);
+    printf("%7.4lg%c%s", d, suffix[i], unit);
   return 1;
+}
+
+int hprint(double d, char* unit) {
+  int r= hprint_hlp(d, unit);
+  if (r) return 0;
+  // fallback
+  return printf("%*.5lg%s", 8-strlen(unit), d, unit);
 }
 
 #define JSK_INCLUDED_UTILS
