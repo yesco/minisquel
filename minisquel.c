@@ -1019,7 +1019,7 @@ static
   //   1st - scan and analyze join variable
   //   2nd - create index
   // 2,3rd - use index, drop/block
-  //            if too many seek / timems
+  //            if too many seek / cpums
   // TODO: maybe don't need all cols
   //    maybe any "findvar" can create entry?
   //    then can decide if index covers?
@@ -1591,10 +1591,10 @@ void runquery(char* cmd) {
     results= newtable("result", 0, 0, NULL);
   }
 
-  long ms= timems();
+  long ms= cpums();
   parse(cmd);
   int r= sql();
-  ms= timems()-ms;
+  ms= cpums()-ms;
   
   // lineno= -2 when starts
   // lineno= 0 when printed printed header just beore printint one row
@@ -1790,7 +1790,7 @@ void speedtest() {
   val foo={},bar={},fie={};
   val fbf={},r={},l={};
   int n= 0;
-  long ms= timems();
+  long ms= cpums();
   for(int i=0; i<N; i++) {
     if(0){
     typeof(concat) *_concat;  _concat= findfunc("concat")->f;
@@ -1823,7 +1823,7 @@ void speedtest() {
       clearval(&l);
     }
   }
-  ms= timems()-ms;
+  ms= cpums()-ms;
   int nn= N*3;
   float calls= (0.0+nn)/ms/1000;
   printf("nn=%d Mops %.2f M/s in %ld ms\n", nn/1000000, calls, ms);

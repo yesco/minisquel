@@ -14,7 +14,7 @@
 long rbytes= 0;
 
 void readwords(memindex* i, char* filename) {
-  long ms= timems();
+  long ms= cpums();
   FILE* f= fopen(filename, "r");
   if (!f) exit(66);
   char* w= NULL;
@@ -32,7 +32,7 @@ void readwords(memindex* i, char* filename) {
   }
   fclose(f);
   free(w);
-  ms= timems()-ms;
+  ms= cpums()-ms;
   printf("read %ld words from %s in %ld ms\n", n, filename, ms);
 }
 
@@ -164,10 +164,10 @@ int main(int argc, char** argv) {
 
   // on already sorted 67ms
   // on 1.1mil.. 499ms
-  long sortms= timems();
+  long sortms= cpums();
   printf("sorting...\n");
   sortix(ix);
-  printf("  sorting took %ld ms\n", timems()-sortms);
+  printf("  sorting took %ld ms\n", cpums()-sortms);
 
 
   printf("\n==WORDS! %d\n\n", ix->n);

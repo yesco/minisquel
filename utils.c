@@ -339,7 +339,19 @@ char* isotime() {
   return iso;
 }
 
-long timems() {
+long utime() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_usec + 1000000*tv.tv_sec;
+}
+
+long mstime() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_usec/1000 + 1000*tv.tv_sec;
+}
+
+long cpums() {
   return clock()*1000/CLOCKS_PER_SEC;
   // really unreliable?
   //struct timespec t;

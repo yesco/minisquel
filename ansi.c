@@ -14,6 +14,8 @@
 #include <signal.h>
 #include <stdarg.h>
 
+#include "ansi.h"
+
 // - higher level colors
 typedef enum color{black, red, green, yellow, blue, magenta, cyan, white, none,
   // jsk's guesses
@@ -61,10 +63,9 @@ void jio() {
   
   _jio_termios= _orig_termios;
 
-return;
- 
   // raw terminal in; catch ^C & ^Z
   cfmakeraw(&_jio_termios);
+
   // enable terminal out
   _jio_termios.c_oflag |= OPOST;
 
@@ -204,4 +205,289 @@ color readablefg() {
   // TODO: bad name!
   int dark= _bg==black||_bg==blue||_bg==red||_bg==magenta;
   return C(dark? white : black);
+}
+
+////////////////////////////////////////
+// - keyboard
+
+// bytes buffered
+static int _key_b= 0; 
+keycode _peekedkey= -1;
+
+int haskey() {
+  if (_peekedkey!=-1) return 1;
+  if (_key_b>0) return 1;
+
+  struct timeval tv = { 0L, 0L };
+  fd_set fds;
+  FD_ZERO(&fds);
+  FD_SET(0, &fds);
+  int r= select(1, &fds, NULL, NULL, &tv);
+  return r;
+}
+
+long _prevkeyms= 0, _lastkeyms= 0;
+keycode _prevkey= -1, _lastkey= -1;
+
+keycode _key();
+
+// Wait and read a key stroke.
+// Returns:
+//   - ASCII
+//   - UTF-8 bytes
+//   - CTRL+'A' .. CTRL+'Z'
+//   or if >= 256:
+//     - META+'A'
+//     - FUNC+1
+//     - (CTRL/SHIFT/META)+UP/DOWN/LEFT/RIGHT
+//   - TAB S_TAB RETURN DEL BACKSPACE
+// Note: NOT thread-safe
+// (user-faceing wrapping get/wait key
+//  because _key has many returns)
+keycode key() {
+  _prevkeyms= _lastkeyms;
+  _prevkey= _lastkey;
+  if (_peekedkey!=-1) {
+    keycode k= _peekedkey;
+    _peekedkey= -1;
+    return _lastkey= k;
+  }
+
+  // wait for one
+  _lastkey= _key();
+  _lastkeyms= mstime();
+  return _lastkey;
+}
+
+// internal wait key or get from buf
+keycode _key() {
+  // TODO: whatis good size?
+  // TODO: test how much we can use?
+  // estimate: rows*10=???
+  static char buf[2048]= {0};
+
+  // get next key
+  if (_key_b>0) {
+    memcpy(buf, &buf[1], _key_b--);
+  } else {
+    // read as many as available, as we're blocking=>at least one char
+    // terminals return several character for one key (^[A == M-A  arrows etc)
+    bzero(buf, sizeof(buf));
+    _key_b= read(0, &buf[0], sizeof(buf)) - 1;
+  }
+  int k= buf[0];
+  _lastkeyms= mstime();
+
+  // TODO: how come I get ^J on RETURN?
+  // but not in Play/keys.c ???
+
+  //fprintf(stderr, " {%d} ", k);
+
+  buf[_key_b+1]= 0;
+
+//TDOO: BACKSPACE seems broken!
+// or at least in Play/testkeys.c...
+
+//printf("\n [k=%d] \n", k);
+
+  // simple character, or error
+  if (_key_b<=0) return _key_b<0? _key_b+1 : k;
+
+  // fixing multi-char key-encodings
+  // (these are triggered in seq!)
+  if (k==ESC) k=toupper(_key())+META;
+  if (k==META+'[' && _key_b) k=_key()+TERM;
+  if (k==TERM+'3' && _key_b) _key(), k= DEL;
+  if (k==TERM+'<' && _key_b) k= MOUSE;
+  if (!_key_b) return k;
+
+  // mouse!
+  // - https://stackoverflow.com/questions/5966903/how-to-get-mousemove-and-mouseclick-in-bash/58390575#58390575
+  assert(sizeof(k)>=4);
+  if (k==MOUSE) {
+    int but, r, c, len= 0;
+    char m;
+    // this is only correct if everything is in the buffer... :-(
+    int n= sscanf(&buf[1], "%d;%d;%d%n%c", &but, &c, &r, &len, &m);
+    if (n>0) {
+      if (n==3) c='m'; // We get ^@0 byte?
+      if (n==4) len++; //ok
+
+      //fprintf(stderr, "\n\n[n=%d ==>%d TOUCH.%s %d , %d \"%s\" ]", n, len, m=='M'?"down":"up", r, c, &buf[1]);
+      // TODO: be limited to 0-256...?
+      k= (m=='M'?MOUSE_DOWN:MOUSE_UP)
+        + (but<<16) + (r<<8) + c;
+
+      if (but==64) k+= SCROLL_DOWN;
+      if (but==65) k+= SCROLL_UP;
+    } else len= 0;
+    // eat up the parsed strokes
+    while(len-->0) _key();
+    //printf(" {%08x} ", k);
+    return k;
+  }
+
+  // CTRL/SHIFT/ALT arrow keys
+  if (k==TERM+'1' && _key_b==3 && buf[1]==';') {
+    _key();
+    char mod= _key();
+    k= UP+ _key()-'A';
+    switch(mod) {
+    case '2': k+= SHIFT; break;
+    case '5': k+= CTRL; break;
+    case '3': k+= META; break;
+    }
+  }
+
+  // function keys (special encoding)
+  if (k==META+'O') k=_key()-'P'+1+FUNC;
+  if (k==TERM+'1'&& _key_b==2) k=_key()-'0'+FUNC, _key(), k= k==5+FUNC?k:k-1;
+  // (this only handlines FUNC
+  // TODO: how about BRACKETED PASTE?
+  // ......^[[200~~/GIT/RetroFit^[[201~
+  if (k==TERM+'2'&& _key_b==2) k=_key()-'0'+9+FUNC, _key(), k= k>10+FUNC?k-1:k;
+
+  return k;
+}
+
+// Non-blocking peek of what key would return.
+// Returns next keycode
+//         -1 if no next
+keycode peekey() {
+  if (_peekedkey!=-1) return _peekedkey;
+  if (!haskey()) return -1;
+  // there is key waiting, get and store
+  return _peekedkey= key();
+}
+
+// waits for a key to be pressed MAX milliseonds
+// Returns passed ms.
+int keywait(int ms) {
+  long startms= mstime();
+  long passed;
+  // 5ms usleep => 1.5% cpu usage
+  while(!haskey() && (passed= mstime()-startms)<=ms)
+    usleep(5*1000);
+  return passed;
+}
+
+keycode waitScrollEnd(keycode k) {
+  keycode nk;
+  while((nk= key()) && (nk & 0xff00ffff)==(k & 0xff00ffff));
+  return nk;
+}
+
+// Returns true if they key is repeated
+//
+// (used to recognize and ignore further
+//  scrolls when detecting flicking)
+// It'll eat up same keys.
+// After 200ms, which means no longer
+// "flicking" it means sustastained
+// scrolling (or key pressed long time)
+// emit further events every 200 ms only.
+//
+// Normal keyrepeats after an intial delay
+// of 480ms, and then every 50ms!
+int keyRepeated() {
+  // eat up repeated keys
+  int n= 0;
+  while(haskey() && peekey()==_prevkey) {
+    key();
+    n++;
+  }
+  return mstime()-_prevkeyms<200;
+}
+
+// Returns a static string describing KEY
+// Note: next call may change previous returned value, NOT thread-safe
+char* keystring(int k) {
+  static char s[32];
+  memset(s, 0, sizeof(s));
+
+  if (0) ;
+  else if (k==TAB) return "TAB";
+  else if (k==RETURN) return  "RETURN";
+  else if (k==ESC) return "ESC";
+  else if (k<32) sprintf(s, "^%c", k+64);
+  else if (k==BACKSPACE) return "BACKSPACE";
+  else if (k==DEL) return "DEL";
+  else if (k<127) s[0]= k;
+  // 127? == delete key?
+  else if (k==S_TAB) return "S_TAB";
+
+  else if (k==UP) return "UP";
+  else if (k==DOWN) return "DOWN";
+  else if (k==RIGHT) return "RIGHT";
+  else if (k==LEFT) return "LEFT";
+
+  // TODO: simplify
+  else if (k==SHIFT+UP) return "S_UP";
+  else if (k==SHIFT+DOWN) return "S_DOWN";
+  else if (k==SHIFT+RIGHT) return "S_RIGHT";
+  else if (k==SHIFT+LEFT) return "S_LEFT";
+
+  else if (k==CTRL+UP) return "^UP";
+  else if (k==CTRL+DOWN) return "^DOWN";
+  else if (k==CTRL+RIGHT) return "^RIGHT";
+  else if (k==CTRL+LEFT) return "^LEFT";
+
+  else if (k==META+UP) return "M-UP";
+  else if (k==META+DOWN) return "M-DOWN";
+  else if (k==META+RIGHT) return "M-RIGHT";
+  else if (k==META+LEFT) return "M-LEFT";
+  // END:TODO:
+
+  else if (k & SCROLL_UP) return "SCROLL_UP";
+  else if (k & SCROLL_DOWN) return "SCROLL_DOWN";
+
+  else if (k & MOUSE || k & SCROLL) {
+    int b= (k>>16) & 0xff, r= (k>>8) & 0xff, c= k & 0xff;
+    sprintf(s, "%s_%s-B%d-R%d-C%d", k&SCROLL?"SCROLL":"MOUSE",
+      k&SCROLL?(k&SCROLL_UP?"UP":"DOWN"): k&MOUSE_UP?"UP":"DOWN", b, r, c);
+  }
+  else if (k>=FUNC && k<=FUNC+12) sprintf(s, "F-%d", k-FUNC);
+  else if (k>=META+' ') sprintf(s, "M-%c", k-META);
+  else sprintf(s, "\\u%06x", k);
+  return s;
+}
+
+void testkeys() {
+  jio();
+  fprintf(stderr, "\nCTRL-C ends\n");
+  long t= mstime();
+  for(int k= 0; k!=CTRL+'C'; k= key()) {
+    long ms=mstime()-t;
+    //long ms=mstime()-_prevkeyms;
+    fprintf(stderr, "\n%ld ms ------%s\t", ms, keystring(k));
+    t= mstime();
+
+    if (0) {
+      long n=0,  ms;
+      while(((ms= keywait(60)))<1) {
+	if (!n) fprintf(stderr, "\n");
+	if (((k= key())) == CTRL+'C') break;
+	n++;
+	fprintf(stderr, "\r%ld ", n);
+      }
+      if (n) fprintf(stderr, " fast keys\n");
+    }
+
+    if (0 && keyRepeated()) {
+      long n= 0, tms= 0;
+      fprintf(stderr, "\n");
+      while (((tms= keyRepeated()))<40) {
+	usleep(5*1000);
+	if (n++ > 100) break;
+	fprintf(stderr, "\r%ld ", n);
+      }
+      fprintf(stderr, " repeats \n");
+    }
+    
+    if (0)
+    while(!haskey()) {
+      putchar('.'); fflush(stdout);
+      usleep(30*1000);
+    }
+  }
 }

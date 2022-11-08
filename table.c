@@ -398,7 +398,7 @@ long dbread(FILE* f, table* t, dbval action(dbval,void*), void* data) {
 int loadcsvtable_csvgetline(table* t, FILE* f) {
   if (!f || !t) return 0;
   char delim= 0;
-  long ms= timems();
+  long ms= cpums();
   // header is a line!
   char* line= NULL;
   while((line= csvgetline(f, delim))) {
@@ -412,7 +412,7 @@ int loadcsvtable_csvgetline(table* t, FILE* f) {
     free(line); line= NULL;
     if (debug && t->count%10000==0) { printf("\rload_csvgl: %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
   }
-  ms= timems()-ms;
+  ms= cpums()-ms;
   if (stats || debug) printf("\rload_csvgl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
   return 1;
 }
@@ -421,7 +421,7 @@ int loadcsvtable_csvgetline(table* t, FILE* f) {
 int loadcsvtable_getline(table* t, FILE* f) {
   if (!f || !t) return 0;
   char delim= 0;
-  long ms= timems();
+  long ms= cpums();
   // header is a line!
   char* line= NULL;
   size_t ln= 0;
@@ -437,7 +437,7 @@ int loadcsvtable_getline(table* t, FILE* f) {
     if (debug && t->count%10000==0) { printf("\rload_gl: %ld bytes %ld rows", t->bytesread, t->count); fflush(stdout); }
   }
   free(line); line= NULL;
-  ms= timems()-ms;
+  ms= cpums()-ms;
   if (debug) printf("\rload_gl: %ld ms %ld %ld rows\n", ms, t->bytesread, t->count);
   return 1;
 }
@@ -556,7 +556,7 @@ int sorttablecmp(dbval *a, dbval *b) {
 // Columns start from "1" LOL. (SQL)
 void tablesort(table* t, int n, int* cols) {
   if (debug || stats) printf("TABLESORT %d\n", n);
-  long ms= timems();
+  long ms= cpums();
 
   // TODO:lol
   t->sort_col= n;
@@ -574,7 +574,7 @@ void tablesort(table* t, int n, int* cols) {
   // TODO: consider inline qsort?
   // - https://stackoverflow.com/questions/33726723/why-is-this-implementation-of-quick-sort-slower-than-qsort
 
-  ms= timems()-ms;
+  ms= cpums()-ms;
   if (stats || debug)
     printf("sort %s on %d took %ld ms\n", t->name, t->sort_col, ms);
 }
@@ -660,7 +660,7 @@ void pretty_printtable(table *t, long row, long rows) {
   B(rgb(0,0,10)); C(yellow+8); printf(" %s \n", t->name);
   B(black); C(white); clearend();
 
-  long ms= timems();
+  long ms= cpums();
   mode_body();
   mode_header(1);
   printf("\t");
@@ -697,7 +697,7 @@ void pretty_printtable(table *t, long row, long rows) {
     }
   }
   printf("\n%s: %ld rows\n", t->name, t->count);
-  if (debug) printf("\nPrinting table took %ld ms\n", timems()-ms);
+  if (debug) printf("\nPrinting table took %ld ms\n", cpums()-ms);
   cleareos();
 }
 
@@ -713,36 +713,110 @@ void browsetable(table* t) {
   int pagerows= screen_rows-10;
   pretty_printtable(t, row, pagerows);
   
+  int speed= 1, ms;
+  keycode k= 0;
   while(1) {
+
     printf("> "); fflush(stdout);
     cursoron();
-    getline(&cmd, &len, stdin);
+
+    //getline(&cmd, &len, stdin);
+
+    ms= mstime();
+    int lastkey= k;
+    k= key();
+    if (k & SCROLL_UP) k= SCROLL_UP;
+    if (k & SCROLL_DOWN) k= SCROLL_DOWN;
+    ms= mstime()-ms;
+
+    // stop!
+    if (ms>100) speed = 1;
+
+    // change direction
+    if (k != lastkey) speed /= 2;
+
+    // speed up incrementially
+    if (ms > 0 && ms < 20) speed += 5;
+
+    // speed up exponentially
+    if (ms == 0)  speed = (speed+5)*13/10;
+
+
+
+    // works well for 1000 lines
+    //if (ms>0 && ms <20) speed += 10;
+    //if (ms==0)  speed = (speed+10)*13/10;
+
+    // works so well for 1000k!
+    // if (ms==0)  speed = (speed+10)*13/10;
+    
+
     pagerows= screen_rows-10; // update! may have resized!
     cursoroff();
     char* arg= &cmd[1];
     char c= cmd[0];
-    switch(c) {
-    case 'q': goto done;
+
+
+
+
+  long duration= mstime();
+  int n= 0;
+  //  while(((ms= keywait(20))) < 20) {
+  //    key(); n++;
+  //  }
+  duration= mstime()-duration;
+
+
+  //int kps= 1000*n/duration;
+  //  speed = kps * t->count / screen_rows;
+  
+
+
+
+
+
+
+    switch((int)k){
+
+    case CTRL+'C': case 'q': goto done;
     case 'L'-64: clear(); break;
-    case 'f': case 'n': case '\n':
+
+    case SCROLL_DOWN:
+    case UP: case META+'\r': case CTRL+'P':
+      row-= speed; break;
+
+    case SCROLL_UP:
+    case DOWN: case '\r': case CTRL+'N':
+      row+= speed; break;
+
+    case SHIFT+DOWN: case ' ': case CTRL+'V':
       row+= pagerows; break;
-    case 'b': case 'p':
+
+    case SHIFT+UP: case 'b': case META+'V': case DEL: case BACKSPACE:
       row-= pagerows; break;
-    case '<': row= 0; break;
-    case '>': row= t->count - pagerows; break;
+
+    case CTRL+UP: case META+'<': case '<': case ',':
+      row= 0; break;
+    case CTRL+DOWN: case META+'>': case '>': case '.':
+      row= t->count - pagerows; break;
 
     case 'o': tablesort(t, atoi(arg), NULL); break;
-    case 'g': break;
+    case 'g': break; // ???
     case 'a': pretty_printtable(t, 0, -1); continue;
     case '#': row= atoi(arg)-1; break;
     case '?': case 'h':
-      printf("\nUsage: q)uit o)rder:3 g)group:2  h)elp a)ll <start >end n)ext p)rev #35 \n"); continue;
+      printf("\nUsage: q)uit o)rder:3 g)group:2  h)elp a)ll <start >end n)ext p)rev #35 \n");
+      continue;
     }
+
+
     if (row < 0) row= 0;
     if (row > t->count - pagerows) row= t->count - pagerows;
 
-    gotorc(0, 0);
-    pretty_printtable(t, row, pagerows);
+    if (!haskey()) {
+      gotorc(0, 0);
+      pretty_printtable(t, row, pagerows);
+    }
   }
  done:
   cursoron();

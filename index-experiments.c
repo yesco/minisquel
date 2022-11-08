@@ -185,7 +185,7 @@ keyoffset* searchix(char* s) {
 long rbytes= 0;
 
 void readwords(char* filename) {
-  long ms= timems();
+  long ms= cpums();
   FILE* f= fopen(filename, "r");
   if (!f) exit(66);
   char* w= NULL;
@@ -203,7 +203,7 @@ void readwords(char* filename) {
   }
   fclose(f);
   free(w);
-  ms= timems()-ms;
+  ms= cpums()-ms;
   printf("read %ld words from %s in %ld ms\n", n, filename, ms);
 }
 
@@ -279,10 +279,10 @@ readwords("1.1million word list.txt");
 
   // on already sorted 67ms
   // on 1.1mil.. 499ms
-  long sortms= timems();
+  long sortms= cpums();
   printf("sorting...\n");
   qsort(ix, nix, sizeof(keyoffset), cmpko);
-  printf("  sorting took %ld ms\n", timems()-sortms);
+  printf("  sorting took %ld ms\n", cpums()-sortms);
 
 
   printf("\n==WORDS! %ld\n\n", nix);
