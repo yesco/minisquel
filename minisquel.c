@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <errno.h>
+#include <assert.h>
 
 #include "malloc-count.c"
 //#include "malloc-simple.c"
@@ -1847,12 +1848,38 @@ void bang() {
 }
 
 int main(int argc, char** argv) {
-  // DO NOT change this!
-  // this code is written under this
+  // --- DO NOT change this!
+  //
+  // this code is written under these
   // assumptions!
   assert(sizeof(long)==8);
   assert(sizeof(double)==8);
+  // pointers on x64 linux is 51 bits
+  // - https://stackoverflow.com/questions/9249619/is-the-pointer-guaranteed-to-be-a-certain-value
+  
+  // WRONG! on android it's negative
+  // hibyte == b400000....
+  {
+    long lomem= 1l << (10*3); // 1 GB
+    long himem= 1l << (48+3); // 2 PB !
+
+    long a= ((long)&argc) & ~0xff00000000000000l;
+    if (debug) printf("stack= %16p %ld\n", &argc,a);
+    assert(labs(a) > lomem);
+    assert(labs(a) < himem);
+    char* foo= strdup("bar");
+    long f= ((long)foo) & ~0xff00000000000000l;
+    if (debug) printf(" heap= %16p %ld\n", foo,f);
+    if (debug) printf(" lome= %16lx %ld\n", lomem,lomem);
+    assert(labs(f) > lomem);
+    assert(labs(f) < himem);
+    // lowest 3 bits are 0 (align 8)
+    assert((((long)foo) & 0x07)==0);
+    free(foo);
+  }
   // END assumptions
+
+
 
   // carry on!
   print_exit_info= print_at_error;

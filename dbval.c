@@ -28,6 +28,7 @@ Let's look at what we can hide behind redundant NAN numbers!
 
 48 bits => 2^48 addresses a terabyte!
 
+   48 bits  3bit
    6 bytes  type
    -------  ----
 0  NNN NNN  bnk0 = use for string offset
@@ -36,6 +37,7 @@ Let's look at what we can hide behind redundant NAN numbers!
 1  NNN NNN  BNK0 = big (file) offset
 1  DDD DDD  TYP1 = various encodings
 
+  
 We've observed that string sort/ccmp takes
 time to search as it gives many cache misses.
 
@@ -323,7 +325,6 @@ double num(dbval v) {return v.d;}
 
 
 // Returns a dbval from a CHARSTRING.
-
 // FAIL is returned on:
 // - unicode/ut8
 // - too long strings (>7)
