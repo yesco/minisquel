@@ -1847,14 +1847,25 @@ void bang() {
 }
 
 int main(int argc, char** argv) {
+  // DO NOT change this!
+  // this code is written under this
+  // assumptions!
+  assert(sizeof(long)==8);
+  assert(sizeof(double)==8);
+  // END assumptions
+
+  // carry on!
   print_exit_info= print_at_error;
   
+  // crash! (test to catch)
   //char* null= NULL; *null= 42;
   
   register_funcs();
   
   //speedtest();
-// testread(); exit(0);
+  // testread(); exit(0);
+  
+  // -- main stuff
   char* arg0= *argv;
  
   int n=1;
