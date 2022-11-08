@@ -96,14 +96,14 @@ long cmptablestr(dbval a, dbval b) {
 
   if (!ca || !cb) return 0;
 
-  if (debug)
+  if (debug>2)
     if (is7ASCII(a)) {
       printf("CMP 7 ASCII: ");
       dbprinth(a, 8, 1);
       dbprinth(b, 8, 1);
       putchar('\n');
     }
-    printf("CMP:\n%16lx\n%16lx\n", ca, cb);
+  if (debug>2) printf("CMP:\n%16lx\n%16lx\n", ca, cb);
   //if (debug) printf("CMP.str: '%s' '%s' %ld\n", sa, sb, ca-cb);
   // Thwy will never be equal!
   return ca-cb;
@@ -155,11 +155,11 @@ dbval tablemkstr(table* t, char* s) {
   assert(!(maskforchs & LINF_MASK));
   assert(!(maskforchs & maskforoffset));
   
-  if (debug) printf("\n");
-  if (debug) putchar('>');
+  if (debug>2) nl();
+  if (debug>2) putchar('>');
   // doesn't have to be exact chars...
   while((c= *p++) && bits>=6) {
-    if (debug) putchar(c);
+    if (debug>2) putchar(c);
 
     if (c<'0') c= 0; // 0
     else if (c<='9') c= c-'0' + 1; // 1-10
@@ -190,8 +190,8 @@ dbval tablemkstr(table* t, char* s) {
     bits-= 6;
   }
   bits+= 51-nbits; // 52 ???
-  if (debug) printf("<\n");
-  if (debug) printf("chs= %16lx  %.1f\n", chs, log2f(chs)/log2f(2));
+  if (debug>2) printf("<\n");
+  if (debug>2) printf("chs= %16lx  %.1f\n", chs, log2f(chs)/log2f(2));
   //  int nstrings= expl(52-chsbits)/expl(10);
   //int ndigits= (int)(log2f(nstrings)/log2f(10));
   //printf("--- %d %c %d digits\n", nstrings, ".kMGTPE"[ndigits/3], ndigits);
@@ -201,7 +201,7 @@ dbval tablemkstr(table* t, char* s) {
 
   chs &= maskforchs;
   
-  if (debug) {
+  if (debug>2) {
     printf("INF= %16lx  %lu\n", LINF_MASK, LINF_MASK);
     printf("CHS= %16lx\n", maskforchs);
     printf("chs= %16lx  %.1f\n", chs, log2f(chs)/log2f(2));
@@ -213,8 +213,8 @@ dbval tablemkstr(table* t, char* s) {
 
   // mix them!
   i|= chs;
-  if (debug) printf("OFi= %16lx\n", i);
-  if (debug) printf("\n");
+  if (debug>2) printf("OFi= %16lx\n", i);
+  if (debug>2) printf("\n");
   
   v.d= make53(i);
 
@@ -222,11 +222,13 @@ dbval tablemkstr(table* t, char* s) {
 }
 
 char* tablestr(table* t, dbval v) {
+  // illegal op
   if (is7ASCII(v)) {
     printf("Table: %s Value: ", t->name);
     tdbprinth(t, v, 8, 1); nl();
     error("Can't get str pointer from 7ASCII, use cmp/print op directly!");
   }
+
   long i= is53(v.d);
   //printf("tablestr => %ld\n", i);
   if (i<0) i= -i;
@@ -596,19 +598,19 @@ long printtable(table* t, int details) {
       dbval v= vals[i];
       tdbprinth(t, v, 8, 1);
     }
-    putchar('\n');
+    nl();
     if (details > 2) details--;
     if (details <= 0) break;
     // underline col names
     if (!row) {
       for(int col=0; col<t->cols; col++)
 	printf("------- ");
-      putchar('\n');
+      nl();
     }
 
   }
   bytes+= sizeof(table);
-  putchar('\n');
+  nl();
   printf("--- %ld rows\n", t->count);
   printf("   data: "); bytes+= printarena(t->data, 0);
   // not add bytes as is part of hash!
@@ -663,26 +665,30 @@ void pretty_printtable(table *t, long row, long rows) {
   mode_header(1);
   printf("\t");
   int r= 0, n= 0;
+  int w= 0;
   while(v<end) {
     // header alternating colors
     if (n < t->cols) mode_header(n%2);
 
     // print only after "row" rows
     n++;
-    if (r>=0 && r < row) {
-      if (n % t->cols==0) r++; // hmm
+    if (n % t->cols==0) { w= 0; r++; }
+    if ((r>=0 && r < row) || (w+8 >= screen_cols)) {
+      // skip rows
       v++;
     } else {
+      // print rows
       tdbprinth(t, *v++, 8, 1);
+      w+= 8;
 
       // print rowno as first column
       if (n % t->cols==0) {
-	r++; // hmmm
 	if (v<end) {
 	  if (r==1) mode_body();
-	  putchar('\n'); clearend();
+	  nl(); clearend();
 	  mode_lineno();
 	  tdbprinth(t, mknum(r), 8, 1);
+	  w+= 8;
 	  mode_body(); clearend();
 	}
       }
@@ -716,7 +722,7 @@ void browsetable(table* t) {
     char* arg= &cmd[1];
     char c= cmd[0];
     switch(c) {
-    case 'q': return;
+    case 'q': goto done;
     case 'L'-64: clear(); break;
     case 'f': case 'n': case '\n':
       row+= pagerows; break;
@@ -738,8 +744,7 @@ void browsetable(table* t) {
     gotorc(0, 0);
     pretty_printtable(t, row, pagerows);
   }
-  //printtable(t, 0);
+ done:
   cursoron();
-  
   _jio_exit();
 }

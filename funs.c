@@ -59,22 +59,24 @@ int _char(val* r, int n, val* a) {
 // CHARINDEX
 // CONCAT
 int concat(val* r, int n, val* v) {
+  #define NUMLEN 40
   int len= 0;
+  // overshoot, it'll be deallcoated soon
   for(int i=0; i<n; i++)
-    len+= (v[i].s? strlen(v[i].s): 15) + 1;
+    len+= (v[i].s? strlen(v[i].s): NUMLEN) + 1;
 
   char* s= calloc(1, len);
   for(int i=0; i<n; i++) {
     if (v[i].s) strcat(s, v[i].s);
     else if (v[i].not_null) {
-      char num[32];
-      snprintf(num, sizeof(num), "%.32g", v[i].d);
+      char num[NUMLEN]={};
+      snprintf(num, sizeof(num), "%.31g", v[i].d);
       strcat(s, num);
     }
   }
-  
   setstr(r, s);
   return 1;
+  #undef NUMLEN
 }
 // CONCAT_WS
 // DIFFERENCE

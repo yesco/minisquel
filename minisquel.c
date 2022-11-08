@@ -746,7 +746,7 @@ int after_where(char* selexpr) {
     if (!results) results= newtable("result", 0, 0, NULL);
     results->sort_col= col;
     // TODO: several columns...
-    if (debug) printf("ORDER BY %d\n", col);
+    //if (debug) printf("ORDER BY %d\n", col);
   }
 
   if (selexpr) return !!print_expr_list(selexpr);
@@ -1604,7 +1604,9 @@ void runquery(char* cmd) {
   //printf("AT> '%s'\n", ps);
 
   if (stats && lineno >= -1) {
-    //if (lineno-1 >= 0)
+    // remove "jitter"
+    if (ms<1) ms= 1;
+    if (ms>1000) ms= (ms+5)/10*10;
     printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno<0 ? 0 : lineno, ms, readrows);
     fprintmallocs(stdout);
   }
@@ -1615,16 +1617,22 @@ void runquery(char* cmd) {
   if (r!=1) printf("\n%% Couldn't parse that\n");
 
   if (results && results->count) {
+    // It was Peter Boncz who said in his PhD
+    // that: sorting is a function of the UI.
+    // So... here we let the "UI" sort.
     if (results->sort_col)
       tablesort(results, results->sort_col, NULL);
-    if (browse) 
+    
+    // Then launch the UI. Should be default?
+    if (browse) {
       browsetable(results);
-    else if (0==strcmp(format, "csv")) {
+    } else if (0==strcmp(format, "csv")) {
       error("Not implemented for sorted table yet");
     } else {
       pretty_printtable(results, 0, -1);
       printf("Use --browse to browse interactively\n");
     }
+    if (debug) printtable(results, 0);
   }
   if (results) { freetable(results); results= NULL; }
 
