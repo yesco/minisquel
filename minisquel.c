@@ -189,6 +189,8 @@ void expectsymbol(char name[NAMELEN], char* msg) {
     if (ps-start >= NAMELEN)
       error("[] name too long");
     strncpy(name, start, ps-start-1);
+  } else if (gotc('*')) {
+    strcpy(name, "*");
   } else { // plain jane name
     expectname(name, msg);
   }
@@ -423,14 +425,15 @@ char* print_header(char* e) {
     char* start= ps;
     char name[NAMELEN]= {};
 
-    if (gotc('[')) {
+    char q;
+    if ((q= gotcs("[*%"))) {
       ps--;
       expectsymbol(name, "[] column name");
 
       // search names in defined order
       int n= 0;
       char varname[NAMELEN]= {};
-      for(int i=0; i<=varcount; i++) {
+      for(int i=0; i<varcount; i++) {
 	// format name to test
 	char* t= tablenames[i];
 	snprintf(varname, sizeof(varname), "%s.%s", t?t:"", varnames[i]);
@@ -501,12 +504,13 @@ char* print_expr_list(char* e) {
     char name[NAMELEN]= {0};
 
     // [foo.*]
-    if (gotc('[')) {
+    char q;
+    if ((q= gotcs("[*"))) {
       ps--;
       expectsymbol(name, "[] column name");
       // search names in defined order
       char varname[NAMELEN]= {};
-      for(int i=0; i<=varcount; i++) {
+      for(int i=0; i<varcount; i++) {
 	// format name to test
 	char* t= tablenames[i];
 	snprintf(varname, sizeof(name), "%s.%s", t?t:"", varnames[i]);
