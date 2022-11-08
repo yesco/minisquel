@@ -125,24 +125,47 @@ void dbtypetest() {
   printf("---STRINGS\n");
   printf("bb %d (0)\n", tablecmp(t, tablemkstr(t, "bar"), tablemkstr(t, "bar")));
   printf("bf %d (-1)\n", tablecmp(t, tablemkstr(t, "bar"), tablemkstr(t, "foo")));
-  printf("sN %d (-1)\n", tablecmp(NULL, tablemkstr(t, "foo"), mknum(NAN)));
+  printf("sN %d (+1)\n", tablecmp(NULL, tablemkstr(t, "foobarfiefum"), mknum(NAN)));
+  printf("sN %d (+1)\n", tablecmp(NULL, tablemkstr(t, "foo"), mknum(NAN)));
 
   printf("---MIXED\n");
   printf("ns %d (-1)\n", tablecmp(t, mknum(3), tablemkstr(t, "bar")));
   printf("sn %d (+1)\n", tablecmp(t, tablemkstr(t, "bar"), mknum(3)));
 }
 
-int main(int argc, char** argv) {
-  //dbval a7= mkstr7ASCII("foo");
-  dbval a7= mkstr7ASCII("foobarfabc");
-  printf("7ASCII: %16lx\n", a7.l);
-  printf("7ASCII: %16lg\n", a7.d);
-  //printf("is7A..: %16lx\n", is7ASCII(a7));
+void test7(dbval a) {
+  printf("7ASCII.l: %16lx\n", a.l);
+  printf("7ASCII.d: %16lg\n", a.d);
+  long l= is7ASCII(a);
+  printf("is7ASCII: %16lx %s\n", l, l?"7ASCII":"NOT!");
+  printf("    FAIL: %16lx %d\n", mkfail().l, l==mkfail().l);
   printf("7ASCII: dbprinth: '");
-  dbprinth(a7, 8, 1);
+  dbprinth(a, 8, 1);
   printf("'\n");
 
-  exit(0);
+  // TODO: make a dbcmp()
+  if (0) {
+  printf("cmpw null ==> %d\n",
+	 dbstrcmp(mknull(), a));
+  printf("cmpw NAN ==> %d\n",
+	 dbstrcmp(mknum(NAN), a));
+  printf("cmpw 'longstring' ==> %d\n",
+	 dbstrcmp(mkstrconst("longstring"), a));
+  }
+  
+  nl();
+}
+
+int main(int argc, char** argv) {
+  printf("- using mkstr7ASCII()\n");
+  test7(mkstr7ASCII("foobarfabc"));
+  test7(mkstr7ASCII("foobar"));
+  test7(mkstr7ASCII("foo"));
+  printf("- using mkstr()\n");
+  test7(mkstrconst("foobarfabc"));
+  test7(mkstrconst("foobarf"));
+  test7(mkstrconst("foo"));
+
   // TODO:make strings align 2 bytes...
   
   if (argc>1) {

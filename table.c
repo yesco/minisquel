@@ -86,12 +86,23 @@ uint64_t maskforchs= 0;
 
 // if equal can't really say anything...
 // TODO: remove dbvals....
-long cmptablestr(long a, long b) {
-  long ca= a & maskforchs;
-  long cb= b & maskforchs;
-  // one isn't comparable (illegal char)
+long cmptablestr(dbval a, dbval b) {
+  long ca= a.l & maskforchs;
+  long cb= b.l & maskforchs;
+  // TODO: unify and use differnt mask?
+  // haha
+  if (is7ASCII(a)) ca= a.l & ~0x1l;
+  if (is7ASCII(b)) cb= b.l & ~0x1l;
+
   if (!ca || !cb) return 0;
+
   if (debug)
+    if (is7ASCII(a)) {
+      printf("CMP 7 ASCII: ");
+      dbprinth(a, 8, 1);
+      dbprinth(b, 8, 1);
+      putchar('\n');
+    }
     printf("CMP:\n%16lx\n%16lx\n", ca, cb);
   //if (debug) printf("CMP.str: '%s' '%s' %ld\n", sa, sb, ca-cb);
   // Thwy will never be equal!
@@ -211,6 +222,11 @@ dbval tablemkstr(table* t, char* s) {
 }
 
 char* tablestr(table* t, dbval v) {
+  if (is7ASCII(v)) {
+    printf("Table: %s Value: ", t->name);
+    tdbprinth(t, v, 8, 1); nl();
+    error("Can't get str pointer from 7ASCII, use cmp/print op directly!");
+  }
   long i= is53(v.d);
   //printf("tablestr => %ld\n", i);
   if (i<0) i= -i;
@@ -235,7 +251,9 @@ table* newtable(char* name, int keys, int cols, char* colnames[]){
 
   t->data= newarena(1024*sizeof(dbval), sizeof(dbval));
   t->strings= newhash(0, (void*)hashstr_eq, 0);
-  t->strings->arena= newarena(1024, 1);
+  // 2 align to keep lowest bit 0!
+  // (used to indicate is7ASCII)
+  t->strings->arena= newarena(1024, 2);
   char zeros[3]= {}; // <3 is NULL,ILLEGAL,NULL
   addarena(t->strings->arena, &zeros, sizeof(zeros));
 
@@ -431,7 +449,9 @@ int loadcsvtable(table* t, FILE* f) {
 long ncmp= 0, ncmpother= 0;
 long ncmptab= 0, ncmptabmiss= 0;
 
-// NULL==NULL < -num < num < "bar" < "foo"
+// NULL==NULL <
+// < -INF < -num < num < +INF < NAN <
+// < "bar" < "foo"
 int tablecmp(table* t, dbval a, dbval b) {
   ncmp++;
   // 1% faster with it here for sort!
@@ -444,6 +464,10 @@ int tablecmp(table* t, dbval a, dbval b) {
   //printf("\t\t\t(%lg %lg => %d %d => %d) =>\n", a.d, b.d, ra, rb, ra-rb);
   if (ra!=rb) return ra-rb;
   ncmpother++;
+  
+  // TODO: does this add cost to str?
+  if (isnull(a)) return -666;
+  if (isnull(b)) return +666;
   
   long la= is53(a.d), lb= is53(b.d);
   // ordered! comparable as -la and -lb
@@ -475,8 +499,7 @@ int tablecmp(table* t, dbval a, dbval b) {
     // sort 3  took 4259 ms
     //    ncmptab=513121514
 			  
-    long r= cmptablestr(la, lb);
-    //r=0;
+    long r= cmptablestr(a, b);
     if (r) return r;
     ncmptabmiss++;
     // == undecided
@@ -488,6 +511,7 @@ int tablecmp(table* t, dbval a, dbval b) {
     if (!sa) return -1;
     if (!sb) return +1;
     if (0) {
+      // enable to check "consistency"
       int rt = r<0?-1:(!r?0:1);
       int rr= strcmp(sa, sb);
       rr= rr<0?-1:(!r?0:1);
@@ -506,8 +530,8 @@ int tablecmp(table* t, dbval a, dbval b) {
   if (isnan(a.d)) return +1;
   if (isnan(b.d)) return -1;
   // nan is equal (because same bits, lol)
-  //tdbprinth(t, a, 8, 1); printf("type=%d\n", type(a)); putchar('\n');
-  //tdbprinth(t, b, 8, 1); printf("type=%d\n", type(b)); putchar('\n');
+  //tdbprinth(t, a, 8, 1); printf("type=%d\n", type(a)); nl();
+  //tdbprinth(t, b, 8, 1); printf("type=%d\n", type(b)); nl();
   return (a.d>b.d)-(b.d>a.d);
 }
 

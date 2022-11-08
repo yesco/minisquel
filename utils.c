@@ -192,6 +192,11 @@ void expected(char* msg) {
 #include <strings.h>
 #include <string.h>
 
+void nl() { putchar('\n'); }
+void indent(int n) {
+  printf("%*s", n, ""); // lol
+}
+
 // Deletes trailing white space
 char* rtrim(char* s) {
   if (!s) return s;

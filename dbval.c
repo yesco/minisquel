@@ -246,6 +246,8 @@ int isend(dbval v)  {return v.l==CEND;}
 int iserr(dbval v)  {return v.l==CERROR;}
 int isint(dbval v)  {return((int)v.d)==v.d;}
 int islong(dbval v)  {return((long)v.d)==v.d;}
+// returns right align 7ascii bits
+// or 0 if not 7ASCII type
 long is7ASCII(dbval v) {
   long l= is53(v.d);
   return (((l & 0x03) == 0x01) && l<ISTRLIMIT) ?
@@ -261,7 +263,6 @@ dbtype type(dbval v) {
     if ((u & 0x03)==0x01) return T7ASCII;
     else return TSTR;
   }
-  if ((u&0x03)==0x01) return T7ASCII;
   if (!i) return TNUM; // +NAN/-NAN
   if (u==1) return TBAD;
   if (u==INULL) return TNULL;
@@ -284,11 +285,6 @@ int isnum(dbval v) {
 }
 
 double num(dbval v) {return v.d;}
-
-char* dbstrings[MAXSTRINGS]= {NULL,"-INVALID-",NULL};
-int nstrings= 3;
-int nstrfree= 0;
-int strnext= 4;
 
 // TODO:concider it to use "s" bit instead?
 
@@ -326,6 +322,12 @@ int strnext= 4;
 // 10  4bit digits       / 40
 
 
+// Returns a dbval from a CHARSTRING.
+
+// FAIL is returned on:
+// - unicode/ut8
+// - too long strings (>7)
+// - null pointer
 dbval mkstr7ASCII(char* s) {
   if (!s) return mknull();
   int len= strlen(s);
@@ -336,18 +338,13 @@ dbval mkstr7ASCII(char* s) {
   // 52+1+11=64
   long l= 0;
   for(int i=0; i<7; i++) {
-    printf("7ASCII: %16lx\n", l);
     l<<= 7;
-    printf("7ASCII: %16lx\n", l);
     if (*s & 0x80) return mkfail();
     l|= *s & 0x7f;
-    printf("7ASCII: %16lx\n", l);
     s++;
   }
-  printf("7ASCII: %16lx\n", l);
   l<<= 2;
   l|= 1;
-  printf("7ASCII: %16lx\n", l);
   // l|= LINF_MASK;
   // return *(dbval*)&l;
   dbval v;
@@ -355,12 +352,20 @@ dbval mkstr7ASCII(char* s) {
   return v;
 }
 
+// TODO: betterify!
+//   also, need a way to distinguish from tablestr() !
+char* dbstrings[MAXSTRINGS]= {NULL,"-INVALID-",NULL};
+int nstrings= 3;
+int nstrfree= 0;
+int strnext= 4;
+
 dbval mkstrfree(char* s, int tofree) {
   dbval v= mkstr7ASCII(s);
   if (!isfail(v)) {
     if (tofree) free(s);
     return v;
   }
+
   int start= strnext;
   while(nstrfree && dbstrings[strnext]) {
     printf("TRYING %d\n", strnext);
@@ -375,7 +380,7 @@ dbval mkstrfree(char* s, int tofree) {
   if (dbstrings[strnext])
     error("mkstringfree: inconsistency, found non-free");
 
-  v.d= make53(tofree?-strnext:+strnext);
+  v.d= make53(tofree?-strnext*2:+strnext*2);
   dbstrings[strnext]= s;
   return v;
 }
@@ -394,11 +399,11 @@ dbval mkstrdup(char* s) {
 // 
 // TODO: add arena code unless globalatom
 char* str(dbval v) {
-  if (!is7ASCII(v)) error("Can't get string from 7ASCII use ...cmp");
+  if (is7ASCII(v)) error("Can't get string from 7ASCII use ...cmp");
   
   long i= is53(v.d);
   // 0 maps to NULL!
-  return i<ISTRLIMIT?dbstrings[i<0?-i:+i]:NULL;
+  return i<ISTRLIMIT?dbstrings[i<0?-i/2:+i/2]:NULL;
 }
 
 void dbfree(dbval v) {
@@ -406,6 +411,10 @@ void dbfree(dbval v) {
   // if not nan can't be string!
   if (!isnan(v.d)) return;
   int i= is53(v.d);
+  // TODO: fix for tablestr s...
+  if (type(v) != TSTR) return;
+  // 
+  i/= 2;
   if (i<0) free(dbstrings[(i=-i)]);
   dbstrings[i]= NULL;
   nstrfree++;
@@ -432,6 +441,45 @@ dbval val2dbval(val* v) {
   return d;
 }
 
+
+void str7ASCIIcpy(char c7[8], dbval v) {
+  if (!c7) error("str7ASCIIcpy: null pointer");
+  strcpy(c7, "7ASCII!");
+  long l= is7ASCII(v);
+  if (!l) error("str7ASCIIcpy: not a 7ASCII");
+
+  int i= 6;
+  while(i>=0) {
+    char c= c7[i--]= l & 0x7f;
+    l>>= 7;
+  }
+  return;
+}
+
+// rename to dbcmp()
+int dbstrcmp(dbval a, dbval b) {
+  if (a.l==b.l) return 0;
+  long la= is7ASCII(a);
+  long lb= is7ASCII(b);
+  if (la && lb) {
+    // can use because will not overflow/underflow!
+    return lb-lb;
+    //return (la>lb)+(lb>la);
+  } else if (la) {
+    char sa[8];
+    str7ASCIIcpy(sa, a);
+    return strcmp(sa, str(b));
+  } else if (lb) {
+    char sb[8];
+    str7ASCIIcpy(sb, b);
+    return strcmp(str(a), sb);
+  } else {
+    // TODO: other types!
+    // move from tablecmp!
+    return strcmp(str(a), str(b));
+  }
+}
+
 int dbprinth(dbval v, int width, int human) {
   // Save 31% (when printing 3 "long" & 1 string)
   // Save additionally 2.5% by not doing type check!
@@ -444,17 +492,11 @@ int dbprinth(dbval v, int width, int human) {
   case TNULL: printf("NULL\t"); break;
   case TNUM:  printf("%7.7lg\t", v.d); break;
   case TATOM: 
-  case T7ASCII: { // or TSTR and detect?
-    char c7[8]= "1234567";
-    long l= is7ASCII(v);
-    int i= 6;
-    while(l && i>=0) {
-      char c= c7[i--]= l & 0x7f;
-      l>>= 7;
-    }
-    // It fits for sure!
-    // (TODO: width)
-    printf("%s", c7);
+  case T7ASCII: {
+    char c7[8]= {};
+    str7ASCIIcpy(c7, v);
+    // TODO: truncation? (if width<8)
+    printf("%-*s", width, c7);
   } break;
   case TSTR:  {
     char* s= str(v);
