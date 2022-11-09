@@ -713,14 +713,12 @@ void browsetable(table* t) {
   int pagerows= screen_rows-10;
   pretty_printtable(t, row, pagerows);
   
-  int speed= 1, ms;
+  long speed= 1, ms;
   keycode k= 0;
   while(1) {
 
     printf("> "); fflush(stdout);
     cursoron();
-
-    //getline(&cmd, &len, stdin);
 
     ms= mstime();
     int lastkey= k;
@@ -739,7 +737,15 @@ void browsetable(table* t) {
     if (ms > 0 && ms < 20) speed += 5;
 
     // speed up exponentially
-    if (ms == 0)  speed = (speed+5)*13/10;
+    if (ms == 0) {
+      // each time 30% faster (13/10)
+      // 150/screen_row is scaling height
+      //
+      //   This value is "designed" so that if
+      // you "flick as fasst as you can"
+      // you'll go top/bottom!
+      speed = (speed+5)*13*150/10/screen_rows;
+    }
 
 
 
@@ -750,6 +756,8 @@ void browsetable(table* t) {
     // works so well for 1000k!
     // if (ms==0)  speed = (speed+10)*13/10;
     
+    if (speed > t->count/screen_rows)
+      speed= t->count/screen_rows;
 
     pagerows= screen_rows-10; // update! may have resized!
     cursoroff();
@@ -812,7 +820,6 @@ void browsetable(table* t) {
 
     if (row < 0) row= 0;
     if (row > t->count - pagerows) row= t->count - pagerows;
-
     if (!haskey()) {
       gotorc(0, 0);
       pretty_printtable(t, row, pagerows);
