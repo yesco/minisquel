@@ -1,0 +1,9 @@
+#clang Test/shannon.c -o shannon && ./shannon < toks.txt | grep OUT # |  less -S
+
+# - generate resume tokens
+cat resume.txt.char.freq | ./shannon |grep OUT 
+
+cat resume.txt.char.freq | ./shannon |grep OUT | perl Test/huff2c.pl  > Test/shan-gen.h && clang Test/shan.c && ./a.out
+
+
+
