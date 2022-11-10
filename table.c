@@ -665,12 +665,12 @@ void pretty_printtable(table *t, long row, long rows, long stride) {
   B(black); C(white); clearend();
 
   long ms= cpums();
-  mode_body();
+  int r= 0, n= 0;
+  int w= 8, seen= 0;
+  char* fblock= "█";
   mode_header(1);
   printf("\t");
-  int r= 0, n= 0;
-  int w= 0, seen= 0;
-  char* fblock= "█";
+  w+= 8;
   while(v<end) {
     // header alternating colors
     if (n < t->cols) mode_header(n%2);
@@ -678,7 +678,7 @@ void pretty_printtable(table *t, long row, long rows, long stride) {
     // print only after "row" rows
     n++;
     if (n % t->cols==0) { w= 0; r++; }
-    if ((r>=0 && r < row) || (w+8 >= screen_cols) || (r>=row && (r-row) % stride != 0)) {
+    if ((r>0 && r < row) || (w+8 >= screen_cols) || (r>=row && (r-row) % stride != 0)) {
       // skip rows
       v++;
     } else {
@@ -705,7 +705,7 @@ void pretty_printtable(table *t, long row, long rows, long stride) {
 	  mode_lineno();
 	  C(white); printf("%s", pre?pre:" ");
 	  mode_lineno();
-	  printf("%8d", r);
+	  printf("%7d", r);
 	  w+= 8;
 	  mode_body(); clearend();
 	}
@@ -755,7 +755,7 @@ void browsetable(table* t) {
 
     // reset "scaling view" after 500ms
     int xx;
-    if ((xx=keywait(500)) > 499) {
+    if (stride>1 && ((xx=keywait(500)) > 499)) {
       printf("\n");
       printf("KEYWAIT %d\n", xx);
       fastones= 0;
@@ -767,7 +767,18 @@ void browsetable(table* t) {
       }
     }
     
-    k= key();
+    // wait for screen resize or key
+    k= 0;
+    while(!haskey()) {
+      usleep(5*10000); // 50 ms
+      if (screen_resized) {
+	screen_resized= 0;
+	k= CTRL+'L';
+	break;
+      }
+    }
+    k= k ? k : key();
+
     if (k== CTRL+'C') goto done;
     ms= mstime()-ms;
 
@@ -889,8 +900,11 @@ void browsetable(table* t) {
     }
    
     // fix out of bounds values
-    if (row < 0) row= 0;
-    row = (row + stride/2) / stride * stride;
+    if (row < 0)
+      row= 1;
+    else
+      row = row / stride * stride;
+
     if (row + pagerows*stride > t->count)
       row= t->count - pagerows * stride;
 

@@ -27,11 +27,14 @@ typedef enum color{black, red, green, yellow, blue, magenta, cyan, white, none,
 int screen_rows= 24, screen_cols= 80;
 // https://stackoverflow.com/questions/1022957/getting-terminal-width-in-c
 
+int screen_resized= 0;
+
 void screen_init(int sig) {
   struct winsize w;
   ioctl(0, TIOCGWINSZ, &w);
   screen_rows = w.ws_row;
   screen_cols = w.ws_col;
+  screen_resized= 1;
 }
 
 struct termios _orig_termios, _jio_termios;
