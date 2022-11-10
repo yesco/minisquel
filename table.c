@@ -374,11 +374,25 @@ long tableaddline(table* t, char* csv, char delim) {
   return 1;
 }
 
-long dbread(FILE* f, table* t, dbval action(dbval,void*), void* data) {
+// It's a reader scanning a FILE for
+// a TABLE calling ACTION on every value.
+//
+// Action is called for every valuie.
+// At end of each line it'll get END.
+//
+// Strings are allocated in TABLE, but
+// ACTION can clear it, if the values
+// aren't retained.
+//
+// When action returns END then next line
+// is read.
+
+long dbscanner(FILE* f, table* t, dbval action(dbval,void*), void* data) {
   char *line= NULL, delim= 0;
   size_t len= 0;
   ssize_t n= 0;
   long r= 0;
+  // TODO: csv get line?
   while((n= getline(&line, &len, f))!=EOF) {
     r+= n;
     if (!line || !*line) continue;
@@ -389,6 +403,8 @@ long dbread(FILE* f, table* t, dbval action(dbval,void*), void* data) {
     while(!isend(action(dbreadCSV(
       t, &cur, str, len, delim), data)));
   }
+  // TODO: How to mark END END? LOL EOF?
+  // 2 x action(END, data); ???
   free(line);
   return 1;
 }
@@ -444,6 +460,8 @@ int loadcsvtable_getline(table* t, FILE* f) {
   
 int loadcsvtable(table* t, FILE* f) {
   //  if (1) return loadcsvtable_newcsvgetline(name, f); else
+
+  // csvgetline about 8.5% slower...
   if (1) return loadcsvtable_csvgetline(t, f);
   else return loadcsvtable_getline(t, f);
 }
@@ -619,7 +637,8 @@ long printtable(table* t, int details) {
   // compression: to 33% of happy.csv
   // ( 18% if used floats! )
   // gzip only 22% LOL!
-  printf("BYTES: %ld (optmized -%ld) compressed %.2f%% bytesread %ld\n", bytes, saved, (100.0*bytes)/t->bytesread, t->bytesread);
+  printf("BYTES: %ld (optmized -%ld) compressed %.2f%% bytesread %ld\n",
+	 bytes, saved, (100.0*bytes)/t->bytesread, t->bytesread);
   return bytes;
 }
 
@@ -679,6 +698,7 @@ void pretty_printtable(table *t, long row, long rows, long stride) {
     n++;
     if (n % t->cols==0) { w= 0; r++; }
     if ((r>0 && r < row) || (w+8 >= screen_cols) || (r>=row && (r-row) % stride != 0)) {
+      // TODO: calculate skip instead!
       // skip rows
       v++;
     } else {
@@ -705,7 +725,7 @@ void pretty_printtable(table *t, long row, long rows, long stride) {
 	  mode_lineno();
 	  C(white); printf("%s", pre?pre:" ");
 	  mode_lineno();
-	  printf("%7d", r);
+	  printf("%6d ", r);
 	  w+= 8;
 	  mode_body(); clearend();
 	}

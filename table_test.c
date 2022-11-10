@@ -31,38 +31,6 @@ dbval printer(dbval v, printerdata* data) {
   return v;
 }
 
-// 5x faster than index.c (create index)!
-// and using less mem.
-void dotable(char* name, int col) {
-  debug= 0;
-  stats= 1;
-  int details= debug?+100:0;
-
-  FILE* f= fopen(name, "r");
-
-  struct printerdata {
-    table* t;
-    long n;
-  } data = {newtable(name, 0,0,NULL), 0};
-
-  dbread(f, data.t, (void*)printer, &data);
-
-  exit(0);
-
-  table* t= newtable(name, 0, 0, NULL);
-  //table* t= newtable(name, 0, 3, NULL);
-  loadcsvtable(t, f);
-
-  tablesort(t, -col, NULL);
-  tablesort(t, col, NULL);
-
-  tablesort(t, -col, NULL);
-  tablesort(t, col, NULL);
-  printtable(t, details);
-  fclose(f);
-  printf("ms lol ncmp=%ld ncmpother=%ld ncmptab=%ld ncmptabmiss=%ld nbadstrings=%ld\n", ncmp, ncmpother, ncmptab, ncmptabmiss, nbadstrings);
-}
-
 void tabletest() {
   table* t= NULL;
 
@@ -156,7 +124,61 @@ void test7(dbval a) {
   nl();
 }
 
+// 5x faster than index.c (create index)!
+// and using less mem.
+void dotable(char* name, int col) {
+  printf("DOTABLE: %s\n", name);
+  debug= 0;
+  stats= 1;
+  int details= debug?+100:0;
+
+  FILE* f= fopen(name, "r");
+  if (!f) error("No such file");
+  
+  if (0) { // new
+
+    struct printerdata {
+      table* t;
+      long n;
+    } data = {newtable(name, 0,0,NULL), 0};
+
+    long ms= mstime();
+    dbscan(f, data.t, (void*)printer, &data);
+
+    printf("ROWS: %ld read in %ld ms\n", data.t->count, mstime()-ms);
+
+    browsetable(data.t);
+
+  } else { // old
+    table* t= newtable(name, 0, 0, NULL);
+    //table* t= newtable(name, 0, 3, NULL);
+    loadcsvtable(t, f);
+
+    printtable(t, details);
+
+    tablesort(t, -col, NULL);
+    tablesort(t, col, NULL);
+
+    tablesort(t, -col, NULL);
+    tablesort(t, col, NULL);
+
+    //browsetable(t);
+
+  }
+
+  fclose(f);
+
+  printf("ms lol ncmp=%ld ncmpother=%ld ncmptab=%ld ncmptabmiss=%ld nbadstrings=%ld\n", ncmp, ncmpother, ncmptab, ncmptabmiss, nbadstrings);
+}
+
 int main(int argc, char** argv) {
+  if (argc>1) {
+    int col=1;
+    if (argc>2) col= atoi(argv[2]);
+    dotable(argv[1], col);
+    exit(0);
+  }
+
   printf("- using mkstr7ASCII()\n");
   test7(mkstr7ASCII("foobarfabc"));
   test7(mkstr7ASCII("foobar"));
@@ -166,14 +188,6 @@ int main(int argc, char** argv) {
   test7(mkstrconst("foobarf"));
   test7(mkstrconst("foo"));
 
-  // TODO:make strings align 2 bytes...
-  
-  if (argc>1) {
-    int col=1;
-    if (argc>2) col= atoi(argv[2]);
-    dotable(argv[1], col);
-    exit(0);
-  }
   dbtypetest(); exit(0);
   //tabletest(); exit(0);
 }

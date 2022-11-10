@@ -1,0 +1,2 @@
+clang -lm table_test.c && time ./a.out "$@"
+

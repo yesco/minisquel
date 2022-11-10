@@ -91,7 +91,7 @@ void printval(val* v, int quot, int delim) {
 	
     if (abs(delim)==',') {
       printf("%.15lg", v->d);
-    } else if (v->d > 0.000001 && v->d <= 1e7) {
+    } else if (v->d > 0.000001 && v->d <= 1e6) {
       printf("%7.7lg", v->d);
     } else if (delim!=',' && hprint(v->d, "")) {
       ; // if hprint is 0 try other
