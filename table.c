@@ -750,8 +750,6 @@ void browsetable(table* t) {
     // get (and wait) for key
     cursoron();
 
-    //getline(&cmd, &len, stdin);
-
     ms= mstime();
     int lastkey= k;
 
@@ -892,13 +890,11 @@ void browsetable(table* t) {
    
     // fix out of bounds values
     if (row < 0) row= 0;
-
     row = (row + stride/2) / stride * stride;
     if (row + pagerows*stride > t->count)
       row= t->count - pagerows * stride;
 
     // display
-
     if (!haskey()) {
       gotorc(0, 0);
       pretty_printtable(t, row, pagerows, stride);
