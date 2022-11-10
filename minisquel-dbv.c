@@ -129,8 +129,12 @@ dbval parse_num() {
   return mknum(d);
 }
 
-// mallocates string to be free:d
-// if it returns true
+// Parses a string and gives it to a new
+// dbval, it should be dbfree(d).
+//
+// A pointer to the parsed string
+// is returned in *s.
+// ! DO NOT FREE!
 dbval parse_str(char** s) {
   spcs();
   char q= gotcs("\"'");
@@ -152,8 +156,7 @@ dbval parse_str(char** s) {
       strcpy(a, a+1);
     a++;
   }
-  // TODO: deallcoated outside parse_str!
-  return mkstrdup(*s);
+  return mkstrfree(*s, 1);
 }
 
 // TODO: sql allows names to be quoted!
@@ -178,9 +181,9 @@ void expectname(char name[NAMELEN], char* msg) {
 // allow: foo or "foo" but not 'foo'
 // TODO: foo/bar
 void expectsymbol(char name[NAMELEN], char* msg) {
-  char* s= NULL;
   spcs();
   if (*ps=='"') { // "foo bar"
+    char* s= NULL;
     dbval v= parse_str(&s);
     strncpy(name, s, NAMELEN);
     dbfree(v);
@@ -346,7 +349,6 @@ dbval var() {
 dbval prim() {
   dbval v= {};
   spcs();
-  char* s= NULL;
   if (gotc('(')) {
     v= expr();
     if (isfail(v)) expected("expr");
@@ -358,6 +360,7 @@ dbval prim() {
     return v;
   }
   v= parse_num();
+  char* s= NULL;
   if (isfail(v)) v= parse_str(&s);
   if (!isfail(v)) return v;
   // only if has name

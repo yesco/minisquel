@@ -462,7 +462,10 @@ void dbfree(dbval v) {
   if (type(v) != TSTR) return;
   // 
   i/= 2;
-  if (i<0) free(dbstrings[(i=-i)]);
+  if (i<0) {
+    if (debug) printf("{ dbfree[%d]: %lx '%s' }\n", i, v.l, dbstrings[-i]);
+    free(dbstrings[(i=-i)]);
+  }
   dbstrings[i]= NULL;
   nstrfree++;
   // TODO: freelist?
