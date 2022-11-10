@@ -425,30 +425,32 @@ int hprint(double d, char* unit) {
 }
 
 // human strtod (1M, 2u)
-double hstrtod(char* ps, char** end) {
-  double d= strtod(ps, end);
-  // TODO; !end should work...  
-  if (!end || *end<=ps) return d;
+double hstrtod(char* s, char** end) {
+  char* x= s;
+  double d= strtod(s, &x);
+  if (end) *end= x;
+  if (x==s) return d; else s= x;
   // got number - check suffix
-  char* suffix= strchr(isoprefix, **end);
+  char* suffix= strchr(isoprefix, *s);
   int e= 0;
   if (!suffix || !*suffix) {
-    if (**end== 'h') d*= 100;
-    else if (**end== 'd')  // da or d
-      d*= *end[1]=='a' ? (++*end, 10) : 0.1;
-    else if (**end== 'c') d*= 0.01;
+    // 1h=100 1d=0.1 1da=10
+    if (*s== 'h') d*= 100;
+    else if (*s== 'd')  // da or d
+      d*= s[1]=='a' ? (++s, 10) : 0.1;
+    else if (*s== 'c') d*= 0.01;
     else return d;
   } else
     e= suffix-isoprefix - isoprefixzero;
 
-  ++*end;
+  ++s; // got one
 
   // binary prefixes
   // - https://en.m.wikipedia.org/wiki/Binary_prefix
   int base= 1000;
-  if (**end=='i') { ++*end; base= 1024; }
+  if (*s=='i') { ++s; base= 1024; }
 
-  //printf("HH %lg %d %d => %lg \n", d, base, e, e*pow(base, e));
+  if (end) *end= s;
   return d* pow(base, e);;
 }
 
