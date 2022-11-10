@@ -26,6 +26,11 @@ echo "== negatives, can be improved"
 ./sql 'select 1M, 2k, 3M, 4G, 5T, 6P, 6E'
 ./sql 'select 1Mi, 2ki, 3Mi, 4Gi, 5Ti, 6Pi, 6Ei'
 
+# mix shit
+./sql 'select 42+"FOO", "FOO"+42, "FOO"+"BAR", "BAR"+"FOO"'
+./sql 'select 42+NULL, NULL+42, 99'
+./sql 'select 42*"FOO", "FOO"*42, "FOO"*"BAR", "BAR"*"FOO"'
+
 # where clause
 ./sql 'select 42, "foo"'
 ./sql 'select 42, "foo" where 1=1'

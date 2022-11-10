@@ -200,7 +200,7 @@ double make53(int64_t l) {
   if (ul<2 || ul>=L53MAX) {
     printf("make53: l= %ld outside of range\n", l);
     printf("make53: l= %ld  outside of range\n", l);
-    exit(1);
+    error("outside range");
   }
   ul |= LINF_MASK;
   double d= *(double*)&ul;
@@ -277,7 +277,11 @@ dbval mkend() {return(dbval){.l=CEND};}
 dbval mkfail(){return(dbval){.l=CFAIL};}
 // programming error
 dbval mkerr() {return(dbval){.l=CERROR};}
-dbval mknum(double d){return(dbval){d};}
+dbval mknum(double d){
+  // Curious A+B if either A or B is NAN return B!
+  if (isnan(d)) d= NAN;
+  return (dbval){d};
+}
 
 // These valuies are transient
 // Don't store permanently!
@@ -372,7 +376,7 @@ double num(dbval v) {return v.d;}
 // - too long strings (>7)
 // - null pointer
 dbval mkstr7ASCII(char* s) {
-  if (!s) return mknull();
+  if (!s || !*s) return mknull();
   int len= strlen(s);
   if (len>7) return mkfail();
   // 64: 0 eee---eee AAA AAAA a01
@@ -476,6 +480,14 @@ void dumpdb() {
   printf("nstrings=%d nstrfree=%d strnext=%d\n", nstrings, nstrfree, strnext);
 }
 
+dbval val2dbdup(val* v) {
+  if (!v) return mkerr();
+  dbval d= {v->d};
+  if (!v->not_null) d= mknull();
+  else if (v->s) d= mkstrdup(v->s);
+  return d;
+}
+
 dbval val2dbval(val* v) {
   if (!v) return mkerr();
   dbval d= {v->d};
@@ -483,7 +495,6 @@ dbval val2dbval(val* v) {
   else if (v->s) d= mkstrconst(v->s);
   return d;
 }
-
 
 void str7ASCIIcpy(char c7[8], dbval v) {
   if (!c7) error("str7ASCIIcpy: null pointer");

@@ -451,7 +451,7 @@ void speed_cols(int m) {
   case 100: {
     // 110K^2 = 5.177s !!!
     // same as duckdb x product!
-    long ms= timems();
+    long ms= cpums();
     int* aa= ints;
     for(int a=0; a<rows; a++) {
       int* bb= ints;
@@ -461,14 +461,14 @@ void speed_cols(int m) {
       }
       aa++;
     }
-    printf("int 110K^2= %ld ms\n", timems()-ms);
+    printf("int 110K^2= %ld ms\n", cpums()-ms);
     break; }
 
   case 101: {
     // DOUBLES:
     // 110K^2 = 5.2s !@!!
     // - double same perf as int!
-    long ms= timems();
+    long ms= cpums();
     double* aa= doubles;
     for(int a=0; a<rows; a++) {
       double* bb= doubles;
@@ -478,7 +478,7 @@ void speed_cols(int m) {
       }
       aa++;
     }
-    printf("doubles 110K^2= %ld ms\n", timems()-ms);
+    printf("doubles 110K^2= %ld ms\n", cpums()-ms);
     break; }
 }
 
