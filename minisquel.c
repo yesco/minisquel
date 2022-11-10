@@ -118,7 +118,7 @@ int got(char* s) {
 int parse_num(double* d) {
   spcs();
   char* end= NULL;
-  *d= strtod(ps, &end);
+  *d= hstrtod(ps, &end);
   if (end<=ps) return 0;
   ps= end;
   return 1;

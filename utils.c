@@ -12,7 +12,6 @@
 
 int min(int a, int b) { return a<b?a:b; }
 int max(int a, int b) { return a>b?a:b; }
-double absl(double a) { return a>0?a:-a;}
 
 double drand(double min, double max) {
   double range = (max - min); 
@@ -359,29 +358,61 @@ long cpums() {
   //return t.tv_sec*1000 + t.tv_nsec/1000;
 }
 
+// https://en.m.wikipedia.org/wiki/Metric_prefix
+char isoprefix[]= "yzafpum kMGTPEZY";
+char isoprefixzero= 7;
+
 // human print call hprint!
 int hprint_hlp(double d, char* unit, int width) {
   // TODO: add width? now assumes 8
-  // TODO: negative
-  //if (d<0 || d>1e20) return 0;
-  if (d>1e20) return 0;
+  if (fabs(d)>1e30) return 0;
 
-  char suffix[]= "afpum kMGTPE";
-  int i=5;
-  if (absl(d)<0.0001)
-    while(absl(d)>0 && absl(d)<1 && i>0) {
-      d*= 1000; i--;
-    }
-  if (absl(d)>1000*10)
-    while(absl(d)>1000 && i<strlen(suffix)+1) {
-      d/= 1000; i++;
-    }
-  char c= suffix[i];
+  // prefix?
+  int i= -1;
+  char* bi= "";
+
+  // try binary prefix
+  double bp= log(fabs(d))/log(1024);
+  i= (int)bp;
+  double dd= d/pow(1024, i);
+  // is it a nice whole number?
+  if (abs(i)>0 && fabs(dd)>1 && (int)dd == dd) {
+    bi= "i";
+    width--;
+    d= dd;
+    i+= isoprefixzero;
+  } else {
+    i= -1; 
+  }
+
+  // decimals
+  if (i==-1) {
+    i= isoprefixzero;
+    
+    if (fabs(d)<0.0001)
+      while(fabs(d)>0 && fabs(d)<1 && i>0) {
+	d*= 1000;
+	i--;
+      }
+
+    if (fabs(d)>1000*10)
+      while(fabs(d)>1000 && i<strlen(isoprefix)+1) {
+	d/= 1000;
+	i++;
+      }
+  }
+
+  // TODO: error!
+//  if (i<0 || i>=strlen(isoprefix))
+//    i= isoprefixzero;
+
+  char c= isoprefix[i];
   // indicate using ≈ ??
   if (c==' ')
     printf("%*.5lg%s", width+1, d, unit);
   else
-    printf("%*.4lg%c%s", width, d, suffix[i], unit);
+    printf("%*.4lg%c%s%s",
+      width, d, isoprefix[i], bi, unit);
   return 1;
 }
 
@@ -392,6 +423,35 @@ int hprint(double d, char* unit) {
   // fallback
   return printf("%*.5lg%s", width, d, unit);
 }
+
+// human strtod (1M, 2u)
+double hstrtod(char* ps, char** end) {
+  double d= strtod(ps, end);
+  // TODO; !end should work...  
+  if (!end || *end<=ps) return d;
+  // got number - check suffix
+  char* suffix= strchr(isoprefix, **end);
+  int e= 0;
+  if (!suffix || !*suffix) {
+    if (**end== 'h') d*= 100;
+    else if (**end== 'd')  // da or d
+      d*= *end[1]=='a' ? (++*end, 10) : 0.1;
+    else if (**end== 'c') d*= 0.01;
+    else return d;
+  } else
+    e= suffix-isoprefix - isoprefixzero;
+
+  ++*end;
+
+  // binary prefixes
+  // - https://en.m.wikipedia.org/wiki/Binary_prefix
+  int base= 1000;
+  if (**end=='i') { ++*end; base= 1024; }
+
+  //printf("HH %lg %d %d => %lg \n", d, base, e, e*pow(base, e));
+  return d* pow(base, e);;
+}
+
 
 #define JSK_INCLUDED_UTILS
 

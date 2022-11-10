@@ -117,7 +117,23 @@ SQL> select -12345, -123456, -1234567, -12345678, -123456789
 SQL> select -0.1, -0.02, -0.003, -0.0004, -0.00005, -1.2e5 , -1.2e5, -9.9e99, -9.9e100, -1.2e5, -3
 -0.1	-0.02	-0.003	-0.0004	-0.00..	-1.2e5	-1.2e5	-9.9e99	-9.9e..	-1.2e5	-3
 ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= ======= 
-   -0.1	  -0.02	 -0.003	-0.0004	   -50u	  -120k	  -120k	-9.9e+75b	-9.9e+76b	  -120k	     -3
+   -0.1	  -0.02	 -0.003	-0.0004	   -50u	  -120k	  -120k	-9.9e+99	-9.9e+100	  -120k	     -3
+
+1 rows in 1 ms (read 0 lines)
+[0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> select 1M, 2k, 3M, 4G, 5T, 6P, 6E
+1M	2k	3M	4G	5T	6P	6E
+======= ======= ======= ======= ======= ======= ======= 
+1000000	   2000	3000000	     4G	     5T	     6P	     6E
+
+1 rows in 1 ms (read 0 lines)
+[0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> select 1Mi, 2ki, 3Mi, 4Gi, 5Ti, 6Pi, 6Ei
+1Mi	2ki	3Mi	4Gi	5Ti	6Pi	6Ei
+======= ======= ======= ======= ======= ======= ======= 
+1048576	   2048	3145728	    4Gi	    5Ti	    6Pi	    6Ei
 
 1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
@@ -435,7 +451,7 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 1 ms (read 49 lines)
+6 rows in 2 ms (read 49 lines)
 [64 malloc 70 free (leak -6) 31766 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
@@ -842,7 +858,7 @@ affec
 bondi
 exerc
 
-100535 rows in 1080 ms (read 100536 lines)
+100535 rows in 1140 ms (read 100536 lines)
 [617340 malloc 617340 free (leak +0) 21385354 bytes]
 
 SQL> select a,b,c,d,e from null n

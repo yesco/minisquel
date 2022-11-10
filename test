@@ -22,6 +22,10 @@ echo "== negatives, can be improved"
 ./sql 'select -12345, -123456, -1234567, -12345678, -123456789'
 ./sql 'select -0.1, -0.02, -0.003, -0.0004, -0.00005, -1.2e5 , -1.2e5, -9.9e99, -9.9e100, -1.2e5, -3'
 
+# human numbers!
+./sql 'select 1M, 2k, 3M, 4G, 5T, 6P, 6E'
+./sql 'select 1Mi, 2ki, 3Mi, 4Gi, 5Ti, 6Pi, 6Ei'
+
 # where clause
 ./sql 'select 42, "foo"'
 ./sql 'select 42, "foo" where 1=1'
@@ -114,4 +118,3 @@ echo "========== BUGS ==========="
 echo "^^^^^^^^^^ BUGS ^^^^^^^^^^^"
 
 }
-

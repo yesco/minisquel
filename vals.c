@@ -82,9 +82,16 @@ void printval(val* v, int quot, int delim) {
   if (!v->not_null) printf("NULL");
   else if (v->s) fprintquoted(stdout, v->s, 7, quot, delim);
   else {
+    // Recognize multiples of 1024
+    // TODO: cost?
+    double bp= log(v->d)/log(1024);
+    double dd= pow(1024, (int)bp);
+    if (0 && (int)bp && (int)dd == dd)
+      return (void)hprint(v->d, "");
+	
     if (abs(delim)==',') {
       printf("%.15lg", v->d);
-    } else if (v->d > 0.000001 && v->d < 1e7) {
+    } else if (v->d > 0.000001 && v->d <= 1e7) {
       printf("%7.7lg", v->d);
     } else if (delim!=',' && hprint(v->d, "")) {
       ; // if hprint is 0 try other
