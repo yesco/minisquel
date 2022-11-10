@@ -728,8 +728,14 @@ int keytest= 0;
 void browsetable(table* t) {
   jio();
 
+  // move cursor down so what was printed before clear is still there!
+  gotorc(screen_rows, screen_cols);
+  for(int i=0; i<screen_rows; i++)
+    fprintf(stderr, "\n");
+
   clear();
   
+
   char* cmd= ""; // TODO: input?
   size_t len= 0;
   long row= 0;
