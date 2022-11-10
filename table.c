@@ -635,7 +635,7 @@ void mode_header(int odd) {
 void mode_lineno(){B(gray(5));C(green);}
 void mode_body(){B(black);C(white);clearend();}
 
-void pretty_printtable(table *t, long row, long rows) {
+void pretty_printtable(table *t, long row, long rows, long stride) {
   // TODO: why neeed to skip first value?
   dbval* start= (void*)(t->data->mem);
   dbval* v= start;
@@ -654,6 +654,10 @@ void pretty_printtable(table *t, long row, long rows) {
   //   MOVING UP string test in type() made it
   //   900ms mostly, code w too many ifs?
 
+  if (stride>=1) rows= rows*stride;
+  else stride= 1;
+  
+  cursoroff();
   inverse(1);
   printf("MiniSQueL BROWSER:");
   inverse(0); reset();  printf("   ");
@@ -665,7 +669,8 @@ void pretty_printtable(table *t, long row, long rows) {
   mode_header(1);
   printf("\t");
   int r= 0, n= 0;
-  int w= 0;
+  int w= 0, seen= 0;
+  char* fblock= "█";
   while(v<end) {
     // header alternating colors
     if (n < t->cols) mode_header(n%2);
@@ -673,7 +678,7 @@ void pretty_printtable(table *t, long row, long rows) {
     // print only after "row" rows
     n++;
     if (n % t->cols==0) { w= 0; r++; }
-    if ((r>=0 && r < row) || (w+8 >= screen_cols)) {
+    if ((r>=0 && r < row) || (w+8 >= screen_cols) || (r>=row && (r-row) % stride != 0)) {
       // skip rows
       v++;
     } else {
@@ -686,8 +691,21 @@ void pretty_printtable(table *t, long row, long rows) {
 	if (v<end) {
 	  if (r==1) mode_body();
 	  nl(); clearend();
+
+	  // show "scrollbar"
+	  float rperc= 1.0* (row)/t->count;
+	  float eperc= rperc + 1.0* rows/t->count;
+	  float hperc= 1.0* (r-row)/rows;
+	  char* pre= hperc <= rperc ?  0: fblock;
+	  if (pre && !seen) { seen=1; pre= fblock; }
+	  else if (seen) pre= hperc <= eperc ?  pre : " ";
+	  // fixes resient first row white (hmmm)
+	  if (r<row) pre= " "; 
+
 	  mode_lineno();
-	  tdbprinth(t, mknum(r), 8, 1);
+	  C(white); printf("%s", pre?pre:" ");
+	  mode_lineno();
+	  printf("%8d", r);
 	  w+= 8;
 	  mode_body(); clearend();
 	}
@@ -698,50 +716,87 @@ void pretty_printtable(table *t, long row, long rows) {
   }
   printf("\n%s: %ld rows\n", t->name, t->count);
   if (debug) printf("\nPrinting table took %ld ms\n", cpums()-ms);
+
+  B(black); C(white); inverse(0);
   cleareos();
+  cursoron();
 }
+
+int fastones= 0;
+int keytest= 0;
 
 void browsetable(table* t) {
   jio();
 
   clear();
   
-  char* cmd= NULL;
+  char* cmd= ""; // TODO: input?
   size_t len= 0;
   long row= 0;
   gotorc(0, 0);
   int pagerows= screen_rows-10;
-  pretty_printtable(t, row, pagerows);
+  pretty_printtable(t, row, pagerows, 1);
   
-  int speed= 1, ms;
+  int speed= 1, stride= 1, ms;
   keycode k= 0;
   while(1) {
 
-    printf("> "); fflush(stdout);
+    if (keytest) {
+      printf("---- %4d ms (FAST: %d) %9d %9d\n", ms, fastones, speed, stride);
+    } else {
+      printf("> "); fflush(stdout);
+    }
+
+    // get (and wait) for key
     cursoron();
 
     //getline(&cmd, &len, stdin);
 
     ms= mstime();
     int lastkey= k;
+
+    // reset "scaling view" after 500ms
+    int xx;
+    if ((xx=keywait(500)) > 499) {
+      printf("\n");
+      printf("KEYWAIT %d\n", xx);
+      fastones= 0;
+      row+= pagerows*stride/2;
+      stride= speed= 1;
+      if (!keytest) {
+	gotorc(0, 0);
+	pretty_printtable(t, row, pagerows, speed);
+      }
+    }
+    
     k= key();
-    if (k & SCROLL_UP) k= SCROLL_UP;
-    if (k & SCROLL_DOWN) k= SCROLL_DOWN;
+    if (k== CTRL+'C') goto done;
     ms= mstime()-ms;
 
-    // stop!
-    if (ms>100) speed = 1;
+    // contains x, y - remove
+    if (k & SCROLL_UP) k= SCROLL_UP;
+    if (k & SCROLL_DOWN) k= SCROLL_DOWN;
+
+    // click new pos?
+    //if ((k & SCROLL) && k != lastkey)
 
     // change direction
-    if (k != lastkey) speed /= 2;
+    //if (k != lastkey) speed /= 2;
 
     // speed up incrementially
     if (ms > 0 && ms < 20) speed += 5;
 
     // speed up exponentially
-    if (ms == 0)  speed = (speed+5)*13/10;
+    //if (ms < 10)  speed = (speed+5)*13/10;
+    if (ms < 10) {
+      fastones++;
+      speed = 10*speed;
+    }
 
 
+
+    if (speed * pagerows > t->count)
+      speed= t->count / pagerows * 2;
 
     // works well for 1000 lines
     //if (ms>0 && ms <20) speed += 10;
@@ -750,31 +805,57 @@ void browsetable(table* t) {
     // works so well for 1000k!
     // if (ms==0)  speed = (speed+10)*13/10;
     
+    stride= speed;
+
+    // round to
+    stride= speed;
+    if (1) {
+      int e= (int)(logf(stride)/logf(10));
+      switch(fastones/3){
+      case 0: stride= 1; break;
+      case 1: stride= 10; break;
+      case 2: stride= 20; break;
+      case 3: stride= 50; break;
+      case 4: stride= 100; break;
+      case 5: stride= 200; break;
+      case 6: stride= 500; break;
+      case 7: stride= 1000; break;
+      case 8: stride= 2000; break;
+      case 9: stride= 5000; break;
+      case 10: stride= 10000; break;
+      case 11: stride= 20000; break;
+      case 12: stride= 50000; break;
+      case 13: stride= 100000; break;
+      case 14: stride= 200000; break;
+      case 15: stride= 500000; break;
+      case 16: stride= 1000000; break;
+      default: stride= 1000000; break;
+      }
+    } else {
+      // 10^n - too big steps
+      stride= powf(10, (int)(logf(stride)/logf(10)));
+    }
+    // fix oob
+    while (t->count / stride < pagerows)
+      stride /= 10;
+    if (stride<0) stride= 1;
+
+    // copied
+    // fix out of bounds values
+    row = (row + stride/2) / stride * stride;
+    if (row + pagerows*stride > t->count)
+      row= t->count - pagerows * stride;
+
+
+
+    if (keytest) continue;
+    
+    // -- dispatch key stroke
 
     pagerows= screen_rows-10; // update! may have resized!
     cursoroff();
     char* arg= &cmd[1];
     char c= cmd[0];
-
-
-
-
-  long duration= mstime();
-  int n= 0;
-  //  while(((ms= keywait(20))) < 20) {
-  //    key(); n++;
-  //  }
-  duration= mstime()-duration;
-
-
-  //int kps= 1000*n/duration;
-  //  speed = kps * t->count / screen_rows;
-  
-
-
-
-
-
 
     switch((int)k){
 
@@ -783,11 +864,11 @@ void browsetable(table* t) {
 
     case SCROLL_DOWN:
     case UP: case META+'\r': case CTRL+'P':
-      row-= speed; break;
+      row-= stride; break;
 
     case SCROLL_UP:
     case DOWN: case '\r': case CTRL+'N':
-      row+= speed; break;
+      row+= stride; break;
 
     case SHIFT+DOWN: case ' ': case CTRL+'V':
       row+= pagerows; break;
@@ -802,20 +883,25 @@ void browsetable(table* t) {
 
     case 'o': tablesort(t, atoi(arg), NULL); break;
     case 'g': break; // ???
-    case 'a': pretty_printtable(t, 0, -1); continue;
+    case 'a': pretty_printtable(t, 0, -1, 0); continue;
     case '#': row= atoi(arg)-1; break;
     case '?': case 'h':
       printf("\nUsage: q)uit o)rder:3 g)group:2  h)elp a)ll <start >end n)ext p)rev #35 \n");
       continue;
     }
-
-
+   
+    // fix out of bounds values
     if (row < 0) row= 0;
-    if (row > t->count - pagerows) row= t->count - pagerows;
+
+    row = (row + stride/2) / stride * stride;
+    if (row + pagerows*stride > t->count)
+      row= t->count - pagerows * stride;
+
+    // display
 
     if (!haskey()) {
       gotorc(0, 0);
-      pretty_printtable(t, row, pagerows);
+      pretty_printtable(t, row, pagerows, stride);
     }
   }
  done:

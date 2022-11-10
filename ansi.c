@@ -364,7 +364,7 @@ keycode peekey() {
 // Returns passed ms.
 int keywait(int ms) {
   long startms= mstime();
-  long passed;
+  long passed= 0;
   // 5ms usleep => 1.5% cpu usage
   while(!haskey() && (passed= mstime()-startms)<=ms)
     usleep(5*1000);
@@ -456,14 +456,18 @@ void testkeys() {
   jio();
   fprintf(stderr, "\nCTRL-C ends\n");
   long t= mstime();
+  int fastones= 0;
   for(int k= 0; k!=CTRL+'C'; k= key()) {
-    long ms=mstime()-t;
+    long ms= mstime()-t;
     //long ms=mstime()-_prevkeyms;
-    fprintf(stderr, "\n%ld ms ------%s\t", ms, keystring(k));
+    fprintf(stderr, "\n%4ld ms (fast %d) ------%s\t", ms, fastones, keystring(k));
+    if (ms<10) fastones++;
+    if (ms>=500) fastones= 0;
+    
     t= mstime();
 
     if (0) {
-      long n=0,  ms;
+      long n=0, ms;
       while(((ms= keywait(60)))<1) {
 	if (!n) fprintf(stderr, "\n");
 	if (((k= key())) == CTRL+'C') break;

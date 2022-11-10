@@ -1629,7 +1629,7 @@ void runquery(char* cmd) {
     } else if (0==strcmp(format, "csv")) {
       error("Not implemented for sorted table yet");
     } else {
-      pretty_printtable(results, 0, -1);
+      pretty_printtable(results, 0, -1, 1);
       printf("Use --browse to browse interactively\n");
     }
     if (debug) printtable(results, 0);
