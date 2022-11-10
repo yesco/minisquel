@@ -435,7 +435,7 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 2 ms (read 49 lines)
+6 rows in 1 ms (read 49 lines)
 [64 malloc 70 free (leak -6) 31766 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
@@ -689,14 +689,6 @@ SQL> select 123 456, 42
 1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
 
-SQL> select 42, 1e-9, 99
-42	1e-9	99
-======= ======= ======= 
-     42	     -9	     99
-
-1 rows in 1 ms (read 0 lines)
-[0 malloc 0 free (leak +0) 0 bytes]
-
 SQL> select count(i), count(j), count() from int(1,10) i, int(1,10) j
 count..	count..	count()
 ======= ======= ======= 
@@ -856,7 +848,7 @@ exerc
 SQL> select a,b,c,d,e from null n
 a	b	c	d	e
 ======= ======= ======= ======= ======= 
-NULL	NULL	N	NULL	      0
+NULL	NULL	N	NULL	NULL
 
 1 rows in 1 ms (read 2 lines)
 [6 malloc 6 free (leak +0) 6868 bytes]

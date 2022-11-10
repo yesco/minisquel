@@ -117,14 +117,10 @@ int got(char* s) {
 
 int parse_num(double* d) {
   spcs();
-  int neg= gotc('-')? -1: 1;
-  gotc('+');
-  // TODO: this isn't correct for 1e-5 !!!
-  int i= strspn(ps, "0123456789.eE");
-  if (!i) return 0;
-  *d= atof(ps) * neg;
-  ps+= i;
-  spcs();
+  char* end= NULL;
+  *d= strtod(ps, &end);
+  if (end<=ps) return 0;
+  ps= end;
   return 1;
 }
 
