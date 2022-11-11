@@ -1,1 +1,1 @@
-clang -g -lm minisquel-dbv.c -o sql && ./sql "$@"
+clang -O3 -lm minisquel-dbv.c -o sql && ./sql "$@"

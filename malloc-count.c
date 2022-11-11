@@ -88,7 +88,7 @@ void* malloc(size_t size) {
       assert((((long)r) & 0x07)==0);
       // clang && android NOT align 16 byte!!!
       // (but seems to be unusual)
-      assert((((long)r) & 0x0f)==0); // 16
+      //assert((((long)r) & 0x0f)==0); // 16
     }
   }
   return r;

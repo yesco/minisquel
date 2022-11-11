@@ -270,14 +270,19 @@ typedef union dbval {
 #define CFAIL  (IFAIL  | LINF_MASK)
 #define CERROR (IERROR | LINF_MASK)
 
-dbval mknull(){return(dbval){.l=CNULL};}
+inline dbval mknull(){return(dbval){.l=CNULL};}
 // end/last of something
-dbval mkend() {return(dbval){.l=CEND};}
+inline dbval mkend() {return(dbval){.l=CEND};}
 // db eval "fail" but not program error
-dbval mkfail(){return(dbval){.l=CFAIL};}
+inline dbval mkfail(){return(dbval){.l=CFAIL};}
 // programming error
 dbval mkerr() {return(dbval){.l=CERROR};}
-dbval mknum(double d){
+
+//#define mknum(d) ((dbval){d})
+
+//inline dbval mknum(double d){return(dbval){d};}
+
+inline dbval mknum(double d){
   // Curious A+B if either A or B is NAN return B!
   if (isnan(d)) d= NAN;
   return (dbval){d};
@@ -288,16 +293,17 @@ dbval mknum(double d){
 typedef enum{TNULL=0, TNUM, TSTR, T7ASCII, TATOM, TEND=100,TBAD,TFAIL,TERROR} dbtype;
 
 	 
-int isnull(dbval v) {return v.l==CNULL;}
-int isfail(dbval v) {return v.l==CFAIL;}
-int isend(dbval v)  {return v.l==CEND;}
-int iserr(dbval v)  {return v.l==CERROR;}
-int isint(dbval v)  {return((int)v.d)==v.d;}
-int islong(dbval v)  {return((long)v.d)==v.d;}
+inline int isnull(dbval v) {return v.l==CNULL;}
+inline int isfail(dbval v) {return v.l==CFAIL;}
+inline int isend(dbval v)  {return v.l==CEND;}
+inline int iserr(dbval v)  {return v.l==CERROR;}
+inline int isint(dbval v)  {return((int)v.d)==v.d;}
+inline int islong(dbval v)  {return((long)v.d)==v.d;}
 // returns right align 7ascii bits
 // or 0 if not 7ASCII type
 long is7ASCII(dbval v) {
   long l= is53(v.d);
+  // TODO: l>0 ???
   return (((l & 0x03) == 0x01) && l<ISTRLIMIT) ?
     l>>2 : 0;
 }
@@ -307,6 +313,11 @@ dbtype type(dbval v) {
   // In NAN number we
   long i= is53(v.d);
   long u= i<0 ? -i : i;
+
+  // TODO: for negatives...
+  // it may be faulty
+  if (i==IFAIL) return TFAIL; /// ???
+
   if (u>INULL && u<ISTRLIMIT) {
     if ((u & 0x03)==0x01) return T7ASCII;
     else return TSTR;
@@ -328,11 +339,11 @@ dbtype type(dbval v) {
 int isbad(dbval v)  {return type(v)==TBAD;}    
 
 // TODO: 1? 2? and max-1?
-int isnum(dbval v) {
+inline int isnum(dbval v) {
   return isnan(v.d) ? !is53(v.d) : 1;
 }
 
-double num(dbval v) {return v.d;}
+inline double num(dbval v) {return v.d;}
 
 // TODO:concider it to use "s" bit instead?
 
@@ -390,6 +401,8 @@ dbval mkstr7ASCII(char* s) {
     l|= *s & 0x7f;
     s++;
   }
+  // TODO: is faster than strlen?
+  //if (*s) return mkfail();
   l<<= 2;
   l|= 1;
   // l|= LINF_MASK;
@@ -445,11 +458,15 @@ dbval mkstrdup(char* s) {
 // Get (interned) string from VALUE
 // 
 // TODO: add arena code unless globalatom
+ 
+// WARNING: will return NULL if
+//   not a string type!
 char* str(dbval v) {
-  if (is7ASCII(v)) error("Can't get string from 7ASCII use ...cmp");
-  
+  if (is7ASCII(v)) error("str(): Can't get string from 7ASCII use ...cmp");
   long i= is53(v.d);
   // 0 maps to NULL!
+  //printf(" {%lx} ", i);
+  //printf(" {%lx} ", -i);
   return i<ISTRLIMIT?dbstrings[i<0?-i/2:+i/2]:NULL;
 }
 
@@ -485,18 +502,16 @@ void dumpdb() {
 
 dbval val2dbdup(val* v) {
   if (!v) return mkerr();
-  dbval d= {v->d};
-  if (!v->not_null) d= mknull();
-  else if (v->s) d= mkstrdup(v->s);
-  return d;
+  if (!v->not_null) return mknull();
+  else if (v->s) return mkstrdup(v->s);
+  return mknum(v->d);
 }
 
 dbval val2dbval(val* v) {
   if (!v) return mkerr();
-  dbval d= {v->d};
-  if (!v->not_null) d= mknull();
-  else if (v->s) d= mkstrconst(v->s);
-  return d;
+  if (!v->not_null) return mknull();
+  else if (v->s) return mkstrconst(v->s);
+  return mknum(v->d);
 }
 
 void str7ASCIIcpy(char c7[8], dbval v) {
@@ -519,9 +534,7 @@ int dbstrcmp(dbval a, dbval b) {
   long la= is7ASCII(a);
   long lb= is7ASCII(b);
   if (la && lb) {
-    // can use because will not overflow/underflow!
-    return lb-lb;
-    //return (la>lb)+(lb>la);
+    return (la>lb)-(lb>la);
   } else if (la) {
     char sa[8];
     str7ASCIIcpy(sa, a);
@@ -557,6 +570,13 @@ int dbprinth(dbval v, int width, int human) {
   } break;
   case TSTR:  {
     char* s= str(v);
+    if (!s) {
+      printf("-ERROR- ");
+      return 0;
+    }
+	      // TODO: wtf???
+
+    //if (!s) error("dbprinth.TSTR: null string?");
     int i= 6;
     while(*s && i--) {
       if (*s=='\n') { printf("\\n"); i--;}

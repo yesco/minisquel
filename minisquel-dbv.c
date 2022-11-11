@@ -159,6 +159,33 @@ dbval parse_str(char** s) {
   return mkstrfree(*s, 1);
 }
 
+int parse_into_str(char name[NAMELEN]) {
+  spcs();
+  char q= gotcs("\"'");
+  if (!q) return 0;
+  char* start= ps;
+  while(!end()) {
+    if (*ps==q && *++ps!=q) break; // 'foo''bar'
+    if (*ps=='\\') ps++; // 'foo\'bar'
+    ps++;
+  }
+  ps--;
+  if (*ps!=q) return 0;
+  if (ps-start+1>NAMELEN) return 0;
+
+  char* a= strncpy(name, start, ps-start);
+  ps++;
+  // fix quoted \' and 'foo''bar'
+  while(*a) {
+    if (*a==q || *a=='\\')
+      strcpy(a, a+1);
+    a++;
+  }
+
+  // result in name already
+  return 1;
+}
+
 // TODO: sql allows names to be quoted!
 int getname(char name[NAMELEN]) {
   spcs();
@@ -182,11 +209,9 @@ void expectname(char name[NAMELEN], char* msg) {
 // TODO: foo/bar
 void expectsymbol(char name[NAMELEN], char* msg) {
   spcs();
-  if (*ps=='"') { // "foo bar"
-    char* s= NULL;
-    dbval v= parse_str(&s);
-    strncpy(name, s, NAMELEN);
-    dbfree(v);
+  // "foo bar"
+  if (*ps=='"') {
+    if (!parse_into_str(name)) expected("string");
   } else if (gotc('[')) { // [foo bar]
     char* start= ps;
     while(!end() && !gotc(']')) ps++;
@@ -307,8 +332,11 @@ dbval call(char* name) {
     clearval(&params[i]);
 
   // done
-  dbval d= val2dbval(&r);
+
+  // TDOO: can maybe pass pointer, and not clearval? Don't seem to break...
+  dbval d= val2dbdup(&r);
   clearval(&r);
+
   if (debug && !parse_only) {
     printf("\tRETURNED: ");
     dbprinth(d, 0, 0); nl();
@@ -339,7 +367,8 @@ dbval var() {
     char* column= dot?dot+1:name;
     char* table= dot?name:NULL;
     getval(table, column, &v);
-    return val2dbdup(&v);
+    //return val2dbdup(&v);
+    return val2dbval(&v);
   }
   // TODO: maybe not needed here?
   // not found == null
@@ -584,9 +613,10 @@ char* print_expr_list(char* e) {
 	char* t= tablenames[i];
 	snprintf(varname, sizeof(name), "%s.%s", t?t:"", varnames[i]);
 	if (like(varname, name, 0)) {
+	  // getval get's "copy" w/o dealloc
 	  getval(t, varnames[i], &v);
 	  // print it
-	  if (doprint && col) putchar(abs(delim));
+	  //if (doprint && col) putchar(abs(delim));
 	  col++;
 	  // TODO: Don't truncate if last col!
 	  // difficult to tell if will find more...
@@ -600,26 +630,44 @@ char* print_expr_list(char* e) {
     } else {
       dbval d= expr();
       if (isfail(d)) expected("expression");
-      dbval2val(d, &v);
-      dbfree(d);
       // select 42 AS foo
       if (got("as")) {
+	// TDOO: use DBVAL
 	expectsymbol(name, NULL);
+	val v= {};
+	dbval2val(d, &v);
 	setvar(NULL, name, &v);
+	clearval(&v);
+      }
+      if (result_action) {
+	// TDOO: use DBVAL
+	val v= {};
+	dbval2val(d, &v);
+	setvar(NULL, name, &v);
+	result_action(NULL, &v, lineno+1, col);
+	clearval(&v);
       }
 
       // print it
-      if (col) putchar(abs(delim));
+      //if (col) putchar(abs(delim));
       col++;
       // TODO: Don't truncate if last col!
       spcs(); more= gotc(',');
-      if (doprint)
-	printval(&v, delim==','?'\"':0, more?delim:-delim);
-      if (result_action)
-	result_action(NULL, &v, lineno+1, col);
+      if (doprint) {
+	//printval(&v, delim==','?'\"':0, more?delim:-delim);
+	// TDOO: do quoting etc...
+	dbprinth(d, 8, 1);
+      }
+      
+// TODO: this is broken...
+// as it doesn't know if it own or not!
+
+     dbfree(d);
+
+//
+// select * works but not select b,b from foo !      
     }
 
-    clearval(&v);
     if (printprogress && lineno%100==0)
       fprintf(stderr, "\r%ld rows produced\r", lineno);
   } while(more);
@@ -685,21 +733,14 @@ int dcmp(char* cmp, double a, double b) {
 }
 
 int scmp(char* cmp, dbval da, dbval db) {
+  // TODO: benchmark this...
+  if (da.l==db.l && cmp[0]!='!' && (cmp[0]=='=' || cmp[1]=='=')) return 1;
+
   // relative difference
   int r= dbstrcmp(da, db);
   
-  // not going to work for 7 etc...
-  char* a= str(da);
-  char* b= str(db);
-  
+  // the ops not requiring str()
   switch (TWO(cmp[0], cmp[1])) {
-  case TWO('i', 'n'): expected("not implemented in");
-
-  case TWO('i','l'): return like(a, b, 1);
-  case TWO('l','i'): return like(a, b, 0);
-    
-    //case TWO('~','='): return !strcasecmp(a, b);
-
   case '=':
   case TWO('=','='): return !r;
 
@@ -713,6 +754,20 @@ int scmp(char* cmp, dbval da, dbval db) {
   case TWO('!','<'):
   case TWO('>','='): return (r>=0);
   case '>': return (r>0);
+  }
+
+  // not going to work for 7 etc...
+  char* a= str(da);
+  char* b= str(db);
+  
+  switch (TWO(cmp[0], cmp[1])) {
+  case TWO('i', 'n'): expected("not implemented in");
+
+  case TWO('i','l'): return like(a, b, 1);
+  case TWO('l','i'): return like(a, b, 0);
+    
+  //case TWO('~','='): return !strcasecmp(a, b);
+
   default:
     printf("OP= %s\n", cmp);
     expected("legal opoerator");
@@ -738,11 +793,19 @@ int comparison() {
     r= LFALSE;
   else if (isnum(a) && isnum(b))
     r= dcmp(op, a.d, b.d)?LTRUE:LFALSE;
-  else if (str(a) && str(b))
-    r= scmp(op, a, b)?LTRUE:LFALSE;
   else
-    r= LFAIL;
+    r= scmp(op, a, b)?LTRUE:LFALSE;
   
+  // ./dbrun 'select 3,2 from int(1,10000000) i where "F"="Fx"'
+
+  // ---- ./run => 4030  ms 1!!!
+  // that's 9.3% FASTER!
+
+  // cost? 7 ascii?
+
+  // TODO: cost 1.5% (4400 ms)
+  //if(a.l<0)dbfree(a); if(b.l<0)dbfree(b);
+  // TDOO: cost 3.1% (4570 ms)
   dbfree(a); dbfree(b);
   return r;
 }
