@@ -428,7 +428,7 @@ dbval mkstrfree(char* s, int tofree) {
 
   int start= strnext;
   while(nstrfree && dbstrings[strnext]) {
-    printf("TRYING %d\n", strnext);
+    //printf("TRYING %d\n", strnext);
     if (++strnext>=nstrings) strnext= INULL+1;
     if (strnext==start) error("mkstrfree: inconsistency says nstrfree!");
   }
@@ -467,7 +467,8 @@ char* str(dbval v) {
   // 0 maps to NULL!
   //printf(" {%lx} ", i);
   //printf(" {%lx} ", -i);
-  return i<ISTRLIMIT?dbstrings[i<0?-i/2:+i/2]:NULL;
+  long u= i<0?-i:i;
+  return u<ISTRLIMIT?dbstrings[u/2]:NULL;
 }
 
 void dbfree(dbval v) {
@@ -528,8 +529,15 @@ void str7ASCIIcpy(char c7[8], dbval v) {
   return;
 }
 
+int dbprinth(dbval v, int width, int human);
 // rename to dbcmp()
 int dbstrcmp(dbval a, dbval b) {
+  if (debug>2) {
+    printf("dbstrcmp:\n");
+    putchar('\t'); dbprinth(a, 8, 1); nl();
+    putchar('\t'); dbprinth(b, 8, 1); nl();
+  }
+  
   if (a.l==b.l) return 0;
   long la= is7ASCII(a);
   long lb= is7ASCII(b);

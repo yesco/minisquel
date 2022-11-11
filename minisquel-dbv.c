@@ -60,8 +60,54 @@ char formatdelim() {
   return '\t';
 }
 
+// Temporary HACK:
+//
+//   Improve performance by caching
+// string from sql once parsed
+// (overhead 8x len of query!)
+//
+// When a parsed string is stored, the slot
+// directly after stores, pointer of ps to
+// jump to the end of parse of that string.
+//
+// Effect:
+// - constant no of mallocs
+// - ./dbrun 'select 3,2 from int(1,10000000) i where "F"="Fx"'
+//   => ./dbrun vs ./run gives 50% of the time
+//
+
+// TODO: use for names, numbers etc.
+//   or just parse into intermediate form?
+
+char** parsedstrs= NULL;
+
+char* getparsedstr(char* ps) {
+  return parsedstrs[ps-query];
+}
+
+char* getparsedskip(char* ps) {
+  return parsedstrs[ps-query + 1];
+}
+
+char* setparsedstr(char* ps, char* end, char* s) {
+  int i= ps-query;
+  parsedstrs[i+1]= end;
+  return parsedstrs[i]= strdup(s);
+}
+
 int parse(char* s) {
+  if (parsedstrs) {
+    for(int i=0; i < strlen(query); i++) {
+      free(parsedstrs[i]);
+      // skip next as it's ptr to parsestr! 
+      i += 1;
+    }
+    free(parsedstrs);
+  }
+
+  free(query);
   query= ps= s;
+  parsedstrs= calloc(strlen(s)+1, sizeof(*parsedstrs));
   return 1;
 }
 
@@ -137,6 +183,21 @@ dbval parse_num() {
 // ! DO NOT FREE!
 dbval parse_str(char** s) {
   spcs();
+
+  char* start= ps;
+  *s= getparsedstr(ps);
+  if (*s) {
+    ps= getparsedskip(ps);
+    if (debug>2) {
+      printf("FOUND: '%s'\n", *s);
+      printf("AT.end> '%s'\n", ps);
+    }
+
+    // TODO: save this one instead?
+    return mkstrconst(*s);
+  }
+  if (debug>2) printf("--- PARSE_STR\n");
+
   char q= gotcs("\"'");
   if (!q) return mkfail();
   *s= ps;
@@ -147,6 +208,7 @@ dbval parse_str(char** s) {
   }
   ps--;
   if (*ps!=q) return mkfail();
+
   char* a= strndup(*s, ps-*s);
   *s= a;
   ps++;
@@ -156,11 +218,16 @@ dbval parse_str(char** s) {
       strcpy(a, a+1);
     a++;
   }
+
+  setparsedstr(start, ps, *s);
   return mkstrfree(*s, 1);
 }
 
 int parse_into_str(char name[NAMELEN]) {
   spcs();
+
+  // TODO: catch cache... or in getname/getsymbol?
+
   char q= gotcs("\"'");
   if (!q) return 0;
   char* start= ps;
@@ -391,6 +458,13 @@ dbval prim() {
   v= parse_num();
   char* s= NULL;
   if (isfail(v)) v= parse_str(&s);
+
+  if( debug>2) {
+    printf(" { PRIM: "); dbprinth(v, 8, 1);
+    printf(" s='%s' ", str(v));
+    printf(" }\n");
+  }
+  
   if (!isfail(v)) return v;
   // only if has name
   if (isid(*ps)) return var();
@@ -1666,6 +1740,8 @@ int setvarexp() {
   setvar("global", name, &v);
   return 1;
 }
+
+
 
 int sql() {
   spcs();
