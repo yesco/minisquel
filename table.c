@@ -238,6 +238,12 @@ char* tablestr(table* t, dbval v) {
   return i<0?NULL:arenaptr(t->strings->arena, i);
 }
 
+// recast/copy strings
+dbval tableval(table* t, dbval d) {
+  return type(d)==TSTR ?
+    tablemkstr(t, str(d)) : d;
+}
+
 dbval val2tdbval(table* t, val* v) {
   if (v->s) return tablemkstr(t, v->s);
   return val2dbval(v);

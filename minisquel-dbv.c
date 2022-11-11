@@ -333,9 +333,9 @@ dbval call(char* name) {
 
   // done
 
-  // TDOO: can maybe pass pointer, and not clearval? Don't seem to break...
-  dbval d= val2dbdup(&r);
-  clearval(&r);
+  dbval d= r.s ?
+    mkstrfree(r.s, !!r.dealloc) : val2dbval(&r);
+  // no cleanval (as pointer "transffered")
 
   if (debug && !parse_only) {
     printf("\tRETURNED: ");
@@ -454,30 +454,38 @@ dbval expr() {
 
 table* results= NULL;
 
-void do_result_action(char* name, val* v, long row, int col) {
+void do_result_action(char* name, dbval d, long row, int col) {
   if (debug>1) {
-    printf("\nRESULT: '%s' ", name); printval(v, '"', 0); printf(" %ld, %d  ", row, col);
-    val dummy= {.not_null=1, .s= name};
-    dbval dbv= val2dbval(v?v:&dummy);
+    printf("\nRESULT: '%s' ", name); dbprinth(d, 8, 1); printf(" %ld, %d  ", row, col);
+    dbval dbv= mkstrconst(name);
     printf(">>>"); dbprinth(dbv, 0, 1);
     printf("<<< ps=>>%s<", ps);
     putchar('\n');
+    dbfree(dbv); // no effect
   }
 
   if (results) {
+    // TODO: detect too few columns?
     if (col > results->cols) results->cols= col;
-    if (col==1 && v) results->count++;
+    if (col==1 && !name) results->count++;
 
-    val dummy= {.not_null=1, .s= name};
-    dbval dbv= val2tdbval(results, v?v:&dummy);
     if (debug>1) {
-      printf("===> "); tdbprinth(results, dbv, 8, 1); putchar('\n');
+      printf("===> ");
+      if (name) printf("%-8s", name);
+      else tdbprinth(results, d, 8, 1);
+      putchar('\n');
     }
-    addarena(results->data, &dbv, sizeof(dbv));
+    if (name) {
+      dbval dh= tablemkstr(results, name);
+      addarena(results->data, &dh, sizeof(dh));
+    } else {
+      d= tableval(results, d); // recast for table
+      addarena(results->data, &d, sizeof(d));
+    }      
   }
 }
 
-void (*result_action)(char* name, val* v, long row, int col)= do_result_action;
+void (*result_action)(char* name, dbval d, long row, int col)= do_result_action;
   
 
 void print_colname(char* name, int col, char* start, char* ps, int delim) {
@@ -501,7 +509,7 @@ void print_colname(char* name, int col, char* start, char* ps, int delim) {
   if (parse_only<0)
     fprintquoted(stdout, name, 7, abs(delim)==','?'\"':0, delim);
   if (result_action && parse_only==-1)
-    result_action(name, NULL, lineno+1, col);
+    result_action(name, mknull(), lineno+1, col);
 }
 
 char* print_header(char* e) {
@@ -620,10 +628,12 @@ char* print_expr_list(char* e) {
 	  col++;
 	  // TODO: Don't truncate if last col!
 	  // difficult to tell if will find more...
-	  if (doprint)
+	  if (doprint) {
 	    printval(&v, delim==','?'\"':0, delim);
+	    putchar('\t');
+	  }
 	  if (result_action)
-	    result_action(NULL, &v, lineno+1, col);
+	    result_action(NULL, val2dbval(&v), lineno+1, col);
 	}
       }
       spcs(); more= gotc(',');
@@ -639,14 +649,8 @@ char* print_expr_list(char* e) {
 	setvar(NULL, name, &v);
 	clearval(&v);
       }
-      if (result_action) {
-	// TDOO: use DBVAL
-	val v= {};
-	dbval2val(d, &v);
-	setvar(NULL, name, &v);
-	result_action(NULL, &v, lineno+1, col);
-	clearval(&v);
-      }
+      if (result_action)
+	result_action(NULL, d, lineno+1, col);
 
       // print it
       //if (col) putchar(abs(delim));
