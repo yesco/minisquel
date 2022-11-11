@@ -1,1 +1,1 @@
-clang -g -lm objectlog.c && ./a.out "$@"
+clang -O3 -lm objectlog.c && ./a.out "$@"

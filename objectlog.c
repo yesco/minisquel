@@ -8,10 +8,17 @@
 #include <math.h>
 #include <assert.h>
 
+int debug= 0, stats= 0;
+
+#include "utils.c"
+
+#define MAXNUM 20000000l
+
 #define MAXVARS 1024
 #define MAXPLAN 2048
 
 int trace= 0;
+long olops= 0;
 
 // all variables in a plan are numbered
 // zero:th var isn't used.
@@ -52,7 +59,7 @@ void init(int size) {
 
 void printvar(int i) {
   long v= var[i];
-  if (v>-1000 && v<1000)
+  if (v>-MAXNUM && v<MAXNUM)
     printf("%ld ", v);
   else
     printf("%s ", (char*)v);
@@ -95,7 +102,9 @@ void printhere(int* p) {
   printf(")");
 }
 
-void run(int* start) {
+// Returns 0 if fail, or 1 if true (r)
+//   or came to end
+int run(int* start) {
   int* p= start;
   long* v= var;
 
@@ -114,7 +123,12 @@ void run(int* start) {
 #define Prab   Pra;b=N
 #define Prabc  Prab;c=N
 
+#define Pa     a=N
+#define Pab    a=N;b=N
+#define Pabc   a=N;b=N;c=N
 
+int result= 1;
+  
 int f;
 while((f=N)) {
 
@@ -135,8 +149,29 @@ while((f=N)) {
   switch(f) {
   // ctrl flow
   case 0  : goto done;
+  case 'q': // TODO: quit!
+  case 'b': // TODO: break (goto N to retry)
+  case 'g': // TODO: goto N
 
-  // set
+  // - manual prime
+  // 10: (o 17 11 13 15) // 17 is goto!
+  // 11: OR (! "n" "2")
+  // 12:    (r)
+  // 13: OR (! "n" "3")
+  // 14:    (r)
+  // 15: OR (! "n" "5")
+  // 16:    (r)
+  // 17: (. "Maybe prime" "n")
+  case 'r': goto done;
+  case 'o': // OR run pos: a b c ... 0 or fail
+    Pr;
+    while(*p)
+      if (run(N+plan)) {
+	p= r+plan; continue;
+      }
+    goto fail;
+
+  // set var
   case ':': Pra;  R= A; break;
 
   // arith
@@ -147,15 +182,15 @@ while((f=N)) {
   case '%': Prab; R= L(A)%L(B); break;
 
   // cmp
-  case '=': Prab; R= A==B; break;
-  case '<': Prab; R= A<B; break;
-  case '>': Prab; R= A>B; break;
+  case '=': Pab; if (A!=B) goto fail; break;
+  case '!': Pab; if (A==B) goto fail; break;
+  case '<': Pab; if (A>=B) goto fail; break;
+  case '>': Pab; if (A<=B) goto fail; break;
 //case TWO('<', '>'):
 
-  // logic
-  case '!': Pra;  R= !A; break;
-  case '&': Prab; R= A&&B; break;
-  case '|': Prab; R= A||B; break;
+  // logic - mja
+  case '&': Prab; R= A&&B; break; // implicit
+  case '|': Prab; R= A||B; break; // special
 
   case 'i': Prab;
     for(R=A; R<=B; R++) run(p+1); goto done;
@@ -171,10 +206,21 @@ while((f=N)) {
   // step over zero
   assert(!*p);
   p++;
+  
+  olops++;
 }
 
-done:
+// if goto here will return 1 !
+// (needed as to break loop from inside switch)
+done: result = !result; 
+
+// if goto here will return 0 !
+fail: result = !result;
   
+
+  // TODO: revisit?
+  //  (what if want to retain some values?)
+ 
   // cleanup down to start
   while(--p>=start) {
     if (*p < 0) {
@@ -182,10 +228,12 @@ done:
       var[-*p] = 0;
     }
   }
+  // Return 1/true if (r) or reach end, no fail
+  return result;
 }
 
-int isnum(int c) {
-  return isdigit(c) || c=='-';
+int strisnum(char* s) {
+  return isdigit(s[0]) || *s=='-' && isdigit(s[1]);
 }
     
 int main(int argc, char** argv) {
@@ -200,12 +248,12 @@ int main(int argc, char** argv) {
       // init var
       // TODO: "can't just store strptr!"
       --argc; s= *++argv;
-      *++nextvar = isnum(*s) ? atoi(s) : (long)s;
+      *++nextvar = strisnum(s) ? atol(s) : (long)s;
       printf("var[%ld] = %ld\n", nextvar-var, *nextvar);
     } else {
       // add plan
       printf("%s ", *argv);
-      *p = isnum(*s) ? atoi(s) : *s+256*s[1];
+      *p = strisnum(s) ? atol(s) : *s+256*s[1];
       if (!*p) putchar('\n');
       p++;
     }
@@ -220,5 +268,9 @@ int main(int argc, char** argv) {
   printplan(plan, -1);
 
   //trace= 1;
+  long ms= mstime();
   run(plan);
+  ms = mstime()-ms;
+  printf("Program took %ld ms and performed %ld ops\n", ms, olops);
+  hprint(olops*1000/ms, " ologs (/s)\n");
 }
