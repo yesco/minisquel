@@ -166,6 +166,20 @@ int got(char* s) {
 
 #include "dbval.c"
 
+dbval setparseddbval(char* ps, char* end, dbval d) {
+  int i= ps-query;
+  parsedstrs[i+1]= end;
+  parsedstrs[i]= (char*)d.l;
+  return d;
+}
+
+dbval getparseddbval(char* ps) {
+  return (dbval){(long)parsedstrs[ps-query + 1]};
+}
+
+
+
+
 dbval parse_num() {
   spcs();
   char* end= NULL;
@@ -188,13 +202,8 @@ dbval parse_str(char** s) {
   *s= getparsedstr(ps);
   if (*s) {
     ps= getparsedskip(ps);
-    if (debug>2) {
-      printf("FOUND: '%s'\n", *s);
-      printf("AT.end> '%s'\n", ps);
-    }
 
-    // TODO: save this one instead?
-    return mkstrconst(*s);
+    rturn getparseddbval(ps);
   }
   if (debug>2) printf("--- PARSE_STR\n");
 
@@ -218,9 +227,12 @@ dbval parse_str(char** s) {
       strcpy(a, a+1);
     a++;
   }
-
-  setparsedstr(start, ps, *s);
-  return mkstrfree(*s, 1);
+  
+  // TODO: intern! never freed!
+  dbval d= mkstrconst(*s); 
+  // another 13% faster!
+  setparseddbval(start, ps, d);
+  return d;
 }
 
 int parse_into_str(char name[NAMELEN]) {

@@ -6,7 +6,14 @@
   =  9 4   0  \
   .  3 6 8 0  \
   n        0  \
-  q        0  \
+  t        0  \
   0
 
 #  2124679 
+
+#  2124680
+#    ./olog-prime    => 2.86s
+#    Test/ol-prime.c => 0.79s
+#                       3.6 x
+# So 3.6 x overhead compared
+# to "similar" hardcoded C

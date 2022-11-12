@@ -147,27 +147,30 @@ while((f=N)) {
   }
 
   switch(f) {
-  // ctrl flow
-  case 0  : goto done;
-  case 'q': // TODO: quit!
-  case 'b': // TODO: break (goto N to retry)
-  case 'g': // TODO: goto N
-
+  // -- control flow
+  case   0: goto done;             // end = true
+  case 't': goto done;             // true (ret)
+  case 'f': goto fail;             // fail
+  case 'r': result = !result;break;// reverse/not?
+  case 'j': Pr; p += r; break;     // jump +47
+  case 'g': Pr; p= plan + r; break;// goto 3
+  case 127: while(127==N); break;  // nop
+  // (127 = DEL, means overwritten/ignore!)
+    
   // - manual prime
   // 10: (o 17 11 13 15) // 17 is goto!
   // 11: OR (! "n" "2")
-  // 12:    (r)
+  // 12:    (t)
   // 13: OR (! "n" "3")
-  // 14:    (r)
+  // 14:    (t)
   // 15: OR (! "n" "5")
-  // 16:    (r)
+  // 16:    (t)
   // 17: (. "Maybe prime" "n")
-  case 'r': goto done;
   case 'o': // OR run pos: a b c ... 0 or fail
-    Pr;
+    Pr; // where to jump
     while(*p)
       if (run(N+plan)) {
-	p= r+plan; continue;
+	p= plan+r; continue;
       }
     goto fail;
 
@@ -274,3 +277,17 @@ int main(int argc, char** argv) {
   printf("Program took %ld ms and performed %ld ops\n", ms, olops);
   hprint(olops*1000/ms, " ologs (/s)\n");
 }
+
+// ./dbrun 'select 3,2 from int(1,10000000) i\
+ where "F"="Fx"'
+// - takes 2750 ms for 10M "cmp"
+// - (old ./run took 4010 and dependent on string size)
+
+// 10M/2.750s = 3.64 Mops
+
+// We're talking 20x speed difference
+
+// try to use dbval inside objectlog...
+// slowdown expected. 5x?
+//
+// That's still quadruple speed
