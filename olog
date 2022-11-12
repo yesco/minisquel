@@ -1,1 +1,8 @@
-clang -O3 -lm objectlog.c && time ./a.out "$@"
+clang -g -O3 -lm objectlog.c -o olog.x && {
+   rm -f core
+   ulimit -c unlimited
+   ./olog.x "$@"
+   test -e core && {
+     gdb olog.x core --ex "where" --batch
+   }
+}

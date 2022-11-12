@@ -1,4 +1,4 @@
-./olog : 2 : 100 : 2124679 : 0 : 1 : "not prime says" \
+./olog : 2 : 100 : 2124680 : 0 : 1 : "not prime says" \
   i -10 1 2 0 \
   - -7 3 5 0  \
   i -8 1 7 0  \
@@ -6,8 +6,11 @@
   =  9 4   0  \
   .  3 6 8 0  \
   n        0  \
-  t        0  \
-  0
+  0 0
+
+#  n        0  \
+#  t        0  \
+#  0
 
 #  2124679 
 
@@ -17,3 +20,9 @@
 #                       3.6 x
 # So 3.6 x overhead compared
 # to "similar" hardcoded C
+
+#    ./log-prime LRUN =>  1.931s
+#                         2.44x slower
+#
+#              lrun 48% faster than run
+

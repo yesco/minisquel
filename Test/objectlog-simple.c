@@ -29,15 +29,12 @@ char** name=NULL;
 
 long*  nextvar= NULL;
 
-#define L(x) ((long)x)
 
 // PLAN
 //
 // indices into vars[i] (names[i])
 
 int* plan= NULL;
-
-long** lplan= NULL;
 
 // Plan is a serialized array of indices
 //
@@ -53,12 +50,11 @@ long** lplan= NULL;
 void init(int size) {
   // lol
   long n= nextvar-var;
-  var = realloc(var, size*sizeof(*var));
+  var = realloc(var, size);
   nextvar= n+var;
   
-  name= realloc(name, size*sizeof(*name));
-  plan= realloc(plan, size*sizeof(*plan));
-  lplan= realloc(lplan, size*sizeof(*lplan));
+  name= realloc(name, size);
+  plan= realloc(plan, size);
 }
 
 void printvar(int i) {
@@ -72,39 +68,9 @@ void printvar(int i) {
 void printvars() {
   printf("\n\nVARS\n");
   for(int i=1; i<=nextvar-var; i++) {
-    printf("%3d: ", i);
-    //printf("\t%p", &var[i]);
-    printvar(i);
+    printf("%3d: ", i); printvar(i);
     putchar('\n');
   }
-}
-
-int* printhere(int* p) {
-  if (!*p) return NULL;
-  
-  printf("%2ld (%c",
-	 p-plan, *p>31?*p:'?');
-  
-  while(*++p)
-    printf(" %d", *p);
-  printf(")");
-  return p+1;
-}
-
-long** lprinthere(long** p) {
-  if (!*p) return NULL;
-  
-  long f= L(*p);
-  printf("%2ld ", p-lplan);
-  if (f < 256*256)
-    printf("(%c", isprint(f)?(int)f:'?');
-  else
-    printf("(%p", *p);
-  
-  while(*++p)
-    printf(" %ld", *p-var);
-  printf(")");
-  return p+1;
 }
 
 void printplan(int* p, int lines) {
@@ -112,25 +78,28 @@ void printplan(int* p, int lines) {
     printf("PLAN\n");
 
   for(int i=0; i<lines || lines<0; i++) {
-    if (!p || !p[i]) break;
+    if (!p[i]) break;
 
-    p= printhere(p);
-    putchar('\n');
+    printf("%3d: %3d   ( %c  ",
+	   i, p[i], p[i]>31?p[i]:'?');
+
+    while(p[++i])
+      printf("%d ", p[i]);
+    printf(")\n");
+
   }
   printf("\n");
 }
 
-void lprintplan(long** p, int lines) {
-  if (lines>1 || lines<0)
-    printf("LPLAN\n");
-
-  for(int i=0; i<lines || lines<0; i++) {
-    if (!p || !p[i]) break;
-
-    p= lprinthere(p);
-    putchar('\n');
-  }
-  printf("\n");
+void printhere(int* p) {
+  if (!*p) return;
+  
+  printf("%2ld (%c",
+	 p-plan, *p>31?*p:'?');
+  
+  while(*++p)
+    printf(" %d", *p);
+  printf(")");
 }
 
 // Returns 0 if fail, or 1 if true (r)
@@ -140,7 +109,8 @@ int run(int* start) {
   long* v= var;
 
 #define N abs(*p++)
-
+#define L(x) ((long)x)
+  
 #define R v[r]
 #define A v[a]
 #define B v[b]
@@ -241,22 +211,6 @@ while((f=N)) {
   p++;
   
   olops++;
-
-#undef N
-  
-#undef R
-#undef A
-#undef B
-#undef C
-
-#undef Pr    
-#undef Pra   
-#undef Prab  
-#undef Prabc 
-
-#undef Pa    
-#undef Pab   
-#undef Pabc  
 }
 
 // if goto here will return 1 !
@@ -281,164 +235,6 @@ fail: result = !result;
   return result;
 }
 
-// lrun is 56% faster!
-int lrun(long** start) {
-  long** p= start;
-  long* v= var;
-
-#define N (*p++)
-  
-  long *r, *a, *b, *c;
-  
-#define R (*r)
-#define A (*a)
-#define B (*b)
-#define C (*c)
-
-#define Pr     r=N
-#define Pra    Pr;a=N
-#define Prab   Pra;b=N
-#define Prabc  Prab;c=N
-
-#define Pa     a=N
-#define Pab    a=N;b=N
-#define Pabc   a=N;b=N;c=N
-
-int result= 1;
-  
-int f;
- while((f=L(N))) {
-
-  if (trace) {
-    printf("\n[");
-    lprinthere(p-1);
-    putchar('\t');
-
-    // print vars
-    for(int i=1; i<=10; i++) {
-      //      if (!v[i]) break; // lol
-      printvar(i);
-    }
-
-    printf("]\t");
-  }
-
-  switch(f) {
-  // -- control flow
-  case   0: goto done;             // end = true
-  case 't': goto done;             // true (ret)
-  case 'f': goto fail;             // fail
-  case 'r': result = !result;break;// reverse/not?
-    //case 'j': Pr; p += r; break;     // jump +47
-    //case 'g': Pr; p= plan + r; break;// goto 3
-  case 127: while(127l==L(N)); break;  // nop
-  // (127 = DEL, means overwritten/ignore!)
-    
-  // - manual prime
-  // 10: (o 17 11 13 15) // 17 is goto!
-  // 11: OR (! "n" "2")
-  // 12:    (t)
-  // 13: OR (! "n" "3")
-  // 14:    (t)
-  // 15: OR (! "n" "5")
-  // 16:    (t)
-  // 17: (. "Maybe prime" "n")
-    /*
-  case 'o': // OR run pos: a b c ... 0 or fail
-    Pr; // where to jump
-    while(*p)
-      //      if (run(N+plan)) {
-      //	p= plan+r; continue;
-      //      }
-    goto fail;
-    */
-    
-  // set var
-  case ':': Pra;  R= A; break;
-
-  // arith
-  case '+': Prab; R= A+B; break;
-  case '-': Prab; R= A-B; break;
-  case '*': Prab; R= A*B; break;
-  case '/': Prab; R= A/B; break;
-  case '%': Prab; R= L(A)%L(B); break;
-
-  // cmp
-  case '=': Pab; if (A!=B) goto fail; break;
-  case '!': Pab; if (A==B) goto fail; break;
-  case '<': Pab; if (A>=B) goto fail; break;
-  case '>': Pab; if (A<=B) goto fail; break;
-//case TWO('<', '>'):
-
-  // logic - mja
-  case '&': Prab; R= A&&B; break; // implicit
-  case '|': Prab; R= A||B; break; // special
-
-  case 'i': Prab;
-    for(R=A; R<=B; R++) lrun(p+1); goto done;
-    
-  case '.': while(*p) { printvar((long*)N-var); } break;
-  case 'n': putchar('\n'); break;
-    
-  default:
-    printf("\n\n%% Illegal opcode at %ld: %d '%c'\n", p-lplan-1, f, f>31?f:'?');
-    exit(0);
-  }
-
-  // step over zero
-  assert(!*p);
-  p++;
-  
-  olops++;
-
-#undef N
-  
-#undef R
-#undef A
-#undef B
-#undef C
-
-#undef Pr    
-#undef Pra   
-#undef Prab  
-#undef Prabc 
-
-#undef Pa    
-#undef Pab   
-#undef Pabc  
-}
-
-// if goto here will return 1 !
-// (needed as to break loop from inside switch)
-done: result = !result; 
-
-// if goto here will return 0 !
-fail: result = !result;
-  
-
-  // TODO: revisit?
-  //  (what if want to retain some values?)
- 
-  // cleanup down to start
-
-
- // TODO: lrun lost ability to clear values
- //   as -values not retained (can read from plan... lol
- if (0){
- int *ip= plan + (p-lplan);
- int *istart= plan + (p-start);
- while(--ip>=istart) {
-   if (*ip < 0) {
-     //printf("clean %ld: %d\n", ip-plan, *ip);
-     //     var[-*ip] = 0;
-   }
- }
- }
- 
-  // Return 1/true if (r) or reach end, no fail
-  return result;
-}
-
 int strisnum(char* s) {
   return isdigit(s[0]) || *s=='-' && isdigit(s[1]);
 }
@@ -448,7 +244,6 @@ int main(int argc, char** argv) {
 
   // read plan from arguments
   int* p= plan;
-  long** lp= lplan;
   nextvar= var;
   while(--argc>0 && *++argv) {
     char* s= *argv;
@@ -461,60 +256,27 @@ int main(int argc, char** argv) {
     } else {
       // add plan
       printf("%s ", *argv);
-      long f= s[0] + 256*s[1];
-      long isnum= strisnum(s);
-      long num= atol(s);
-      *p = isnum ? (num ? num : 0) : f;
-      long* v= *lp = isnum? (num ? var+labs(num) : NULL) : (long*)f;
-      //printf("v= %p\n", v);
+      *p = strisnum(s) ? atol(s) : *s+256*s[1];
       if (!*p) putchar('\n');
-      p++; lp++;
+      p++;
     }
   }
-
   *p++ = 0; // just to be sure!
   *p++ = 0; // just to be sure!
-
-  *lp++ = 0; // just to be sure!
-  *lp++ = 0; // just to be sure!
-
   putchar('\n');
 
   printf("\nLoaded %ld constants %ld plan elemewnts\n", nextvar-var, p-plan);
   
   printvars();
-
   printplan(plan, -1);
-  lprintplan(lplan, -1);
-
-
 
   //trace= 1;
-
-  // can't run both since vars lost!
-  if (0)
-  {
-    printf("\n\nPLAN---Running...\n");
-    long ms= mstime();
-    run(plan);
-    ms = mstime()-ms;
-    printf("\n\n! Program took %ld ms and performed %ld ops\n", ms, olops);
-    hprint(olops*1000/ms, " ologs (/s)\n");
-  }
-  else
-  {
-    printf("\n\nLPLAN---Running...\n");
-    long ms= mstime();
-    lrun(lplan);
-    ms = mstime()-ms;
-    printf("\n\n! Program took %ld ms and performed %ld ops\n", ms, olops);
-    hprint(olops*1000/ms, " ologs (/s)\n");
-  }
-
-  printf("\n\n");
+  long ms= mstime();
+  run(plan);
+  ms = mstime()-ms;
+  printf("Program took %ld ms and performed %ld ops\n", ms, olops);
+  hprint(olops*1000/ms, " ologs (/s)\n");
 }
-
-
 
 // ./dbrun 'select 3,2 from int(1,10000000) i\
  where "F"="Fx"'
@@ -551,7 +313,7 @@ int main(int argc, char** argv) {
 //   (x > e)      > x e 0      
 //   (BAR)        bar   0      
 // (OR_END)       1     0      1-2=-1   0
-//
+/
 // QED: out-of-bounds
 //
 
@@ -599,7 +361,7 @@ int main(int argc, char** argv) {
 // if NOT x > e go next
 // if (x>e) return fail
 //    (scan and find NOT_END
-//     continue after)
+/     continue after)
 //
 // if arrive NOT_END 
 //    fail
