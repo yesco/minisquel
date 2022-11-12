@@ -291,3 +291,77 @@ int main(int argc, char** argv) {
 // slowdown expected. 5x?
 //
 // That's still quadruple speed
+
+
+// a OR b === !(!a AND !b)
+
+// x<s OR x>e (outside interval/NOT BETWEEN)
+//
+// (| x < s)
+// (|)
+// (| x > e)
+// (| fail)
+
+// out-of-bounds
+
+// (x<s AND foo) OR (x>e AND bar)
+//                                    sum
+// (OR_BEGIN)     3     0      3-2=+1  +1
+//   (x < s)      < x s 0      
+//   (foo)        foo   0      
+// (OR_BREAK)     2     0      2-2=0   +1
+//   (x > e)      > x e 0      
+//   (BAR)        bar   0      
+// (OR_END)       1     0      1-2=-1   0
+/
+// QED: out-of-bounds
+//
+
+// when scanning/skipping just sum n-2
+// when n=1,2,3
+//
+// when it's 0 we're out of last OR_END!
+//
+// if fail find next OR_BREAK/OR_END
+//   if end up on OR_END fail
+//
+// if no fail and arrive OR_BREAK/OR_END
+//   find OR_END and continue
+
+
+//       ==
+//  !(x!<5 AND x!>10)
+//  !(x>=5 AND x<=10)      inside bounds
+
+// x = 7   pass all, NOT_END will fail 
+// x = 3   fail first, go NOT_END continue
+
+// reverse action
+//
+// x = 7
+//   NOT x < 5  == ok, continue
+//   NOT x > 10 == ok, continue
+//   NOT_END fail
+
+// x = 3
+//   NOT x < 5  == fail, find NOT_END
+//            continue after
+//   NOT_END 
+
+// (NOT_BEGIN)
+//   (NOT x < 5)
+//   (NOT x > 10)
+// (NOT_END)
+//
+// if NOT x < s go next
+// if (x<s) return fail
+//    (scan and find NOT_END
+//    continue after)
+//
+// if NOT x > e go next
+// if (x>e) return fail
+//    (scan and find NOT_END
+/     continue after)
+//
+// if arrive NOT_END 
+//    fail
