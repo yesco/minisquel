@@ -203,7 +203,7 @@ dbval parse_str(char** s) {
   if (*s) {
     ps= getparsedskip(ps);
 
-    rturn getparseddbval(ps);
+    return getparseddbval(ps);
   }
   if (debug>2) printf("--- PARSE_STR\n");
 
@@ -939,6 +939,9 @@ int logical() {
 }
 
 int after_where(char* selexpr) {
+  // 2% extra cost passing here on every WHERE
+  // can be reduced TODO: reduce, parse after
+  
   // TODO: only call after LAST where!
   //   (now called every time... lol)
   parse_only= 0;
