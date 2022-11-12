@@ -282,11 +282,6 @@ dbval mkerr() {return(dbval){.l=CERROR};}
 
 //inline dbval mknum(double d){return(dbval){d};}
 
-inline dbval mknum(double d){
-  // Curious A+B if either A or B is NAN return B!
-  if (isnan(d)) d= NAN;
-  return (dbval){d};
-}
 
 // These valuies are transient
 // Don't store permanently!
@@ -306,6 +301,18 @@ long is7ASCII(dbval v) {
   // TODO: l>0 ???
   return (((l & 0x03) == 0x01) && l<ISTRLIMIT) ?
     l>>2 : 0;
+}
+
+inline dbval mknum(double d){
+  // Curious A+B if either A or B is NAN return B!
+  //  putchar('<');
+  //  dbprinth((dbval)d, 8, 1);
+  //  putchar('>');
+  //printf(" [%p] ", (void*)*(long*)&d);
+
+  //if (isnull((dbval)d)) return mknull();
+  //if (isnan(d)) d= NAN;
+  return (dbval){d};
 }
 
 dbtype type(dbval v) {
@@ -557,6 +564,8 @@ int dbstrcmp(dbval a, dbval b) {
     return strcmp(str(a), str(b));
   }
 }
+
+int dbp(dbval d) { return dbprinth(d, 8, 1); }
 
 int dbprinth(dbval v, int width, int human) {
   // Save 31% (when printing 3 "long" & 1 string)

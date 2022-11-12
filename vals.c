@@ -55,6 +55,9 @@
 //     But it's only used for single in-
 //     memory instances, like one row/table.
 //  * 
+
+#include <math.h>
+
 typedef struct val {
   char* s;
   char* dealloc; // if set (to s) deallocate

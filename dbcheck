@@ -1,0 +1,19 @@
+# regression testing, compares output
+clang -lm -O3 minisquel-dbv.c -o sql || ( echo "%% Compilation error"; exit 1) || exit 1
+./test > test.new 2>/dev/null || exit 1
+
+rm -f test.diff
+
+diff -E -Z -a -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new > test.diff
+
+(diff -E -Z -a -t -U10 -I".* rows .* ms" -F"SQL>" test.out test.new && echo "OK - all tests passed") || {
+diff=$?
+
+echo
+echo
+echo
+echo "============================="
+echo "%%%%%% ERROR!"
+echo "check the diff! ( test.diff )" 
+echo "(if it's ok: cp test.new test.out)"
+}

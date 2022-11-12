@@ -1,9 +1,16 @@
-#include "vals.c // TODO: temporary!
+#define NAMELEN 64
+#define VARCOUNT 100
 
-// needed by dbval
+#include <stdlib.h>
+#include <stdio.h>
+
+
+int debug= 0, stats= 0, lineno= -1, foffset= 0;
+
 #include "utils.c"
-#include "vals.c" 
-//#include "csv.c" 
+
+#include "csv.c" 
+#include "vals.c"
 
 #include "dbval.c"
 
@@ -38,15 +45,64 @@ void testtype(dbval v) {
 }
 
 
+void aa(dbval a, dbval b, char op, double d) {
+  printf("\t%c %lg ", op, d); dbp(mknum(d)); nl();
+}
 
-extern debug= 1;
+void arith(dbval a, dbval b) {
+  nl();
+  dbp(a); dbp(b); nl();
+  aa(a,b, '+', a.d+b.d);
+  aa(a,b, '-', a.d-b.d); 
+  aa(a,b, '*', a.d*b.d);
+  aa(a,b, '/', a.d/b.d);
+  //  printf("\t+"); dbprinth(mknum(a+b), 8, 1); nl();
+}
 
 int main(void) {
+  if (1) {
+    nl();
+    double nn= NAN;
+    printf("nan= %lx \n", *(long*)&nn);
+    // funny:
+    // num and NULL gives NULL
+    // nan and NULL gives NULL
+    // str and NULL gives STR
+    // str and str gives first
+    dbval n42= mknum(42);
+    dbval s= mkstrconst("foobarfiefum");
+    dbval s2= mkstrconst("twotwotwotwo");
+    dbval n= mknull();
+    dbval nan= mknum(NAN);
+
+    arith(n42, n42);
+    arith(n42, nan);
+    arith(nan, n42);
+
+    arith(n42, n);
+    arith(n, n42);
+
+    arith(nan, n);
+    arith(n, nan);
+
+    arith(n42, s);
+    arith(s, n42);
+    arith(s, s);
+
+    arith(nan, s);
+    arith(s, nan);
+
+    arith(s, s2);
+    arith(s2, s);
+
+    
+  }
+  
   if(0){
-    printf("%16lx\n", INULL);
-    printf("%16lx\n", IEND);
-    printf("%16lx\n", IFAIL);
-    printf("%16lx\n", IERROR);
+    printf("%16lx\n", (long)INULL);
+    printf("%16lx\n", (long)IEND);
+    printf("%16lx\n", (long)IFAIL);
+    printf("%16lx\n", (long)IERROR);
 
     printf("%16lx\n", CNULL);
     printf("%16lx\n", CEND);

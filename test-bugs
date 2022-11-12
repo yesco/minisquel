@@ -1,5 +1,3 @@
-clang -lm -O3 minisquel.c -o sql && {
-
 # --------- fail - TODO:
 ./sql 'select 42 where (1)=1'
 ./sql 'select 42 where ((1)=1)'
@@ -32,5 +30,3 @@ time ./sql 'select left(predicted_category, 5) from happy h from int(1,10)) i wh
 ./sql 'select a,b,c,d,e from null n'
 
 # -- end test
-}
-

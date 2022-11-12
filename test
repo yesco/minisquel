@@ -1,4 +1,4 @@
-clang -lm -O3 minisquel.c -o sql && {
+# requires an existing "./sql" binary!
 
 # header/formatting
 ./sql 'select 1234567, 42' 
@@ -121,5 +121,3 @@ b
 echo "========== BUGS ==========="
 ./test-bugs
 echo "^^^^^^^^^^ BUGS ^^^^^^^^^^^"
-
-}
