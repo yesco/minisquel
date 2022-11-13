@@ -282,8 +282,20 @@ fail: result = !result;
   return result;
 }
 
+
+typedef int(*fun)(long**p);
+
+
+fun func[128*4]= {0};
+
+
+
+
+
 // lrun is 56% faster!
 int lrun(long** start) {
+  //lprintplan(start, -1);
+
   long** p= start;
   long* v= var;
 
@@ -334,7 +346,50 @@ int f;
 
 #define CASE(s) case TWO(s)
 
-  switch(f) {
+  if (0) {
+    // -- dispatch using only function pointers
+
+    //! Program took 2590 ms
+    // 81.22 M ologs (/s)
+    
+    // -24%: Quite a slowdown compared to 110M
+
+    // but still can used for FFI!
+
+    fun fp= func[f];
+    //printf("\nf='%c' fp= %p\n", f, fp);
+    if (!fp) goto done;
+    int ret= fp(p);
+
+    switch(ret) {
+    case -1: goto fail;
+    case  0: while(*++p); break;
+    case  1: goto done;
+    case  2: result = !result; break;
+    default: error("Unknown ret action!");
+    }
+
+  } else {
+    // -- use switch to dispatch
+    // (more efficent than func pointers!)
+
+// direct function pointers!
+if (f > 128*4) {
+  fun fp= func[f];
+  //printf("\nf='%c' fp= %p\n", f, fp);
+  if (!fp) goto done;
+  int ret= fp(p);
+  
+  switch(ret) {
+  case -1: goto fail;
+  case  0: while(*++p); break;
+  case  1: goto done;
+  case  2: result = !result; break;
+  default: error("Unknown ret action!");
+  }
+}
+
+switch(f) {
   // -- control flow
   case   0: goto done;             // end = true
   case 't': goto done;             // true (ret)
@@ -407,7 +462,8 @@ int f;
     printf("\n\n%% Illegal opcode at %ld: %d '%c'\n", p-lplan-1, f, f>31?f:'?');
     exit(0);
   }
-
+}
+ 
   // step over zero
   assert(!*p);
   p++;
@@ -463,12 +519,84 @@ fail: result = !result;
   return result;
 }
 
+#define R0 return 0;
+
+int ft(long**p) { return 1; }
+int ff(long**p) { return -1; }
+int fr(long**p) { return 2; }
+int fdel(long**p) { return 0; }
+int fset(long**p) {*p[0]=*p[1];R0}
+int fplus(long**p){*p[0]=*p[1]+*p[2];R0}
+int fminus(long**p){*p[0]=*p[1]-*p[2];R0}
+int fmul(long**p){*p[0]=*p[1] * *p[2];R0}
+int fdiv(long**p){*p[0]=*p[1] / *p[2];R0}
+int fper(long**p){*p[0]=*p[1]%*p[2];R0}
+int feq(long**p){return*p[0]==*p[1]?0:-1;}
+int fneq(long**p){return*p[0]!=*p[1]?0:-1;}
+int fiota(long**p) {
+  for(*p[0]=*p[1]; *p[0]<=*p[2]; (void)(*p[0])++) lrun(p+4);
+  return 1;
+}
+int fprint(long**p) {
+  while(*p) {
+    printvar((long*)*p++ - var);
+  }
+  return 0;
+}
+int fnewline(long**p){putchar('\n');R0}
+
+void regfuncs() {
+  func['t']= ft;
+  func['f']= ff;
+  func['r']= fr;
+  func[127]= fdel;
+  //  func['o']= JMP OR
+  func[':']= fset;
+  func['+']= fplus;
+  func['-']= fminus;
+  func['*']= fmul;
+  func['/']= fdiv;
+  func['%']= fper;
+  func['=']= func[TWO("==")]= feq;
+  func['!']= func[TWO("!+")]= func[TWO("<>")]= fneq;
+  //  func['<']= 
+
+    //  case '<': Pab; if (A>=B) goto fail; break;
+  //  case '>': Pab; if (A<=B) goto fail; break;
+  //  CASE("!>"):
+  //  CASE("<="): Pab; if (A>B) goto fail; break;
+  //  CASE("!<"):
+  //  CASE(">="): Pab; if (A<B) goto fail; break;
+//case TWO('<', '>'):
+
+  // logic - mja
+  //  case '&': Prab; R= A&&B; break; // implicit
+  //  case '|': Prab; R= A||B; break; // special
+
+  func['i']= fiota;
+
+  /*
+  CASE("DO"):
+  case 'd': Prabc;
+    for(R=A; R<=B; R+=C) lrun(p+1); goto done;
+  */
+  
+  func['.']= fprint;
+  func['n']= fnewline;
+}
+
+
+
+
+
+
 int strisnum(char* s) {
   return isdigit(s[0]) || *s=='-' && isdigit(s[1]);
 }
     
 int main(int argc, char** argv) {
   init(1024);
+  regfuncs();
 
   // read plan from arguments
   int* p= plan;
@@ -513,7 +641,7 @@ int main(int argc, char** argv) {
 
 
 
-  //trace= 1;
+  //  trace= 1;
 
   // can't run both since vars lost!
   if (0)
