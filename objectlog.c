@@ -8,14 +8,17 @@
 #include <math.h>
 #include <assert.h>
 
-int debug= 0, stats= 0;
+int debug=0, stats=0, lineno=0, foffset=0;
+
+#include "utils.c"
+
+#include "csv.c"
+#include "vals.c"
+#include "dbval.c"
 
 #include "utils.c"
 
 #define MAXNUM 20000000l
-
-#define MAXVARS 1024
-#define MAXPLAN 2048
 
 int trace= 0;
 long olops= 0;
@@ -459,7 +462,7 @@ switch(f) {
   case 'n': putchar('\n'); break;
     
   default:
-    printf("\n\n%% Illegal opcode at %ld: %d '%c'\n", p-lplan-1, f, f>31?f:'?');
+    printf("\n\n%% Illegal opcode at %ld: %ld '%c'\n", p-lplan-1, f, (int)(isprint(f)?f:'?'));
     exit(0);
   }
 }

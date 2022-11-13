@@ -58,6 +58,15 @@
 
 #include <math.h>
 
+#ifndef NAMELEN
+#define NAMELEN 64
+#endif
+
+#ifndef VARCOUNT
+#define VARCOUNT 100
+#endif
+
+
 typedef struct val {
   char* s;
   char* dealloc; // if set (to s) deallocate
