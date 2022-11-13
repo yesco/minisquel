@@ -271,7 +271,8 @@ fail: result = !result;
   //  (what if want to retain some values?)
  
   // cleanup down to start
-  while(--p>=start) {
+//printf("\tip= %ld\n\tistart=%ld\n\tstart=%d\n", p-plan, start-plan, start-plan);
+ while(--p>=start) {
     if (*p < 0) {
       //printf("clean %ld: %d\n", p-plan, *p);
       var[-*p] = 0;
@@ -426,11 +427,12 @@ fail: result = !result;
  //   as -values not retained (can read from plan... lol
  if (0){
  int *ip= plan + (p-lplan);
- int *istart= plan + (p-start);
+ int *istart= plan + (start-lplan);
+ // printf("\tip= %ld\n\tistart=%ld\n\tstart=%d\n", ip-plan, istart-plan, start-lplan);
  while(--ip>=istart) {
    if (*ip < 0) {
      //printf("clean %ld: %d\n", ip-plan, *ip);
-     //     var[-*ip] = 0;
+     var[-*ip] = 0;
    }
  }
  }
