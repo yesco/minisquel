@@ -286,7 +286,15 @@ fail: result = !result;
 typedef int(*fun)(long**p);
 
 
-fun func[128*4]= {0};
+  // adds 130ms to 1945 ms 5.3%
+  //#define TWO(s) (s[0]+256*s[1])
+  //#define TWO(s) (s[0]-32+(s[1]?3*(s[1]-96):0))
+
+  // no performance loss!
+#define TWO(s) (s[0]+3*(s[1]))
+#define TWORANGE 128*4
+
+fun func[TWORANGE]= {0};
 
 
 
@@ -319,7 +327,7 @@ int lrun(long** start) {
 
 int result= 1;
   
-int f;
+long f;
  while((f=L(N))) {
 
   if (trace) {
@@ -335,14 +343,6 @@ int f;
 
     printf("]\t");
   }
-
-  // adds 130ms to 1945 ms 5.3%
-  //#define TWO(s) (s[0]+256*s[1])
-  //#define TWO(s) (s[0]-32+(s[1]?3*(s[1]-96):0))
-
-  // no performance loss!
-#define TWO(s) (s[0]+3*(s[1]))
-
 
 #define CASE(s) case TWO(s)
 
@@ -374,7 +374,7 @@ int f;
     // (more efficent than func pointers!)
 
 // direct function pointers!
-if (f > 128*4) {
+if (((unsigned long)f) > (long)TWORANGE) {
   fun fp= func[f];
   //printf("\nf='%c' fp= %p\n", f, fp);
   if (!fp) goto done;
