@@ -324,6 +324,16 @@ int f;
     printf("]\t");
   }
 
+  // adds 130ms to 1945 ms 5.3%
+  //#define TWO(s) (s[0]+256*s[1])
+  //#define TWO(s) (s[0]-32+(s[1]?3*(s[1]-96):0))
+
+  // no performance loss!
+#define TWO(s) (s[0]+3*(s[1]))
+
+
+#define CASE(s) case TWO(s)
+
   switch(f) {
   // -- control flow
   case   0: goto done;             // end = true
@@ -365,18 +375,30 @@ int f;
   case '%': Prab; R= L(A)%L(B); break;
 
   // cmp
+  CASE("=="):
   case '=': Pab; if (A!=B) goto fail; break;
+  CASE("!="):
+  CASE("<>"):
   case '!': Pab; if (A==B) goto fail; break;
   case '<': Pab; if (A>=B) goto fail; break;
   case '>': Pab; if (A<=B) goto fail; break;
+  CASE("!>"):
+  CASE("<="): Pab; if (A>B) goto fail; break;
+  CASE("!<"):
+  CASE(">="): Pab; if (A<B) goto fail; break;
 //case TWO('<', '>'):
 
   // logic - mja
   case '&': Prab; R= A&&B; break; // implicit
   case '|': Prab; R= A||B; break; // special
 
+  CASE("IO"):
   case 'i': Prab;
     for(R=A; R<=B; R++) lrun(p+1); goto done;
+
+  CASE("DO"):
+  case 'd': Prabc;
+    for(R=A; R<=B; R+=C) lrun(p+1); goto done;
     
   case '.': while(*p) { printvar((long*)N-var); } break;
   case 'n': putchar('\n'); break;
@@ -463,7 +485,7 @@ int main(int argc, char** argv) {
     } else {
       // add plan
       printf("%s ", *argv);
-      long f= s[0] + 256*s[1];
+      long f= TWO(s);
       long isnum= strisnum(s);
       long num= atol(s);
       *p = isnum ? (num ? num : 0) : f;
