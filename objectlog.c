@@ -236,18 +236,50 @@ int lrun(dbval** start) {
     case '%': Prab; R.d= L(A.d)%L(B.d); break;
 
       // cmp
+      //    CASE("=="):
+      //case '=': Pab; if (A.l!=B.l) goto fail; break;
+
+    // number only compare - be sure!
+    // (10-20% FASTER than generic!)
+    CASE("N="): Pab;
+	 if (A.l!=B.l) goto fail; break;
+
+    // string only compare - be sure!
+    CASE("S="): Pab;
+	 if (dbstrcmp(A, B)) goto fail; break;
+      
+    // generic compare - 20% slower?
     CASE("=="):
-    case '=': Pab; if (A.l!=B.l) goto fail; break;
+    case '=': Pab;
+      if (A.l==B.l) break;
+      if (isnan(A.d) || isnan(A.d)) {
+	if (type(A)!=type(B)) goto fail;
+	// same type
+	if (dbstrcmp(A, B)) goto fail;
+      } else
+	if (A.d != B.d) goto fail;
+      break;
+
+    CASE("N!"): Pab;
+      if (A.l!=B.l) break; goto fail;
+
+    CASE("S!"): Pab;
+      if (dbstrcmp(A,B)) break; goto fail;
+
+    // Generic
     CASE("!="):
     CASE("<>"):
     case '!': Pab; if (A.l==B.l) goto fail; break;
+
+    // TODO: do strings...
     case '<': Pab; if (A.d>=B.d) goto fail; break;
     case '>': Pab; if (A.d<=B.d) goto fail; break;
+
     CASE("!>"):
     CASE("<="): Pab; if (A.d>B.d) goto fail; break;
+
     CASE("!<"):
     CASE(">="): Pab; if (A.d<B.d) goto fail; break;
-      //case TWO('<', '>'):
 
       // logic - mja
     case '&': Prab; R.d= A.d&&B.d; break; // implicit

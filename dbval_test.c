@@ -62,6 +62,8 @@ void arith(dbval a, dbval b) {
 int main(void) {
   if (1) {
     nl();
+    printf("nan==nan %d, != %d\n",
+	   NAN==NAN, NAN!=NAN);
     double nn= NAN;
     printf("nan= %lx \n", *(long*)&nn);
     // funny:
