@@ -587,7 +587,6 @@ char* print_header(char* e) {
       //EXPECT(d, expr);
       int d= expr();
       if (!d) expected("expression");
-      error("HANDLE ORDERBY in OL");
       // select 42 AS foo
       if (got("as")) expectsymbol(name, "alias name");
       spcs(); more= gotc(',');
@@ -859,6 +858,7 @@ int logical() {
       // OR
       while((n= logsimple())) {
 	if (n==LTRUE) r= n;
+	printf("OL or\n");
 	if (!got("or")) break;
       }
       if (!got("and")) return r;
@@ -1080,31 +1080,15 @@ int INT(char* selexpr) {
     if (!gotc(')')) expected(")");
     stop+= 0.5;
     spcs();
-    //
     expectname(name, NULL);
-
-    TODO...
-
   } else expected("(");
 
+  int n= OL3("i", start, stop);
   val v= {};
-  linkval("int", name, &v);
+  setnum(&v, n);
+  setvar("int", name, &v);
 
-  char* backtrack= ps;
-  for(double i= start; i<stop; i+= step) {
-    // handle coded setvar
-    // TODO:setnum/setstr?
-    setnum(&v, i);
-
-    ps= backtrack;
-    next_from_list(selexpr);
-  }
-
-  // restore "state"
-  // ps= saved;
-  varcount= nvars;
-
-  return 1;
+  return n;
 }
 
 void hack_foffset(char* col, FILE** dataf, long* foffset, double d) {
@@ -1673,15 +1657,10 @@ int setvarexp() {
   expectname(name, "variable");
   spcs();
   if (!gotc('=')) expected("=");
-  dbval d= expr();
-  if (isfail(d)) expected("expression");
+  int d= expr();
+  if (!d) expected("expression");
   val v= {};
-  dbval2val(d, &v);
-  dbfree(d);
-  if (debug) {
-    printf(" [set '%s' to ", name);
-    printval(&v, 0, 0); printf("]\n");
-  }
+  setnum(&v, d);
   setvar("global", name, &v);
   return 1;
 }
