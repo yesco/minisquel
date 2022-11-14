@@ -78,18 +78,6 @@ void printvars() {
   }
 }
 
-int* printhere(int* p) {
-  if (!*p) return NULL;
-  
-  printf("%2ld (%c",
-	 p-plan, *p>31?*p:'?');
-  
-  while(*++p)
-    printf(" %d", *p);
-  printf(")");
-  return p+1;
-}
-
 dbval** lprinthere(dbval** p) {
   if (!*p) return NULL;
   
@@ -106,19 +94,6 @@ dbval** lprinthere(dbval** p) {
   return p+1;
 }
 
-void printplan(int* p, int lines) {
-  if (lines>1 || lines<0)
-    printf("PLAN\n");
-
-  for(int i=0; i<lines || lines<0; i++) {
-    if (!p || !p[i]) break;
-
-    p= printhere(p);
-    putchar('\n');
-  }
-  printf("\n");
-}
-
 void lprintplan(dbval** p, int lines) {
   if (lines>1 || lines<0)
     printf("LPLAN\n");
@@ -131,156 +106,6 @@ void lprintplan(dbval** p, int lines) {
   }
   printf("\n");
 }
-
-// Returns 0 if fail, or 1 if true (r)
-//   or came to end
-int run(int* start) {
-  int* p= start;
-  dbval* v= var;
-
-#define N abs(*p++)
-
-#define R v[r]
-#define A v[a]
-#define B v[b]
-#define C v[c]
-
-  int r, a, b, c;
-  
-#define Pr     r=N
-#define Pra    Pr;a=N
-#define Prab   Pra;b=N
-#define Prabc  Prab;c=N
-
-#define Pa     a=N
-#define Pab    a=N;b=N
-#define Pabc   a=N;b=N;c=N
-
-int result= 1;
-  
-int f;
-while((f=N)) {
-
-  if (trace) {
-    printf("\n[");
-    printhere(p-1);
-    putchar('\t');
-
-    // print vars
-    for(int i=1; i<=10; i++) {
-      if (!v[i].l) break; // lol
-      printvar(i);
-    }
-
-    printf("]\t");
-  }
-
-  switch(f) {
-  // -- control flow
-  case   0: goto done;             // end = true
-  case 't': goto done;             // true (ret)
-  case 'f': goto fail;             // fail
-  case 'r': result = !result;break;// reverse/not?
-  case 'j': Pr; p += r; break;     // jump +47
-  case 'g': Pr; p= plan + r; break;// goto 3
-  case 127: while(127==N); break;  // nop
-  // (127 = DEL, means overwritten/ignore!)
-    
-  // - manual prime
-  // 10: (o 17 11 13 15) // 17 is goto!
-  // 11: OR (! "n" "2")
-  // 12:    (t)
-  // 13: OR (! "n" "3")
-  // 14:    (t)
-  // 15: OR (! "n" "5")
-  // 16:    (t)
-  // 17: (. "Maybe prime" "n")
-  case 'o': // OR run pos: a b c ... 0 or fail
-    Pr; // where to jump
-    while(*p)
-      if (run(N+plan)) {
-	p= plan+r; continue;
-      }
-    goto fail;
-
-  // set var
-  case ':': Pra;  R= A; break;
-
-  // arith
-  case '+': Prab; R.d= A.d+B.d; break;
-  case '-': Prab; R.d= A.d-B.d; break;
-  case '*': Prab; R.d= A.d*B.d; break;
-  case '/': Prab; R.d= A.d/B.d; break;
-  case '%': Prab; R.d= L(A.d)%L(B.d); break;
-
-  // cmp
-  case '=': Pab; if (A.d!=B.d) goto fail; break;
-  case '!': Pab; if (A.d==B.d) goto fail; break;
-  case '<': Pab; if (A.d>=B.d) goto fail; break;
-  case '>': Pab; if (A.d<=B.d) goto fail; break;
-//case TWO('<', '>'):
-
-  // logic - mja
-  case '&': Prab; R.d= A.d&&B.d; break; // implicit
-  case '|': Prab; R.d= A.d||B.d; break; // special
-
-  case 'i': Prab;
-    for(R.d=A.d; R.d<=B.d; R.d++) run(p+1); goto done;
-    
-  case '.': while(*p) { printvar(N); } break;
-  case 'n': putchar('\n'); break;
-    
-  default:
-    printf("\n\n%% Illegal opcode at %ld: %d '%c'\n", p-plan-1, f, f>31?f:'?');
-    exit(0);
-  }
-
-  // step over zero
-  assert(!*p);
-  p++;
-  
-  olops++;
-
-#undef N
-  
-#undef R
-#undef A
-#undef B
-#undef C
-
-#undef Pr    
-#undef Pra   
-#undef Prab  
-#undef Prabc 
-
-#undef Pa    
-#undef Pab   
-#undef Pabc  
-}
-
-// if goto here will return 1 !
-// (needed as to break loop from inside switch)
-done: result = !result; 
-
-// if goto here will return 0 !
-fail: result = !result;
-  
-
-  // TODO: revisit?
-  //  (what if want to retain some values?)
- 
-  // cleanup down to start
-//printf("\tip= %ld\n\tistart=%ld\n\tstart=%d\n", p-plan, start-plan, start-plan);
- while(--p>=start) {
-    if (*p < 0) {
-      //printf("clean %ld: %d\n", p-plan, *p);
-      var[-*p] = mkerr();
-    }
-  }
-  // Return 1/true if (r) or reach end, no fail
-  return result;
-}
-
 
 typedef int(*fun)(dbval**p);
 
@@ -324,150 +149,131 @@ int lrun(dbval** start) {
 #define Pab    a=N;b=N
 #define Pabc   a=N;b=N;c=N
 
-int result= 1;
+  int result= 1;
   
-long f;
- while((f=L(N))) {
+  long f;
+  while((f=L(N))) {
 
-  if (trace) {
-    printf("\n[");
-    lprinthere(p-1);
-    putchar('\t');
+    if (trace) {
+      printf("\n[");
+      lprinthere(p-1);
+      putchar('\t');
 
-    // print vars
-    for(int i=1; i<=10; i++) {
-      //      if (!v[i]) break; // lol
-      printvar(i);
+      // print vars
+      for(int i=1; i<=10; i++) {
+	//if (!v[i]) break; // lol
+	printvar(i);
+      }
+
+      printf("]\t");
     }
 
-    printf("]\t");
-  }
-
-#define CASE(s) case TWO(s)
-
-  if (0) {
-    // -- dispatch using only function pointers
-
-    //! Program took 2590 ms
-    // 81.22 M ologs (/s)
-    
-    // -24%: Quite a slowdown compared to 110M
-
-    // but still can used for FFI!
-
-    fun fp= func[f];
-    //printf("\nf='%c' fp= %p\n", f, fp);
-    if (!fp) goto done;
-    int ret= fp(p);
-
-    switch(ret) {
-    case -1: goto fail;
-    case  0: while(*++p); break;
-    case  1: goto done;
-    case  2: result = !result; break;
-    default: error("Unknown ret action!");
-    }
-
-  } else {
     // -- use switch to dispatch
     // (more efficent than func pointers!)
 
-// direct function pointers!
-if (((unsigned long)f) > (long)TWORANGE) {
-  fun fp= func[f];
-  //printf("\nf='%c' fp= %p\n", f, fp);
-  if (!fp) goto done;
-  int ret= fp(p);
+    // direct function pointers!
+    if (0 || ((unsigned long)f) > (long)TWORANGE) {
+      fun fp= func[f];
+
+      if (!fp) goto done;
+      int ret= fp(p);
+      //printf("\nf='%c' fp= %p\n", f, fp);
+      //      printf("ret= %d\n", ret);
   
-  switch(ret) {
-  case -1: goto fail;
-  case  0: while(*++p); break;
-  case  1: goto done;
-  case  2: result = !result; break;
-  default: error("Unknown ret action!");
-  }
-}
+      switch(ret) {
+      case -1: goto fail;
+      case  0: while(*++p); break;
+      case  1: goto done;
+      case  2: result = !result; break;
+      default: error("Unknown ret action!");
+      }
 
-switch(f) {
-  // -- control flow
-  case   0: goto done;             // end = true
-  case 't': goto done;             // true (ret)
-  case 'f': goto fail;             // fail
-  case 'r': result = !result;break;// reverse/not?
-    //case 'j': Pr; p += r; break;     // jump +47
-    //case 'g': Pr; p= plan + r; break;// goto 3
-  case 127: while(127l==L(N)); break;  // nop
-  // (127 = DEL, means overwritten/ignore!)
+      p++;
+      olops++;
+      continue;
+    }
+
+#define CASE(s) case TWO(s)
+
+    switch(f) {
+      // -- control flow
+    case   0: goto done;             // end = true
+    case 't': goto done;             // true (ret)
+    case 'f': goto fail;             // fail
+    case 'r': result = !result;break;// reverse/not?
+      //case 'j': Pr; p += r; break;     // jump +47
+      //case 'g': Pr; p= plan + r; break;// goto 3
+    case 127: while(127l==L(N)); break;  // nop
+      // (127 = DEL, means overwritten/ignore!)
     
-  // - manual prime
-  // 10: (o 17 11 13 15) // 17 is goto!
-  // 11: OR (! "n" "2")
-  // 12:    (t)
-  // 13: OR (! "n" "3")
-  // 14:    (t)
-  // 15: OR (! "n" "5")
-  // 16:    (t)
-  // 17: (. "Maybe prime" "n")
-    /*
-  case 'o': // OR run pos: a b c ... 0 or fail
-    Pr; // where to jump
-    while(*p)
-      //      if (run(N+plan)) {
-      //	p= plan+r; continue;
-      //      }
-    goto fail;
-    */
+      // - manual prime
+      // 10: (o 17 11 13 15) // 17 is goto!
+      // 11: OR (! "n" "2")
+      // 12:    (t)
+      // 13: OR (! "n" "3")
+      // 14:    (t)
+      // 15: OR (! "n" "5")
+      // 16:    (t)
+      // 17: (. "Maybe prime" "n")
+      /*
+	case 'o': // OR run pos: a b c ... 0 or fail
+	Pr; // where to jump
+	while(*p)
+	//      if (run(N+plan)) {
+	//	p= plan+r; continue;
+	//      }
+	goto fail;
+      */
     
-  // set var
-  case ':': Pra;  R= A; break;
+      // set var
+    case ':': Pra;  R= A; break;
 
-  // arith
-  case '+': Prab; R.d= A.d+B.d; break;
-  case '-': Prab; R.d= A.d-B.d; break;
-  case '*': Prab; R.d= A.d*B.d; break;
-  case '/': Prab; R.d= A.d/B.d; break;
-  case '%': Prab; R.d= L(A.d)%L(B.d); break;
+      // arith
+    case '+': Prab; R.d= A.d+B.d; break;
+    case '-': Prab; R.d= A.d-B.d; break;
+    case '*': Prab; R.d= A.d*B.d; break;
+    case '/': Prab; R.d= A.d/B.d; break;
+    case '%': Prab; R.d= L(A.d)%L(B.d); break;
 
-  // cmp
-  CASE("=="):
-  case '=': Pab; if (A.l!=B.l) goto fail; break;
-  CASE("!="):
-  CASE("<>"):
-  case '!': Pab; if (A.l==B.l) goto fail; break;
-  case '<': Pab; if (A.d>=B.d) goto fail; break;
-  case '>': Pab; if (A.d<=B.d) goto fail; break;
-  CASE("!>"):
-  CASE("<="): Pab; if (A.d>B.d) goto fail; break;
-  CASE("!<"):
-  CASE(">="): Pab; if (A.d<B.d) goto fail; break;
-//case TWO('<', '>'):
+      // cmp
+    CASE("=="):
+    case '=': Pab; if (A.l!=B.l) goto fail; break;
+    CASE("!="):
+    CASE("<>"):
+    case '!': Pab; if (A.l==B.l) goto fail; break;
+    case '<': Pab; if (A.d>=B.d) goto fail; break;
+    case '>': Pab; if (A.d<=B.d) goto fail; break;
+    CASE("!>"):
+    CASE("<="): Pab; if (A.d>B.d) goto fail; break;
+    CASE("!<"):
+    CASE(">="): Pab; if (A.d<B.d) goto fail; break;
+      //case TWO('<', '>'):
 
-  // logic - mja
-  case '&': Prab; R.d= A.d&&B.d; break; // implicit
-  case '|': Prab; R.d= A.d||B.d; break; // special
+      // logic - mja
+    case '&': Prab; R.d= A.d&&B.d; break; // implicit
+    case '|': Prab; R.d= A.d||B.d; break; // special
 
-  CASE("IO"):
-  case 'i': Prab;
-    for(R.d=A.d; R.d<=B.d; R.d+=1) lrun(p+1); goto done;
+    CASE("IO"):
+    case 'i': Prab;
+      for(R.d=A.d; R.d<=B.d; R.d+=1) lrun(p+1); goto done;
 
-  CASE("DO"):
-  case 'd': Prabc;
-    for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
+    CASE("DO"):
+    case 'd': Prabc;
+      for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
     
-  case '.': while(*p) { printvar((dbval*)N-var); } break;
-  case 'n': putchar('\n'); break;
+    case '.': while(*p) { printvar((dbval*)N-var); } break;
+    case 'n': putchar('\n'); break;
     
-  default:
-    printf("\n\n%% Illegal opcode at %ld: %ld '%c'\n", p-lplan-1, f, (int)(isprint(f)?f:'?'));
-    exit(0);
-  }
-}
+    default:
+      printf("\n\n%% Illegal opcode at %ld: %ld '%c'\n", p-lplan-1, f, (int)(isprint(f)?f:'?'));
+      exit(0);
+    }
  
-  // step over zero
-  assert(!*p);
-  p++;
+    // step over zero
+    assert(!*p);
+    p++;
   
-  olops++;
+    olops++;
 
 #undef N
   
@@ -484,39 +290,33 @@ switch(f) {
 #undef Pa    
 #undef Pab   
 #undef Pabc  
-}
+  }
 
-// if goto here will return 1 !
-// (needed as to break loop from inside switch)
-done: result = !result; 
-
-// if goto here will return 0 !
-fail: result = !result;
+ done: result = !result; 
+ fail: result = !result;
   
+  // -- cleanup down to start
+  // -35% performance ???
+  // (dbval instead of int -
+  //  - still 10% faster...)
+  if (1) ; 
+  else {
+    int *ip= plan + (p-lplan);
+    int *istart= plan + (start-lplan);
+    dbval x= mkerr();
+    // forward loop 2-3% faster
+    while(istart<ip) {
+      if (*istart < 0) {
+	//printf("clean %ld: %d\n", ip-plan, *ip);
+	var[-*istart] = x;
+      }
+      istart++;
+    }
+  }
 
-  // TODO: revisit?
-  //  (what if want to retain some values?)
- 
-  // cleanup down to start
-
-
- // TODO: lrun lost ability to clear values
- //   as -values not retained (can read from plan... lol
- if (0){
- int *ip= plan + (p-lplan);
- int *istart= plan + (start-lplan);
- // printf("\tip= %ld\n\tistart=%ld\n\tstart=%d\n", ip-plan, istart-plan, start-lplan);
- while(--ip>=istart) {
-   if (*ip < 0) {
-     //printf("clean %ld: %d\n", ip-plan, *ip);
-     var[-*ip] = mkerr();
-   }
- }
- }
- 
-  // Return 1/true if (r) or reach end, no fail
   return result;
 }
+
 
 #define R0 return 0;
 
@@ -539,7 +339,7 @@ int fiota(dbval**p) {
 }
 int fprint(dbval**p) {
   while(*p) {
-    printvar(*p-var);
+    printvar(*p++-var);
   }
   return 0;
 }
@@ -636,36 +436,19 @@ int main(int argc, char** argv) {
   
   printvars();
 
-  printplan(plan, -1);
   lprintplan(lplan, -1);
 
+  //trace= 1;
 
-
-  //  trace= 1;
-
-  // can't run both since vars lost!
-  if (0)
-  {
-    printf("\n\nPLAN---Running...\n");
-    long ms= mstime();
-    run(plan);
-    ms = mstime()-ms;
-    printf("\n\n! Program took %ld ms and performed %ld ops\n", ms, olops);
-    hprint(olops*1000/ms, " ologs (/s)\n");
-  }
-  else
-  {
-    printf("\n\nLPLAN---Running...\n");
-    long ms= mstime();
-    lrun(lplan);
-    ms = mstime()-ms;
-    printf("\n\n! Program took %ld ms and performed %ld ops\n", ms, olops);
-    hprint(olops*1000/ms, " ologs (/s)\n");
-  }
+  printf("\n\nLPLAN---Running...\n");
+  long ms= mstime();
+  lrun(lplan);
+  ms = mstime()-ms;
+  printf("\n\n! Program took %ld ms and performed %ld ops\n", ms, olops);
+  hprint(olops*1000/ms, " ologs (/s)\n");
 
   printf("\n\n");
 }
-
 
 
 // ./dbrun 'select 3,2 from int(1,10000000) i\
