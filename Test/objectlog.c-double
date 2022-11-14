@@ -12,11 +12,9 @@ int debug=0, stats=0, lineno=0, foffset=0;
 
 #include "utils.c"
 
-#include "csv.c"
-#include "vals.c"
-#include "dbval.c"
-
-#include "utils.c"
+//#include "csv.c"
+//#include "vals.c"
+//#include "dbval.c"
 
 #define MAXNUM 20000000l
 
@@ -27,10 +25,10 @@ long olops= 0;
 // zero:th var isn't used.
 // a zero index is a delimiter
 
-dbval*  var= NULL;
+double*  var= NULL;
 char** name=NULL;
 
-dbval*  nextvar= NULL;
+double*  nextvar= NULL;
 
 #define L(x) ((long)x)
 
@@ -40,7 +38,7 @@ dbval*  nextvar= NULL;
 
 int* plan= NULL;
 
-dbval** lplan= NULL;
+double** lplan= NULL;
 
 // Plan is a serialized array of indices
 //
@@ -65,7 +63,12 @@ void init(int size) {
 }
 
 void printvar(int i) {
-  dbp(var[i]);
+  long v= var[i];
+  if (v>-MAXNUM && v<MAXNUM)
+    printf("%ld ", v);
+  else
+    printf("%s ", (char*)v);
+//  dbp(var[i]);
 }
 
 void printvars() {
@@ -90,7 +93,7 @@ int* printhere(int* p) {
   return p+1;
 }
 
-dbval** lprinthere(dbval** p) {
+double** lprinthere(double** p) {
   if (!*p) return NULL;
   
   long f= L(*p);
@@ -119,7 +122,7 @@ void printplan(int* p, int lines) {
   printf("\n");
 }
 
-void lprintplan(dbval** p, int lines) {
+void lprintplan(double** p, int lines) {
   if (lines>1 || lines<0)
     printf("LPLAN\n");
 
@@ -136,7 +139,7 @@ void lprintplan(dbval** p, int lines) {
 //   or came to end
 int run(int* start) {
   int* p= start;
-  dbval* v= var;
+  double* v= var;
 
 #define N abs(*p++)
 
@@ -168,7 +171,7 @@ while((f=N)) {
 
     // print vars
     for(int i=1; i<=10; i++) {
-      if (!v[i].l) break; // lol
+      if (!v[i]) break; // lol
       printvar(i);
     }
 
@@ -207,25 +210,25 @@ while((f=N)) {
   case ':': Pra;  R= A; break;
 
   // arith
-  case '+': Prab; R.d= A.d+B.d; break;
-  case '-': Prab; R.d= A.d-B.d; break;
-  case '*': Prab; R.d= A.d*B.d; break;
-  case '/': Prab; R.d= A.d/B.d; break;
-  case '%': Prab; R.d= L(A.d)%L(B.d); break;
+  case '+': Prab; R= A+B; break;
+  case '-': Prab; R= A-B; break;
+  case '*': Prab; R= A*B; break;
+  case '/': Prab; R= A/B; break;
+  case '%': Prab; R= L(A)%L(B); break;
 
   // cmp
-  case '=': Pab; if (A.d!=B.d) goto fail; break;
-  case '!': Pab; if (A.d==B.d) goto fail; break;
-  case '<': Pab; if (A.d>=B.d) goto fail; break;
-  case '>': Pab; if (A.d<=B.d) goto fail; break;
+  case '=': Pab; if (A!=B) goto fail; break;
+  case '!': Pab; if (A==B) goto fail; break;
+  case '<': Pab; if (A>=B) goto fail; break;
+  case '>': Pab; if (A<=B) goto fail; break;
 //case TWO('<', '>'):
 
   // logic - mja
-  case '&': Prab; R.d= A.d&&B.d; break; // implicit
-  case '|': Prab; R.d= A.d||B.d; break; // special
+  case '&': Prab; R= A&&B; break; // implicit
+  case '|': Prab; R= A||B; break; // special
 
   case 'i': Prab;
-    for(R.d=A.d; R.d<=B.d; R.d++) run(p+1); goto done;
+    for(R=A; R<=B; R++) run(p+1); goto done;
     
   case '.': while(*p) { printvar(N); } break;
   case 'n': putchar('\n'); break;
@@ -274,7 +277,7 @@ fail: result = !result;
  while(--p>=start) {
     if (*p < 0) {
       //printf("clean %ld: %d\n", p-plan, *p);
-      var[-*p] = mkerr();
+      var[-*p] = 0;
     }
   }
   // Return 1/true if (r) or reach end, no fail
@@ -282,7 +285,7 @@ fail: result = !result;
 }
 
 
-typedef int(*fun)(dbval**p);
+typedef int(*fun)(double**p);
 
 
   // adds 130ms to 1945 ms 5.3%
@@ -300,15 +303,15 @@ fun func[TWORANGE]= {0};
 
 
 // lrun is 56% faster!
-int lrun(dbval** start) {
+int lrun(double** start) {
   //lprintplan(start, -1);
 
-  dbval** p= start;
-  dbval* v= var;
+  double** p= start;
+  double* v= var;
 
 #define N (*p++)
   
-  dbval *r, *a, *b, *c;
+  double *r, *a, *b, *c;
   
 #define R (*r)
 #define A (*a)
@@ -422,39 +425,39 @@ switch(f) {
   case ':': Pra;  R= A; break;
 
   // arith
-  case '+': Prab; R.d= A.d+B.d; break;
-  case '-': Prab; R.d= A.d-B.d; break;
-  case '*': Prab; R.d= A.d*B.d; break;
-  case '/': Prab; R.d= A.d/B.d; break;
-  case '%': Prab; R.d= L(A.d)%L(B.d); break;
+  case '+': Prab; R= A+B; break;
+  case '-': Prab; R= A-B; break;
+  case '*': Prab; R= A*B; break;
+  case '/': Prab; R= A/B; break;
+  case '%': Prab; R= L(A)%L(B); break;
 
   // cmp
   CASE("=="):
-  case '=': Pab; if (A.l!=B.l) goto fail; break;
+  case '=': Pab; if (A!=B) goto fail; break;
   CASE("!="):
   CASE("<>"):
-  case '!': Pab; if (A.l==B.l) goto fail; break;
-  case '<': Pab; if (A.d>=B.d) goto fail; break;
-  case '>': Pab; if (A.d<=B.d) goto fail; break;
+  case '!': Pab; if (A==B) goto fail; break;
+  case '<': Pab; if (A>=B) goto fail; break;
+  case '>': Pab; if (A<=B) goto fail; break;
   CASE("!>"):
-  CASE("<="): Pab; if (A.d>B.d) goto fail; break;
+  CASE("<="): Pab; if (A>B) goto fail; break;
   CASE("!<"):
-  CASE(">="): Pab; if (A.d<B.d) goto fail; break;
+  CASE(">="): Pab; if (A<B) goto fail; break;
 //case TWO('<', '>'):
 
   // logic - mja
-  case '&': Prab; R.d= A.d&&B.d; break; // implicit
-  case '|': Prab; R.d= A.d||B.d; break; // special
+  case '&': Prab; R= A&&B; break; // implicit
+  case '|': Prab; R= A||B; break; // special
 
   CASE("IO"):
   case 'i': Prab;
-    for(R.d=A.d; R.d<=B.d; R.d+=1) lrun(p+1); goto done;
+    for(R=A; R<=B; R+=1) lrun(p+1); goto done;
 
   CASE("DO"):
   case 'd': Prabc;
-    for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
+    for(R=A; R<=B; R+=C) lrun(p+1); goto done;
     
-  case '.': while(*p) { printvar((dbval*)N-var); } break;
+  case '.': while(*p) { printvar((double*)N-var); } break;
   case 'n': putchar('\n'); break;
     
   default:
@@ -509,7 +512,9 @@ fail: result = !result;
  while(--ip>=istart) {
    if (*ip < 0) {
      //printf("clean %ld: %d\n", ip-plan, *ip);
-     var[-*ip] = mkerr();
+     //var[-*ip] = mkerr();
+     // TODO: deallocations?
+     var[-*ip] = 0;
    }
  }
  }
@@ -520,30 +525,30 @@ fail: result = !result;
 
 #define R0 return 0;
 
-int ft(dbval**p) { return 1; }
-int ff(dbval**p) { return -1; }
-int fr(dbval**p) { return 2; }
-int fdel(dbval**p) { return 0; }
-int fset(dbval**p) {p[0]->l=p[1]->l;R0}
-int fplus(dbval**p){p[0]->d=p[1]->d+p[2]->d;R0}
-int fminus(dbval**p){p[0]->d=p[1]->d-p[2]->d;R0}
-int fmul(dbval**p){p[0]->d=p[1]->d * p[2]->d;R0}
-int fdiv(dbval**p){p[0]->d=p[1]->d / p[2]->d;R0}
-int fper(dbval**p){p[0]->d=L(p[1]->d)%L(p[2]->d);R0}
-int feq(dbval**p){return p[0]->l==p[1]->l?0:-1;}
-int fneq(dbval**p){return p[0]->l!=p[1]->l?0:-1;}
-int fiota(dbval**p) {
-  for(p[0]->d=p[1]->d; p[0]->d<=p[2]->d; (void)(p[0]->d++))
+int ft(double**p) { return 1; }
+int ff(double**p) { return -1; }
+int fr(double**p) { return 2; }
+int fdel(double**p) { return 0; }
+int fset(double**p) {*p[0]=*p[1];R0}
+int fplus(double**p){*p[0]=*p[1]+*p[2];R0}
+int fminus(double**p){*p[0]=*p[1]-*p[2];R0}
+int fmul(double**p){*p[0]=*p[1] * *p[2];R0}
+int fdiv(double**p){*p[0]=*p[1] / *p[2];R0}
+int fper(double**p){*p[0]=L(*p[1])%L(*p[2]);R0}
+int feq(double**p){return *p[0]==*p[1]?0:-1;}
+int fneq(double**p){return *p[0]!=*p[1]?0:-1;}
+int fiota(double**p) {
+  for(*p[0]=*p[1]; *p[0]<=*p[2]; (void)(*p[0])++)
     lrun(p+4);
   return 1;
 }
-int fprint(dbval**p) {
+int fprint(double**p) {
   while(*p) {
     printvar(*p-var);
   }
   return 0;
 }
-int fnewline(dbval**p){putchar('\n');R0}
+int fnewline(double**p){putchar('\n');R0}
 
 void regfuncs() {
   func['t']= ft;
@@ -600,7 +605,7 @@ int main(int argc, char** argv) {
 
   // read plan from arguments
   int* p= plan;
-  dbval** lp= lplan;
+  double** lp= lplan;
   nextvar= var;
   while(--argc>0 && *++argv) {
     char* s= *argv;
@@ -608,8 +613,12 @@ int main(int argc, char** argv) {
       // init var
       // TODO: "can't just store strptr!"
       --argc; s= *++argv;
-      *++nextvar = strisnum(s) ? mknum(atol(s)) : mkstrconst(s);
-      printf("var[%ld] = ", nextvar-var); dbp(*nextvar);
+      //*++nextvar = strisnum(s) ? atol(s) : mkstrconst(s).d;
+      // this isn't good for string, lol
+      *++nextvar = strisnum(s) ? atol(s) : (long)s;
+      printf("var[%ld] = ", nextvar-var);
+      printvar(nextvar-var);
+      // dbp(*nextvar);
     } else {
       // add plan
       printf("%s ", *argv);
@@ -617,7 +626,7 @@ int main(int argc, char** argv) {
       long isnum= strisnum(s);
       long num= atol(s);
       *p = isnum ? (num ? num : 0) : f;
-      dbval* v= *lp = isnum?( num ? var+labs(num) : NULL) : (void*)f;
+      double* v= *lp = isnum?( num ? var+labs(num) : NULL) : (void*)f;
       //printf("v= %p\n", v);
       if (!*p) putchar('\n');
       p++; lp++;
@@ -677,7 +686,7 @@ int main(int argc, char** argv) {
 
 // We're talking 20x speed difference
 
-// try to use dbval inside objectlog...
+// try to use double inside objectlog...
 // slowdown expected. 5x?
 //
 // That's still quadruple speed

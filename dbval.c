@@ -243,6 +243,8 @@ int64_t is53(double d) {
 typedef union dbval {
   double d;
   long l;
+  void* p;
+  int (*f)(union dbval *p);
 } dbval;
   
 #define MAXSTRINGS 1024*1024
