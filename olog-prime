@@ -1,12 +1,37 @@
-./olog : 2 : 100 : 2124680 : 0 : 1 : "not prime says" \
-  i -10 1 2 0 \
-  - -7 3 5 0  \
-  i -8 1 7 0  \
-  % -9 3 8 0  \
-  =  9 4   0  \
-  .  3 6 8 0  \
-  n        0  \
+#clang -O3 Test/objectlog-minimal.c &&
+
+clang -lm -O3 objectlog.c && \
+./a.out \
+\
+  : 2                \
+  : 100              \
+  : 2124680          \
+  : 0                \
+  : 1                \
+  : "not prime says" \
+                  \
+  i -10 1 2 0  \
+  -  -7 3 5 0  \
+  i  -8 1 7 0  \
+  %  -9 3 8 0  \
+  =   9 4   0  \
+  .   3 6 8 0  \
+  n         0  \
   0 0
+
+# 98x calculate divisors of p (>1, <p)
+#
+# for i=2 to 100
+#   a= i-1
+#   for j=2 to a
+#     b=  p % j
+#     if b==0 break
+#       print p,msg,j
+#       newline
+
+
+
+
 
 #  n        0  \
 #  t        0  \
