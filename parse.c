@@ -22,9 +22,11 @@ int nextvarnum= 1;
   
 #define OL1(f, a) (printf("OL %s %d\n", f, (int)a), nextvarnum++)
   
-#define OL2(f, a, b) (printf("OL %s %d %d 0\n", f, (int)a, (int)b))
+#define OLcmp(f, a, b) (printf("OL %s %d %d 0\n", f, (int)a, (int)b))
 
-#define ROL2(f, a, b) return OL2(f, a, b)
+#define OL3(f, a, b) (printf("OL %s %d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
+
+#define ROLcmp(f, a, b) return OLcmp(f, a, b)
 
 
 
@@ -182,13 +184,13 @@ int got(char* s) {
 
 #include "dbval.c"
 
-dbval parse_num() {
+int parse_num() {
   spcs();
   char* end= NULL;
   double d= hstrtod(ps, &end);
-  if (end<=ps) return mkfail();
+  if (end<=ps) return 0;
   ps= end;
-  return mknum(d);
+  return OL1(":", d);
 }
 
 // Parses a string and gives it to a new
@@ -197,25 +199,14 @@ dbval parse_num() {
 // A pointer to the parsed string
 // is returned in *s.
 // ! DO NOT FREE!
-dbval parse_str(char** s) {
+int parse_str(char** s) {
   spcs();
 
   char* start= ps;
-  *s= getparsedstr(ps);
-  if (*s) {
-    ps= getparsedskip(ps);
-    if (debug>2) {
-      printf("FOUND: '%s'\n", *s);
-      printf("AT.end> '%s'\n", ps);
-    }
-
-    // TODO: save this one instead?
-    return mkstrconst(*s);
-  }
   if (debug>2) printf("--- PARSE_STR\n");
 
   char q= gotcs("\"'");
-  if (!q) return mkfail();
+  if (!q) return 0; // fail
   *s= ps;
   while(!end()) {
     if (*ps==q && *++ps!=q) break; // 'foo''bar'
@@ -223,7 +214,7 @@ dbval parse_str(char** s) {
     ps++;
   }
   ps--;
-  if (*ps!=q) return mkfail();
+  if (*ps!=q) return 0; // fail
 
   char* a= strndup(*s, ps-*s);
   *s= a;
@@ -235,8 +226,9 @@ dbval parse_str(char** s) {
     a++;
   }
 
-  setparsedstr(start, ps, *s);
-  return mkstrfree(*s, 1);
+  int n= OLS(":", *s);
+  free(*s);
+  return n;
 }
 
 int parse_into_str(char name[NAMELEN]) {
@@ -342,7 +334,7 @@ func* findfunc(char* name) {
 
 // parser
 
-dbval expr();
+int expr();
 
 // TODO: use to call "sql" with params?
 // EXEC updateAddress @city = 'Calgary'
@@ -371,67 +363,33 @@ void dbval2val(dbval d, val* v) {
   }
 }
 
-dbval call(char* name) {
+int call(char* name) {
   #define MAXPARAMS 10
 
   val r= {};
-  val params[MAXPARAMS]= {0};
+  int params[MAXPARAMS]= {0};
   int pcount= 0;
   func* f= findfunc(name);
   if (!f) expected2("not found func", name);
   if (debug && !parse_only) printf("\n---CALL: %s\n", name);
   while(!gotc(')')) {
-    dbval v= expr();
-    if (isfail(v)) expected("expression");
+    int v= expr();
+    if (!v) expected("expression");
 
-    dbval2val(v, &params[pcount++]);
+    params[pcount++]= v;
     if (debug && !parse_only) {
-      printf("\tARG %d: ", pcount);
-      dbprinth(v, 8, 1); nl();
+      printf("\tARG %d: %d\n", pcount, v);
     }
-    dbfree(v);
 
     spcs();
     if (*ps!=')' && !gotc(',')) expected("comma");
   } 
 
-  int rv= 0;
-  if (!parse_only) {
-    // caller cleans up in C, so this is safe!
-
-    // TODO: WARNING
-    // - make sure when using dbval (for strings) that nobody returns same arguemnt in, as it may create double sharing...?
-
-    rv= ((int(*)(val*,int,val[],val*,val*))f->f)(&r, pcount, params, params+1, params+2);
-  }
-
-  if (debug && !parse_only) {
-    printf("\tRETURNED: "); printval(&r, 0, 0); nl();
-    printf("<---CALL: %s\n", name);
-  }
-
-  // cleanup
+  printf("OL %s %p %d", name, f->f, nextvarnum);
   for(int i=0; i<pcount; i++)
-    clearval(&params[i]);
-
-  // done
-
-  dbval d= r.s ?
-    mkstrfree(r.s, !!r.dealloc) : val2dbval(&r);
-  // no cleanval (as pointer "transffered")
-
-  if (debug && !parse_only) {
-    printf("\tRETURNED: ");
-    dbprinth(d, 0, 0); nl();
-    printf("<---CALL: %s\n", name);
-  }
-  if (parse_only || rv>0) return d;
-
-  // - wrong set of parameters
-  char msg[NAMELEN];
-  sprintf(msg, "%d parameters, got %d", -rv, pcount);
-  expected2(name, msg);
-  return mkfail();
+    printf(" %d", params[i]);
+  putchar('\n');
+  return nextvarnum++;
 
   #undef MAXPARAMS
 }
@@ -439,107 +397,92 @@ dbval call(char* name) {
 // parse var name and get value
 // WARNING: if not found=>NULL
 // and always return true
-dbval var() {
+int var() {
   char name[NAMELEN]= {};
   // TODO:? "variables) in prepared stmsts
   if (getname(name)) {
     val v= {};
     if (gotc('(')) return call(name);
+
+    // "plain variable"
     char* dot= strchr(name, '.');
     if (dot) *dot= 0;
     char* column= dot?dot+1:name;
     char* table= dot?name:NULL;
-    getval(table, column, &v);
-    //return val2dbdup(&v);
-    return val2dbval(&v);
+
+    // already used?
+    val* vp= findvar(table, name);
+    if (vp) return (int)vp->d;
+
+    // create new new for name
+    int n= nextvarnum++;
+    vp= calloc(1, sizeof(*vp));
+    setnum(vp, n);
+    // "memory leaks"
+    linkval(strdup(table), strdup(name), vp);
+    return n;
   }
   // TODO: maybe not needed here?
   // not found == null
-  return mknull();
+  return 0;
 }
 
-dbval prim() {
-  dbval v= {};
+int prim() {
+  int v= 0;
   spcs();
   if (gotc('(')) {
     v= expr();
-    if (isfail(v)) expected("expr");
+    if (!v) expected("expr");
     spcs();
-    if (!gotc(')')) {
-      dbfree(v);
-      expected("')'");
-    }
+    if (!gotc(')')) expected("')'");
     return v;
   }
-  v= parse_num();
-
-  if (isnum(v)) return mknum( OL1(":", v.d) );
+  int n= parse_num();
+  if (n) return n;
 
   char* s= NULL;
-  if (isfail(v)) v= parse_str(&s);
-
-  if( debug>2) {
-    printf(" { PRIM: "); dbprinth(v, 8, 1);
-    printf(" s='%s' ", str(v));
-    printf(" }\n");
-  }
-  
-  if (!isfail(v)) return mknum( OLS(":", s) );
+  n= parse_str(&s);
+  if (n) return n;
   
   // only if has name
   if (isid(*ps)) return var();
   return v;
 }
 
-dbval mult() {
-  dbval v= prim();
-  if (isfail(v)) return v;
+int mult() {
+  int v= prim();
+  if (!v) return v;
   char op;
   while ((op= gotcs("*/%"))) {
-    dbval vv= prim();
-    if (isfail(vv)) return vv; 
+    int vv= prim();
+    if (!vv) return vv;
     // type num op num => num
     // other types => nan
     switch(op){
-    case '*': v= mknum(v.d*vv.d); break;
-    case '/': v= mknum(v.d/vv.d); break;
-    case '%': v= mknum(((long)v.d) % ((long)vv.d)); break;
+    case '*': v= OL3("*", v, vv); break;
+    case '/': v= OL3("/", v, vv); break;
+    case '%': v= OL3("%", v, vv); break;
     default: error("Undefined operator!");
-      dbfree(v); dbfree(vv);
-      return mkfail();
+      return 0;
     }
-    dbfree(vv);
   }
   return v;
 }
 
-dbval expr() {
+int expr() {
   spcs();
-  int neg= gotc('-');
-  dbval v= mult();
-  if (isfail(v)) return v;
-  if (neg) v.d= -v.d;
+  int v= mult();
+  if (!v) return v;
   char op;
   while ((op= gotcs("+-"))) {
-    dbval vv= mult();
-    //if (isnan(vv.d))
-    if (!isnum(vv)) {
-      dbfree(vv);
-      // TDOO: fail?
-      vv= mkfail();
-    }
-    // clang: any+NAN => NAN
-    // - 42   +"FOO" => "FOO" !!!
-    // - "FOO"+"BAR" => "BAR"
-    // - "BAR"+"FOO" => "FOO"
+    int vv= mult();
+    if (!v) return v;
     if (op == '+') {
-      if (debug) printf(" { EXPR.+: %lg }\n", v.d+vv.d);
-      v= mknum(v.d+vv.d);
+      v= OL3("+", v, vv);
     } else if (op == '-') {
-      v= mknum(v.d-vv.d);
+      v= OL3("+", v, vv);
     }
     // TODO: null propagate?
-    dbfree(vv);
   }
   return v;
 }
@@ -642,9 +585,9 @@ char* print_header(char* e) {
       spcs(); more= gotc(',');
     } else {
       //EXPECT(d, expr);
-      dbval d= expr();
-      if (isfail(d)) expected("expression");
-      dbfree(d);
+      int d= expr();
+      if (!d) expected("expression");
+      error("HANDLE ORDERBY in OL");
       // select 42 AS foo
       if (got("as")) expectsymbol(name, "alias name");
       spcs(); more= gotc(',');
@@ -732,19 +675,17 @@ char* print_expr_list(char* e) {
       }
       spcs(); more= gotc(',');
     } else {
-      dbval d= expr();
-      if (isfail(d)) expected("expression");
+      int d= expr();
+      if (!d) expected("expression");
       // select 42 AS foo
       if (got("as")) {
 	// TDOO: use DBVAL
 	expectsymbol(name, NULL);
 	val v= {};
-	dbval2val(d, &v);
+	setnum(&v, d);
 	setvar(NULL, name, &v);
 	clearval(&v);
       }
-      if (result_action)
-	result_action(NULL, d, lineno+1, col);
 
       // print it
       //if (col) putchar(abs(delim));
@@ -752,18 +693,9 @@ char* print_expr_list(char* e) {
       // TODO: Don't truncate if last col!
       spcs(); more= gotc(',');
       if (doprint) {
-	//printval(&v, delim==','?'\"':0, more?delim:-delim);
-	// TDOO: do quoting etc...
-	dbprinth(d, 8, 1);
+	// TDOO: hmmm
+	OL1("select", d);
       }
-      
-// TODO: this is broken...
-// as it doesn't know if it own or not!
-
-     dbfree(d);
-
-//
-// select * works but not select b,b from foo !      
     }
 
     if (printprogress && lineno%100==0)
@@ -813,18 +745,18 @@ int dcmp(char* cmp, int a, int b) {
   case TWO('l','i'):
 
   case TWO('=','='):
-  case '=': ROL2("=", a, b);
+  case '=': ROLcmp("=", a, b);
 
   case TWO('<','>'):
-  case TWO('!','='): ROL2("!", a, b);
+  case TWO('!','='): ROLcmp("!", a, b);
 
   case TWO('!','>'):
-  case TWO('<','='): ROL2("<=", a, b);
-  case '<': ROL2("<", a, b);
+  case TWO('<','='): ROLcmp("<=", a, b);
+  case '<': ROLcmp("<", a, b);
 
   case TWO('!','<'):
-  case TWO('>','='): ROL2(">=", a, b);
-  case '>': ROL2(">", a, b);
+  case TWO('>','='): ROLcmp(">=", a, b);
+  case '>': ROLcmp(">", a, b);
 
   default: expected("dcmp: comparator");
   }
@@ -882,31 +814,19 @@ int scmp(char* cmp, dbval da, dbval db) {
 
 int comparison() {
   char op[NAMELEN]= {};
-  dbval a= expr();
-  if (isfail(a)) return LFAIL;
+  int a= expr();
+  if (!a) return LFAIL;
   if (!comparator(op)) expected("op compare");
-  dbval b= expr();
-  if (isfail(b)) return LFAIL;
+  int b= expr();
+  if (!b) return LFAIL;
   int r= LFALSE;
-  if (isnull(a) || isnull(b))
-    r= LFALSE;
-  else if (isnum(a) && isnum(b))
-    r= dcmp(op, a.d, b.d)?LTRUE:LFALSE;
-  else
-    r= scmp(op, a, b)?LTRUE:LFALSE;
-  
-  // ./dbrun 'select 3,2 from int(1,10000000) i where "F"="Fx"'
-
-  // ---- ./run => 4030  ms 1!!!
-  // that's 9.3% FASTER!
-
-  // cost? 7 ascii?
-
-  // TODO: cost 1.5% (4400 ms)
-  //if(a.l<0)dbfree(a); if(b.l<0)dbfree(b);
-  // TDOO: cost 3.1% (4570 ms)
-  dbfree(a); dbfree(b);
-  return r;
+  // TODO: can do OL?
+  //if (isnum(a) && isnum(b))
+  //r= dcmp(op, a.d, b.d)?LTRUE:LFALSE;
+  //else
+  //r= scmp(op, a, b)?LTRUE:LFALSE;
+  // don't even care type now!
+  return dcmp(op, a, b);
 }
 
 int logical();
@@ -982,9 +902,9 @@ int after_where(char* selexpr) {
     double d;
     // TODO: or column name...
     //   now -4 also works as "ASC" lol
-    dbval db= parse_num();
-    if (!isnum(db)) expected("order by COL");
-    int col= (int)db.d;
+    int db= parse_num();
+    if (!db) expected("order by COL");
+    int col= db;
     got("ASC") || got("ASCENDING");
     if (got("DESC") || got("DESCENDING"))
       col= -col;
@@ -1150,17 +1070,21 @@ int INT(char* selexpr) {
   double start= 0, stop= 0, step= 1;
   // TODO: generalize, use functions?
   if (gotc('(')) {
-    dbval dstart= parse_num();
-    if (!isnum(dstart)) expected("number");
-    start= dstart.d;
+    int dstart= parse_num();
+    if (!dstart) expected("number");
+    start= dstart;
     if (!gotc(',')) expected(",");
-    dbval dstop= parse_num();
-    if (!isnum(dstop)) expected("number");
-    stop= dstop.d;
+    int dstop= parse_num();
+    if (!dstop) expected("number");
+    stop= dstop;
     if (!gotc(')')) expected(")");
     stop+= 0.5;
     spcs();
+    //
     expectname(name, NULL);
+
+    TODO...
+
   } else expected("(");
 
   val v= {};
