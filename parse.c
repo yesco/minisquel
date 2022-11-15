@@ -80,14 +80,6 @@ int parse_only= 0;
 
 char *query=NULL, *ps= NULL;
 
-// TODO: generalize output formats:
-//
-//   maybe use external formatter?
-//     popen("| formacmd");
-//
-//   - sqlite3(ascii box column csv html insert json line list markdown qbox quote table tabs tcl)
-//   - DuckDB(ascii, box, column, csv, (no)header, html, json, line, list, markdown, newline SEP, quote, separator SEP, table)
-
 // -- Options
 
 int batch= 0, force= 0, browse= 0;
@@ -98,68 +90,9 @@ int globalecho= 1, echo= 1;
 char globalformat[30]= {0};
 char format[30]= {0};
 
-
-char formatdelim() {
-  if (!*format) return '\t';
-  if (0==strcmp("csv", format)) return ',';
-  if (0==strcmp("tab", format)) return '\t';
-  if (0==strcmp("bar", format)) return '|';
-  return '\t';
-}
-
-
-
-//void init(int size) {
-//  vars= recalloc(vars, size, 
-
-// Temporary HACK:
-//
-//   Improve performance by caching
-// string from sql once parsed
-// (overhead 8x len of query!)
-//
-// When a parsed string is stored, the slot
-// directly after stores, pointer of ps to
-// jump to the end of parse of that string.
-//
-// Effect:
-// - constant no of mallocs
-// - ./dbrun 'select 3,2 from int(1,10000000) i where "F"="Fx"'
-//   => ./dbrun vs ./run gives 50% of the time
-//
-
-// TODO: use for names, numbers etc.
-//   or just parse into intermediate form?
-
-char** parsedstrs= NULL;
-
-char* getparsedstr(char* ps) {
-  return parsedstrs[ps-query];
-}
-
-char* getparsedskip(char* ps) {
-  return parsedstrs[ps-query + 1];
-}
-
-char* setparsedstr(char* ps, char* end, char* s) {
-  int i= ps-query;
-  parsedstrs[i+1]= end;
-  return parsedstrs[i]= strdup(s);
-}
-
 int parse(char* s) {
-  if (parsedstrs) {
-    for(int i=0; i < strlen(query); i++) {
-      free(parsedstrs[i]);
-      // skip next as it's ptr to parsestr! 
-      i += 1;
-    }
-    free(parsedstrs);
-  }
-
   free(query);
   query= ps= s;
-  parsedstrs= calloc(strlen(s)+1, sizeof(*parsedstrs));
   return 1;
 }
 
@@ -185,7 +118,7 @@ int gotcs(char* s) {
 
 int spcs() {
   int n= 0;
-  while(gotcs(" \t\n\t")) n++;;
+  while(gotcs(" \t\n\r")) n++;;
   return n;
 }
 
@@ -365,33 +298,6 @@ func* findfunc(char* name) {
 
 int expr();
 
-// TODO: use to call "sql" with params?
-// EXEC updateAddress @city = 'Calgary'
-// TODO:
-//   updateAddress(@city=5, @foo=7);
-//
-void dbval2val(dbval d, val* v) {
-  clearval(v);
-  switch(type(d)) {
-  case TNULL: setnull(v); break;
-  case TNUM:  setnum(v, d.d); break;
-  case T7ASCII: {
-    char c7[8]= {};
-    str7ASCIIcpy(c7, d);
-    setstr(v, c7); } break;
-  case TSTR:  setstr(v, str(d)); break;
-
-  case TATOM:
-  case TBAD:  
-  case TFAIL: 
-  case TERROR:
-  case TEND:
-  default:
-    dbprinth(d, 8, 1);
-    error("dbval2val: invalid dbval for val");
-  }
-}
-
 int call(char* name) {
   #define MAXPARAMS 10
 
@@ -439,20 +345,10 @@ int var() {
     char* column= dot?dot+1:name;
     char* table= dot?name:NULL;
 
-    // already used?
-    val* vp= findvar(table, name);
-    if (vp) return (int)vp->d;
-
-    // create new new for name
-    int n= nextvarnum++;
-    vp= calloc(1, sizeof(*vp));
-    setnum(vp, n);
-    // "memory leaks"
-    linkval(strdup(table), strdup(name), vp);
-    return n;
+    // find or define var
+    int n= varfind(table, name);
+    return n?n:defvar(table, name, 0);
   }
-  // TODO: maybe not needed here?
-  // not found == null
   return 0;
 }
 
@@ -517,39 +413,6 @@ int expr() {
 }
 
 #include "table.c"
-
-table* results= NULL;
-
-void do_result_action(char* name, dbval d, long row, int col) {
-  if (debug>1) {
-    printf("\nRESULT: '%s' ", name); dbprinth(d, 8, 1); printf(" %ld, %d  ", row, col);
-    dbval dbv= mkstrconst(name);
-    printf(">>>"); dbprinth(dbv, 0, 1);
-    printf("<<< ps=>>%s<", ps);
-    putchar('\n');
-    dbfree(dbv); // no effect
-  }
-
-  if (results) {
-    // TODO: detect too few columns?
-    if (col > results->cols) results->cols= col;
-    if (col==1 && !name) results->count++;
-
-    if (debug>1) {
-      printf("===> ");
-      if (name) printf("%-8s", name);
-      else tdbprinth(results, d, 8, 1);
-      putchar('\n');
-    }
-    if (name) {
-      dbval dh= tablemkstr(results, name);
-      addarena(results->data, &dh, sizeof(dh));
-    } else {
-      d= tableval(results, d); // recast for table
-      addarena(results->data, &d, sizeof(d));
-    }      
-  }
-}
 
 char* print_header(char* e) {
   char* old_ps= ps;
@@ -619,78 +482,6 @@ char* print_header(char* e) {
   return e;
 }
 
-// returns end pointer so can skip!
-char* print_expr_list(char* e) {
-  //if (parse_only) return print_header(e);
-  if (lineno<0) {
-    int saved= parse_only;
-    if (!parse_only) parse_only= -1;
-    char* x= print_header(e);
-    parse_only= saved;
-    if (lineno<0) return x;
-  }
-
-  char* old_ps= ps;
-  ps= e;
-  
-  spcs();
-  int col= 0;
-  int more= 0;
-
-  printf("OL out");
-  do {
-    spcs();
-    char* start= ps;
-    char name[NAMELEN]= {0};
-
-    // [foo.*]
-    char q;
-    if ((q= gotcs("[*"))) {
-      ps--;
-      expectsymbol(name, "[] column name");
-      // search names in defined order
-      char varname[NAMELEN]= {};
-      for(int i=0; i<varcount; i++) {
-	// format name to test
-	char* t= tablenames[i];
-	snprintf(varname, sizeof(name), "%s.%s", t?t:"", varnames[i]);
-	snprintf(varname, sizeof(varname), "%s.%s", t?t:"", varnames[i]);
-	// don't match '$' names,
-	// unless asked for
-	if (!strchr(varname, '$') ||
-	    strchr(name, '$'))
-	  if (like(varname, name, 0)) {
-	    // getval get's "copy" w/o dealloc
-	    // print it
-	    col++;
-	    int d= varfind(t, varnames[i]);
-	    printf(" %d", d);
-	  }
-      }
-      spcs(); more= gotc(',');
-    } else {
-      int d= expr();
-      if (!d) expected("expression");
-      // select 42 AS foo
-      if (got("as")) {
-	// TDOO: use DBVAL
-	expectsymbol(name, NULL);
-	defvar(NULL, name, d);
-      }
-
-      // print it
-      col++;
-      spcs(); more= gotc(',');
-
-      printf(" %d", d);
-    }
-
-  } while(more);
-  putchar('\n');
-
-  return e;
-}
-
 int comparator(char cmp[NAMELEN]) {
   spcs();
   // TODO: not prefix?
@@ -743,6 +534,7 @@ int dcmp(char* cmp, int a, int b) {
   return 0;
 }
 
+// TODO:??? optimize if know is string
 int scmp(char* cmp, dbval da, dbval db) {
   // TODO: benchmark this...
   if (da.l==db.l && cmp[0]!='!' && (cmp[0]=='=' || cmp[1]=='=')) return 1;
@@ -795,12 +587,12 @@ int scmp(char* cmp, dbval da, dbval db) {
 int comparison() {
   char op[NAMELEN]= {};
   int a= expr();
-  if (!a) return LFAIL;
+  if (!a) return 0;
   if (!comparator(op)) expected("op compare");
   int b= expr();
-  if (!b) return LFAIL;
-  int r= LFALSE;
-  // TODO: can do OL?
+  if (!b) return 0;
+  // TODO: optimzie for type if known
+
   //if (isnum(a) && isnum(b))
   //r= dcmp(op, a.d, b.d)?LTRUE:LFALSE;
   //else
@@ -819,7 +611,11 @@ int logsimple() {
       if (!gotc(')')) expected(")");
       return r;
   }
-  if (got("not")) return -logsimple();
+  if (got("not")) {
+    // TODO: 
+    expected("NOT not implemented");
+    return -logsimple();
+  }
   // TODO "or here"?
   // but need lower prio than not
   return comparison();
@@ -849,21 +645,6 @@ int logical() {
 }
 
 int after_where(char* selexpr) {
-  // TODO: only call after LAST where!
-  //   (now called every time... lol)
-  parse_only= 0;
-
-  // select * from groups;
-  //   a,b,c
-  //   1,2,3
-  //   1,2,6
-  //   2,2,7
-  //   2,2,9
-  //   1,3,3
-  // CREATE FUNCTION groups AS VALUES (1,2,3), (1,2,6);, (2,2,7), (2,2,9), (1,3,3);
-  
-  // select 1000+sum(a) as col1,b,sum(c) from groups group by 2
-  
   // GROUP BY and HAVING
   if (got("group by")) {
     // ? implies sorting, unless hash
@@ -889,39 +670,19 @@ int after_where(char* selexpr) {
     got("ASC") || got("ASCENDING");
     if (got("DESC") || got("DESCENDING"))
       col= -col;
-    // We're OK, before generating rows
-    if (!results) results= newtable("result", 0, 0, NULL);
-    results->sort_col= col;
+    // TODO: generate OL
+
     // TODO: several columns...
     //if (debug) printf("ORDER BY %d\n", col);
   }
 
-  if (selexpr) return !!print_expr_list(selexpr);
+  if (selexpr) return !!print_header(selexpr);
   return 1;
 }
 
 int where(char* selexpr) {
   if (got("where")) (void)logical();
   return after_where(selexpr);
-}
-
-// TOOD: print where?
-void printstats() {
-  printf("----\n");
-  printf("Stats\n");
-  for(int i=0; i<varcount; i++) {
-    val* v= varvals[i];
-    // TODO: string values (nstr)
-    // TODO: nulls (nnull)
-    if (v->n) {
-      char* t= tablenames[i];
-      printf("  %s.%s %s%s %d#[%lg,%lg] u(%lg,%lg) S%lg\n",
-        t?t:"", varnames[i], !v->not_desc?"DESC":"", !v->not_asc?"ASC":"",
-        v->n, v->min, v->max, stats_avg(v), stats_stddev(v),
-        v->sum
-      );
-    }
-  }
 }
 
 // called to do next table
@@ -938,42 +699,6 @@ int next_from_list(char* selexpr) {
   ps= backtrack;
 }
 		   
-// - db objects
-// TODO: generalize/hash from registerfun
-typedef struct dbobj {
-  struct dbobj* next;
-  char* type;
-  char* name;
-  char* params;
-  char* impl;
-  int select;
-} dbobj;
-  
-dbobj* objs= NULL;
-
-void regobj(char* type, char* name, char* params, char* impl, int select) {
-  dbobj* next= objs;
-  objs= calloc(1, sizeof(dbobj));
-  objs->next= next;
-
-  objs->type= strdup(type); // not needed?
-  objs->name= strdup(name);
-  objs->params= params?strdup(params):NULL;
-  objs->impl = strdup(impl);
-  objs->select= select;
-}
-
-dbobj* findobj(char* name) {
-  dbobj* o= objs;
-  while(o) {
-    if (0==strcmp(o->name, name))
-      return o;
-    o= o->next;
-  }
-  return NULL;
-}
-
-
 // schema("type,name,param,select,impl",
 //   type, name, params, select, impl);
 
@@ -989,8 +714,9 @@ int VIEW(char* table, char* selexpr) {
   linkval(table, "select", &select);
   linkval(table, "impl", &impl);
 
-  dbobj* l= objs;
+  //dbobj* l= objs;
   lineno= -2;
+  /*
   while(l) {
     lineno++;
 
@@ -1005,7 +731,7 @@ int VIEW(char* table, char* selexpr) {
     next_from_list(selexpr);
     l= l->next;
   }
-
+  */
   ps= backtrack;
   varcount= nvars;
   return 1;
@@ -1055,17 +781,6 @@ int INT(char* selexpr) {
 
 #include "index.c"
 
-typedef void(*action)(memindex* ix, char* table, char* joincol);
-
-int READFILE(FILE* f, char* table, char* header, int(*action)(char* table)) {
-  return 0;
-}  
-
-// TODO: untangle read/indexing
-
-// TODO: take delimiter as argument?
-// TODO: too big!
-//
 // header, if given, is free:d
 int TABCSV(FILE* f, char* table, int t, char* header, int fn, char* selexpr) {
   printf("OL scan %d", t);
@@ -1081,7 +796,7 @@ int TABCSV(FILE* f, char* table, int t, char* header, int fn, char* selexpr) {
     int n= defvar(table, name, 0);
     printf(" -%d", n);
   }
-  if (!header) free(line);
+  free(line);
 
   printf("\n");
 
@@ -1295,7 +1010,7 @@ int sqlselect() {
   char* expr= ps;
   // "skip" (dummies) to get beyond
   parse_only= 1;
-  char* end= print_expr_list(expr);
+  char* end= print_header(expr);
   if (end) ps= end;
 
   from(expr);
@@ -1363,7 +1078,7 @@ int create_view() {
 
   spcs();
   char* impl= ps;
-  regobj("view", name, params, impl, got("select"));
+  //regobj("view", name, params, impl, got("select"));
   return 1;
 }
 
@@ -1478,11 +1193,6 @@ void runquery(char* cmd) {
   
   mallocsreset();
 
-  if (browse) {
-    if (results) freetable(results);
-    results= newtable("result", 0, 0, NULL);
-  }
-
   long ms= cpums();
   parse(cmd);
   int r= sql();
@@ -1508,32 +1218,9 @@ void runquery(char* cmd) {
   // TODO: catch/report parse errors
   if (r!=1) printf("\n%% Couldn't parse that\n");
 
-  if (results && results->count) {
-    // It was Peter Boncz who said in his PhD
-    // that: sorting is a function of the UI.
-    // So... here we let the "UI" sort.
-    if (results->sort_col)
-      tablesort(results, results->sort_col, NULL);
-    
-    // Then launch the UI. Should be default?
-    if (browse) {
-      browsetable(results);
-    } else if (0==strcmp(format, "csv")) {
-      error("Not implemented for sorted table yet");
-    } else {
-      pretty_printtable(results, 0, -1, 1);
-      printf("Use --browse to browse interactively\n");
-    }
-    if (debug) printtable(results, 0);
-  }
-  if (results) { freetable(results); results= NULL; }
-
   // TODO: print leftover
   //if (ps && *ps) printf("%%UNPARSED>%s<\n", ps);
   printf("\n");
-
-  // log and time
-  sqllog(cmd, "end", NULL, NULL, readrows, lineno-1, ms);
 }
 
 void process_file(FILE* in, int prompt);
@@ -1624,7 +1311,6 @@ int process_arg(char* arg, char* next) {
   } else {
     //  no option match: assume sql
     runquery(arg);
-    if (results) freetable(results);
 
     interactive= 0;
   }
