@@ -30,13 +30,9 @@ long lineno= -2, readrows= 0, nfiles= 0;
 
 int nextvarnum= 1;
 
-#define OLS(f, s) (printf("OL %s \"%s\"\n", f, s), nextvarnum++)
-  
-#define OL1(f, a) (printf("OL %s %d\n", f, (int)a), nextvarnum++)
-  
 #define OLcmp(f, a, b) (printf("OL %s %d %d 0\n", f, (int)a, (int)b))
 
-#define OL3(f, a, b) (printf("OL %s -%d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
+#define OL3(f, a, b) (printf("OL : 0\nOL %s -%d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
 
 #define ROLcmp(f, a, b) return OLcmp(f, a, b)
 
@@ -48,11 +44,19 @@ int varfind(char* table, char* col) {
 
 int defvar(char* table, char* col, int d) {
   // TODO: leak
+  int old= nextvarnum;
   val v= {};
   d= d ? d : nextvarnum++;
   setnum(&v, d);
   setvar(table, col, &v);
-  fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
+  // allocate?
+  if (nextvarnum!=old) {
+    fprintf(stderr, "@%d", nextvarnum);
+    fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
+    printf("OL : 0\n");
+  } else {
+    fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
+  }
   return d;
 }
 
@@ -62,19 +66,22 @@ int defstr(char* s) {
   
   fprintf(stderr, "@%d ", nextvarnum);
   defvar("$const", s, nextvarnum);
-  return OLS(":", s);
+  printf("OL : ");
+  fprintquoted(stdout, s, -1, '"', 0);
+  printf("\n");
+  return nextvarnum++;
 }
 
 int defnum(double d) {
   char name[NAMELEN]= {};
-  snprintf(name, NAMELEN, "%-15lg", d);
+  snprintf(name, NAMELEN, "%.15lg", d);
 
   int n= varfind("$const", name);
   if (n) return n;
 
   fprintf(stderr, "@%d ", nextvarnum);
   defvar("$const", name, nextvarnum);
-  return (printf("OL %s %-15lg\n", ":", d), nextvarnum++);
+  return (printf("OL %s %s\n", ":", name), nextvarnum++);
 }
 
 int defint(long d) {
@@ -314,7 +321,10 @@ int call(char* name) {
   int params[MAXPARAMS]= {0};
   int pcount= 0;
   func* f= findfunc(name);
-  if (!f) expected2("not found func", name);
+
+  // TODO: objectlog OL
+  
+  //if (!f) expected2("not found func", name);
   if (debug && !parse_only) printf("\n---CALL: %s\n", name);
   while(!gotc(')')) {
     int v= expr();
@@ -329,10 +339,11 @@ int call(char* name) {
     if (*ps!=')' && !gotc(',')) expected("comma");
   } 
 
-  printf("OL %s %p %d", name, f->f, nextvarnum);
+  // TODO: pointer? who?
+  printf("OL : 0\nOL %s -%d", name, nextvarnum);
   for(int i=0; i<pcount; i++)
     printf(" %d", params[i]);
-  putchar('\n');
+  printf(" 0\n");
   return nextvarnum++;
 
   #undef MAXPARAMS
@@ -414,7 +425,7 @@ int expr() {
     if (op == '+') {
       v= OL3("+", v, vv);
     } else if (op == '-') {
-      v= OL3("+", v, vv);
+      v= OL3("-", v, vv);
     }
     // TODO: null propagate?
   }
@@ -431,7 +442,9 @@ char* print_header(char* e, int dodef) {
   val v= {};
   int more= 0;
 
-  if (dodef) printf("OL out");
+  int ol[100]= {0};
+  int oln= 0;
+  
   if (!dodef) parse_only= 1;
   do {
     // TODO: SELECT *, tab.*
@@ -460,7 +473,7 @@ char* print_header(char* e, int dodef) {
 	      col++;
 	      if (dodef) {
 		int d= varfind(t, varnames[i]);
-		printf(" %d", d);
+		ol[oln++]= d;
 	      }
 	    }
       }
@@ -482,13 +495,18 @@ char* print_header(char* e, int dodef) {
       spcs(); more= gotc(',');
       col++;
 
-      if (dodef) printf(" %d", d);
+      ol[oln++]= d;
     }
 
     clearval(&v);
   } while(more);
   if (!dodef) parse_only= 0;
-  if (dodef) putchar('\n');
+  if (dodef) {
+    printf("OL out");
+    for(int i=0; i<=oln; i++)
+      printf(" %d", ol[i]);
+    printf("\n");
+  }
 
   e= ps;
   ps= old_ps;
@@ -1201,7 +1219,7 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readrows, long ro
 
 void runquery(char* cmd) {
 
-  if (echo) printf("SQL> %s\n", cmd);
+  if (echo) defvar("$system", "sql", defstr(cmd));
   if (!*cmd) return;
   
   mallocsreset();

@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <assert.h>
+#include <string.h>
 
 int debug=0, stats=0, lineno=0, foffset=0;
 
@@ -196,57 +197,52 @@ int lrun(dbval** start) {
 #define CASE(s) case TWO(s)
 
     switch(f) {
-      // -- control flow
-    case   0: goto done;             // end = true
-    case 't': goto done;             // true (ret)
-    case 'f': goto fail;             // fail
-    case 'r': result = !result;break;// reverse/not?
-      //case 'j': Pr; p += r; break;     // jump +47
-      //case 'g': Pr; p= plan + r; break;// goto 3
-    case 127: while(127l==L(N)); break;  // nop
-      // (127 = DEL, means overwritten/ignore!)
-    
-      // - manual prime
-      // 10: (o 17 11 13 15) // 17 is goto!
-      // 11: OR (! "n" "2")
-      // 12:    (t)
-      // 13: OR (! "n" "3")
-      // 14:    (t)
-      // 15: OR (! "n" "5")
-      // 16:    (t)
-      // 17: (. "Maybe prime" "n")
-      /*
-	case 'o': // OR run pos: a b c ... 0 or fail
-	Pr; // where to jump
-	while(*p)
-	//      if (run(N+plan)) {
-	//	p= plan+r; continue;
-	//      }
-	goto fail;
-      */
-    
-      // set var
-    case ':': Pra;  R= A; break;
+    // -- control flow
+    case   0: goto done; // end = true
+    case 't': goto done; // true (ret)
+    case 'f': goto fail; // fail
 
-      // arith
+    case 'r': result = !result;break;// rev
+    case 'j': Pr; p+=L(r);     break;// jmp
+    case 'g': Pr; p=lplan+L(r);break;// go
+    case 127: while(127==L(N));break;// nop
+    // (127 = DEL, overwritten/ignore!)
+    
+    // 10: (o 17 11 13 15) // 17 is goto!
+    // 11: OR (! "n" "2")
+    // 12:    (t)
+    // 13: OR (! "n" "3")
+    // 14:    (t)
+    // 15: OR (! "n" "5")
+    // 16:    (t)
+    // 17: (. "Maybe prime" "n")
+    case 'o': // OR nxt a b c...
+      Pr;
+      while(*p)
+	if (lrun(lplan+L(N))) {
+	  p= lplan+L(r); continue;
+	}
+      goto fail;
+      
+    // set var
+    CASE(":="): Pra;  R= A; break;
+
+    // arith
     case '+': Prab; R.d= A.d+B.d; break;
     case '-': Prab; R.d= A.d-B.d; break;
     case '*': Prab; R.d= A.d*B.d; break;
     case '/': Prab; R.d= A.d/B.d; break;
     case '%': Prab; R.d= L(A.d)%L(B.d); break;
 
-      // cmp
-      //    CASE("=="):
-      //case '=': Pab; if (A.l!=B.l) goto fail; break;
-
-    // number only compare - be sure!
-    // (10-20% FASTER than generic!)
+    // cmp
+    //   number only compare - be sure!
+    //   (10-20% FASTER than generic!)
     CASE("N="): Pab;
-	 if (A.l!=B.l) goto fail; break;
+      if (A.l!=B.l) goto fail; break;
 
     // string only compare - be sure!
     CASE("S="): Pab;
-	 if (dbstrcmp(A, B)) goto fail; break;
+      if (dbstrcmp(A, B)) goto fail; break;
       
     // generic compare - 20% slower?
     CASE("=="):
@@ -269,6 +265,7 @@ int lrun(dbval** start) {
     // Generic
     CASE("!="):
     CASE("<>"):
+      // TODO: complete (see '=')
     case '!': Pab; if (A.l==B.l) goto fail; break;
 
     // TODO: do strings...
@@ -281,21 +278,101 @@ int lrun(dbval** start) {
     CASE("!<"):
     CASE(">="): Pab; if (A.d<B.d) goto fail; break;
 
-      // logic - mja
-    case '&': Prab; R.d= A.d&&B.d; break; // implicit
-    case '|': Prab; R.d= A.d||B.d; break; // special
+    // logic - mja (output? no shortcut?)
+    case '&': Prab; R.d= A.d&&B.d; break;
+    case '|': Prab; R.d= A.d||B.d; break;
 
-    CASE("IO"):
+    // generators
     case 'i': Prab;
       for(R.d=A.d; R.d<=B.d; R.d+=1) lrun(p+1); goto done;
-
-    CASE("DO"):
     case 'd': Prabc;
       for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
-    
-    case '.': while(*p) { printvar((dbval*)N-var); } break;
+
+    // print
+    case '.': while(*p) printvar(N-var); break;
+    case 'p': while(*p) printf("%s", STR(*N)); break;
     case 'n': putchar('\n'); break;
     
+    // -- strings
+
+    // CONCAT
+    CASE("CC"): { Pr; int len= 1;
+	dbval** n= p;
+	while(*n) {
+	  printf("\nSTR>>%s<<\n", STR(**n));
+	  len+= strlen(STR(**n));
+	  n++;
+	}
+	char* rr= calloc(1, len);
+	char* rp= rr;
+	while(*p) {
+	  char* rs= STR(*N);
+	  strcat(rp, rs);
+	  //rp += strlen(rs);
+	}
+	R= mkstrfree(rr, 1);
+	break; }
+      
+    // ASCII
+    CASE("SA"):
+      Pra; R= mknum(STR(A)[0]); break;
+
+    // CHAR
+    CASE("SC"): { Pra; char s[2]={L(A.d),0};
+	R= mkstr7ASCII(s); break; }
+    
+    // CHARINDEX
+    CASE("CI"): { Prab; char* aa= STR(A);
+	char* rr= strchr(aa, STR(B)[0]);
+	R= aa ? mknum(rr-aa) : mknull();
+	break; }
+
+    // LEFT      
+    CASE("SL"): { Prab;
+	R= mkstrfree(strndup(STR(A), num(B)), 1);
+	break; }
+    
+    // RIGHT
+    CASE("SR"): { Prab; char* aa= STR(A);
+	int len= strlen(aa) - num(B);
+	if (len<=0 || num(B)<=0) R= mkstrconst("");
+	else R= mkstrdup(aa+len);
+	break; }
+
+    // LOWER
+    CASE("LW"): { Pra; char* aa= strdup(STR(A));
+	char* ab= aa;
+	while(*ab) {
+	  *ab= tolower(*ab); ab++;
+	}
+	R= mkstrfree(aa, 1);
+	break; }
+  
+    // UPPER
+    CASE("UP"): { Pra; char* aa= strdup(STR(A));
+	char* ab= aa;
+	while(*ab) {
+	  *ab= toupper(*ab); ab++;
+	}
+	R= mkstrfree(aa, 1);
+	break; }
+      
+    // LTRIM
+    CASE("LT"): Pra; R= mkstrdup(ltrim(STR(A))); break;
+      
+    // RTRIM
+    CASE("RT"): Pra; R= mkstrfree(rtrim(strdup(STR(A))), 1); break;
+
+    // TRIM
+    CASE("TR"): Pra; R= mkstrfree(trim(strdup(ltrim(STR(A)))), 1); break;
+      
+      
+    // STR
+    CASE("ST"): Pra; R= mkstrdup(STR(A)); break;
+
+    // TIMESTAMP
+    CASE("ts"): Pr; R= mkstrdup(isotime()); break;
+      
     default:
       printf("\n\n%% Illegal opcode at %ld: %ld '%c'\n", p-lplan-1, f, (int)(isprint(f)?f:'?'));
       exit(0);

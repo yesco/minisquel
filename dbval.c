@@ -421,6 +421,20 @@ dbval mkstr7ASCII(char* s) {
   return v;
 }
 
+char* str7ASCIIcpy(char c7[8], dbval v) {
+  if (!c7) error("str7ASCIIcpy: null pointer");
+  strcpy(c7, "7ASCII!");
+  long l= is7ASCII(v);
+  if (!l) error("str7ASCIIcpy: not a 7ASCII");
+
+  int i= 6;
+  while(i>=0) {
+    char c= c7[i--]= l & 0x7f;
+    l>>= 7;
+  }
+  return c7;
+}
+
 // TODO: betterify!
 //   also, need a way to distinguish from tablestr() !
 char* dbstrings[MAXSTRINGS]= {NULL,"-INVALID-",NULL};
@@ -480,6 +494,29 @@ char* str(dbval v) {
   return u<ISTRLIMIT?dbstrings[u/2]:NULL;
 }
 
+// STRingify "any" dbval
+//
+// Returns a temporary string.
+// NULL gives empty string
+
+// WARNING! do not keep this string around
+//   any NEXT call may DESTROY prev value
+//   (actually two are "safe")
+char* STR(dbval v) {
+  // alternate between two strings, LOL
+  static char seven[2][32]= {0};
+  static char sel= 0;
+  if (is7ASCII(v))
+    return str7ASCIIcpy(seven[sel=!sel], v);
+  if (isnum(v)) {
+    sprintf(seven[sel=!sel], "%.15lg", v.d);
+    return seven[sel];
+  }
+  if (isnull(v)) return "";
+  if (isend(v)) return "\n";
+  return str(v);
+}
+
 void dbfree(dbval v) {
   // TODO: use arena code unless globalatom
   // if not nan can't be string!
@@ -522,20 +559,6 @@ dbval val2dbval(val* v) {
   if (!v->not_null) return mknull();
   else if (v->s) return mkstrconst(v->s);
   return mknum(v->d);
-}
-
-void str7ASCIIcpy(char c7[8], dbval v) {
-  if (!c7) error("str7ASCIIcpy: null pointer");
-  strcpy(c7, "7ASCII!");
-  long l= is7ASCII(v);
-  if (!l) error("str7ASCIIcpy: not a 7ASCII");
-
-  int i= 6;
-  while(i>=0) {
-    char c= c7[i--]= l & 0x7f;
-    l>>= 7;
-  }
-  return;
 }
 
 int dbprinth(dbval v, int width, int human);
