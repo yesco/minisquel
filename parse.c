@@ -28,7 +28,6 @@ long lineno= -2, readrows= 0, nfiles= 0;
 
 #include "dbval.c"
 
-
 int nextvarnum= 1;
 
 #define OLS(f, s) (printf("OL %s \"%s\"\n", f, s), nextvarnum++)
@@ -41,19 +40,10 @@ int nextvarnum= 1;
 
 #define ROLcmp(f, a, b) return OLcmp(f, a, b)
 
-int defstr(char* s) {
-  fprintf(stderr, "@%d ", nextvarnum);
-  return OLS(":", s);
-}
-
-int defint(long d) {
-  fprintf(stderr, "@%d ", nextvarnum);
-  return OL1(":", d);
-}
-
-int defnum(double d) {
-  fprintf(stderr, "@%d ", nextvarnum);
-  return (printf("OL %s %-15lg\n", ":", d), nextvarnum++);
+int varfind(char* table, char* col) {
+  val* vp= findvar(table, col);
+  //assert(vp);
+  return vp ? vp->d : 0;
 }
 
 int defvar(char* table, char* col, int d) {
@@ -66,10 +56,29 @@ int defvar(char* table, char* col, int d) {
   return d;
 }
 
-int varfind(char* table, char* col) {
-  val* vp= findvar(table, col);
-  assert(vp);
-  return vp->d;
+int defstr(char* s) {
+  int n= varfind("$const", s);
+  if (n) return n;
+  
+  fprintf(stderr, "@%d ", nextvarnum);
+  defvar("$const", s, nextvarnum);
+  return OLS(":", s);
+}
+
+int defnum(double d) {
+  char name[NAMELEN]= {};
+  snprintf(name, NAMELEN, "%-15lg", d);
+
+  int n= varfind("$const", name);
+  if (n) return n;
+
+  fprintf(stderr, "@%d ", nextvarnum);
+  defvar("$const", name, nextvarnum);
+  return (printf("OL %s %-15lg\n", ":", d), nextvarnum++);
+}
+
+int defint(long d) {
+  return defnum(d);
 }
 
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
@@ -414,7 +423,7 @@ int expr() {
 
 #include "table.c"
 
-char* print_header(char* e) {
+char* print_header(char* e, int dodef) {
   char* old_ps= ps;
   ps= e;
   
@@ -422,7 +431,8 @@ char* print_header(char* e) {
   val v= {};
   int more= 0;
 
-  printf("OL out");
+  if (dodef) printf("OL out");
+  if (!dodef) parse_only= 1;
   do {
     // TODO: SELECT *, tab.*
 
@@ -448,8 +458,10 @@ char* print_header(char* e) {
 	    strchr(name, '$'))
 	    if (like(varname, name, 0)) {
 	      col++;
-	      int d= varfind(t, varnames[i]);
-	      printf(" %d", d);
+	      if (dodef) {
+		int d= varfind(t, varnames[i]);
+		printf(" %d", d);
+	      }
 	    }
       }
       spcs(); more= gotc(',');
@@ -465,17 +477,18 @@ char* print_header(char* e) {
 	// give name as expression
 	strncpy(name, start, min(ps-start, NAMELEN));
       }
-      defvar(NULL, name, d);
+      if (dodef) defvar(NULL, name, d);
 
       spcs(); more= gotc(',');
       col++;
 
-      printf(" %d", d);
+      if (dodef) printf(" %d", d);
     }
 
     clearval(&v);
   } while(more);
-  putchar('\n');
+  if (!dodef) parse_only= 0;
+  if (dodef) putchar('\n');
 
   e= ps;
   ps= old_ps;
@@ -676,7 +689,7 @@ int after_where(char* selexpr) {
     //if (debug) printf("ORDER BY %d\n", col);
   }
 
-  if (selexpr) return !!print_header(selexpr);
+  if (selexpr) return !!print_header(selexpr, 1);
   return 1;
 }
 
@@ -772,9 +785,9 @@ int INT(char* selexpr) {
   } else expected("(");
 
   int n= OL3("i", start, stop);
-  val v= {};
-  setnum(&v, n);
-  setvar("int", name, &v);
+  defvar("int", name, n);
+
+  next_from_list(selexpr);
 
   return n;
 }
@@ -955,7 +968,7 @@ int from_list(char* selexpr, int is_join) {
     int fn= defstr(spec);
     //OL(defvar("$file", table, fn);
 
-    int t= defvar("$table", table, fn);
+    int t= defvar("$table", table, 0);
 
     printf("OL file -%d %d\n", t, fn);
     
@@ -1010,7 +1023,7 @@ int sqlselect() {
   char* expr= ps;
   // "skip" (dummies) to get beyond
   parse_only= 1;
-  char* end= print_header(expr);
+  char* end= print_header(expr, 0);
   if (end) ps= end;
 
   from(expr);
