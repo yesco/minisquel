@@ -73,13 +73,13 @@ int freadCSV(FILE* f, char* s, int max, double* d, char delim) {
   if (c==EOF) if (!typ) return 0;
   // number?
   char* end;
-  *d= strtod(s, &end);
-  if (end!=s) {
+  if (d) *d= strtod(s, &end);
+  if (d && end!=s) {
     // remove trailing spaces and reparse
     // but only if no other chars
     int l= strspn(end, " ");
     if (end+l==s+strlen(s)) *end=0;
-    *d= strtod(s, &end);
+    if (d) *d= strtod(s, &end);
     if (s+strlen(s)==end) return RNUM;
   }
   // Null if empty string
@@ -123,13 +123,13 @@ int sreadCSV(char** f, char* s, int max, double* d, char delim) {
   if (!c) if (!typ) return 0;
   // number?
   char* end;
-  *d= strtod(s, &end);
-  if (end!=s) {
+  if (d) *d= strtod(s, &end);
+  if (d && end!=s) {
     // remove trailing spaces and reparse
     // but only if no other chars
     int l= strspn(end, " ");
     if (end+l==s+strlen(s)) *end=0;
-    *d= strtod(s, &end);
+    if (d) *d= strtod(s, &end);
     if (s+strlen(s)==end) return RNUM;
   }
   // Null if empty string

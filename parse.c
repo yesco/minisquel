@@ -12,8 +12,21 @@
 // global state "external"
 
 int stats= 1, debug= 0, security= 0;
+long foffset= 0;
+
+// stats
+long lineno= -2, readrows= 0, nfiles= 0;
+
+#define NAMELEN 64
+#define VARCOUNT 256
+#define MAXCOLS 32
 
 #include "utils.c"
+
+#include "csv.c"
+#include "vals.c"
+
+#include "dbval.c"
 
 
 int nextvarnum= 1;
@@ -24,11 +37,40 @@ int nextvarnum= 1;
   
 #define OLcmp(f, a, b) (printf("OL %s %d %d 0\n", f, (int)a, (int)b))
 
-#define OL3(f, a, b) (printf("OL %s %d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
+#define OL3(f, a, b) (printf("OL %s -%d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
 
 #define ROLcmp(f, a, b) return OLcmp(f, a, b)
 
+int defstr(char* s) {
+  fprintf(stderr, "@%d ", nextvarnum);
+  return OLS(":", s);
+}
 
+int defint(long d) {
+  fprintf(stderr, "@%d ", nextvarnum);
+  return OL1(":", d);
+}
+
+int defnum(double d) {
+  fprintf(stderr, "@%d ", nextvarnum);
+  return (printf("OL %s %-15lg\n", ":", d), nextvarnum++);
+}
+
+int defvar(char* table, char* col, int d) {
+  // TODO: leak
+  val v= {};
+  d= d ? d : nextvarnum++;
+  setnum(&v, d);
+  setvar(table, col, &v);
+  fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
+  return d;
+}
+
+int varfind(char* table, char* col) {
+  val* vp= findvar(table, col);
+  assert(vp);
+  return vp->d;
+}
 
 // global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
 // TODO: change to eparse_num(disable_call, disable_print, print_header)
@@ -36,15 +78,7 @@ int nextvarnum= 1;
 //   to handle aggregates (not print every row, only last (in group))
 int parse_only= 0;
 
-#define NAMELEN 64
-#define VARCOUNT 256
-#define MAXCOLS 32
-
 char *query=NULL, *ps= NULL;
-long foffset= 0;
-
-// stats
-long lineno= -2, readrows= 0, nfiles= 0;
 
 // TODO: generalize output formats:
 //
@@ -179,18 +213,13 @@ int got(char* s) {
   return 1;
 }
 
-#include "csv.c"
-#include "vals.c"
-
-#include "dbval.c"
-
 int parse_num() {
   spcs();
   char* end= NULL;
   double d= hstrtod(ps, &end);
   if (end<=ps) return 0;
   ps= end;
-  return OL1(":", d);
+  return defnum(d);
 }
 
 // Parses a string and gives it to a new
@@ -226,7 +255,7 @@ int parse_str(char** s) {
     a++;
   }
 
-  int n= OLS(":", *s);
+  int n= defstr(*s);
   free(*s);
   return n;
 }
@@ -522,41 +551,15 @@ void do_result_action(char* name, dbval d, long row, int col) {
   }
 }
 
-void (*result_action)(char* name, dbval d, long row, int col)= do_result_action;
-  
-
-void print_colname(char* name, int col, char* start, char* ps, int delim) {
-  if (!name[0]) {
-    // make a name from expr
-    if (delim!='\t' || delim<=0) {
-      // use whole
-      int n= ps-start;
-      if (n>=NAMELEN-1) n= NAMELEN;
-      strncpy(name, start, n);
-    } else {
-      // truncate - make 7 char wide
-      size_t end= strcspn(start, " ,;");
-      if (!end) end= 20;
-      strncpy(name, start, end);
-      if (end>7) strcpy(name+5, "..");
-    }
-    rtrim(name);
-  }
-
-  if (parse_only<0)
-    fprintquoted(stdout, name, 7, abs(delim)==','?'\"':0, delim);
-  if (result_action && parse_only==-1)
-    result_action(name, mknull(), lineno+1, col);
-}
-
 char* print_header(char* e) {
   char* old_ps= ps;
   ps= e;
   
-  int delim= formatdelim();
   int col= 0;
   val v= {};
   int more= 0;
+
+  printf("OL out");
   do {
     // TODO: SELECT *, tab.*
 
@@ -576,42 +579,40 @@ char* print_header(char* e) {
 	// format name to test
 	char* t= tablenames[i];
 	snprintf(varname, sizeof(varname), "%s.%s", t?t:"", varnames[i]);
-	if (like(varname, name, 0)) {
-	  if (parse_only<0 && col) putchar(abs(delim));
-	  col++;
-	  print_colname(varname, col, NULL, NULL, delim);
-	}
+	// don't match '$' names,
+	// unless asked for
+	if (!strchr(varname, '$') ||
+	    strchr(name, '$'))
+	    if (like(varname, name, 0)) {
+	      col++;
+	      int d= varfind(t, varnames[i]);
+	      printf(" %d", d);
+	    }
       }
       spcs(); more= gotc(',');
     } else {
       //EXPECT(d, expr);
       int d= expr();
       if (!d) expected("expression");
+
       // select 42 AS foo
-      if (got("as")) expectsymbol(name, "alias name");
+      if (got("as")) {
+	expectsymbol(name, "alias name");
+      } else {
+	// give name as expression
+	strncpy(name, start, min(ps-start, NAMELEN));
+      }
+      defvar(NULL, name, d);
+
       spcs(); more= gotc(',');
-      if (parse_only<0 && col) putchar(abs(delim));
       col++;
-      print_colname(name, col, start, ps-(more?1:0), more?delim:-delim);
+
+      printf(" %d", d);
     }
 
     clearval(&v);
   } while(more);
-  if (parse_only<0) putchar('\n');
-
-  // To distinguish if print/noprint
-  lineno++; // haha!
-
-  // pretty underline header
-  if (parse_only<0) {
-    if (abs(delim)=='|')
-      printf("==============\n");
-    else if (abs(delim)=='\t') {
-      for(int i=col; i; i--)
-	printf("======= ");
-      putchar('\n');
-    }
-  }
+  putchar('\n');
 
   e= ps;
   ps= old_ps;
@@ -632,14 +633,11 @@ char* print_expr_list(char* e) {
   char* old_ps= ps;
   ps= e;
   
-  int delim= formatdelim();
   spcs();
   int col= 0;
-  val v= {};
   int more= 0;
 
-  int doprint= !browse;
-  int printprogress= browse;
+  printf("OL out");
   do {
     spcs();
     char* start= ps;
@@ -656,21 +654,18 @@ char* print_expr_list(char* e) {
 	// format name to test
 	char* t= tablenames[i];
 	snprintf(varname, sizeof(name), "%s.%s", t?t:"", varnames[i]);
-	if (like(varname, name, 0)) {
-	  // getval get's "copy" w/o dealloc
-	  getval(t, varnames[i], &v);
-	  // print it
-	  //if (doprint && col) putchar(abs(delim));
-	  col++;
-	  // TODO: Don't truncate if last col!
-	  // difficult to tell if will find more...
-	  if (doprint) {
-	    printval(&v, delim==','?'\"':0, delim);
-	    putchar('\t');
+	snprintf(varname, sizeof(varname), "%s.%s", t?t:"", varnames[i]);
+	// don't match '$' names,
+	// unless asked for
+	if (!strchr(varname, '$') ||
+	    strchr(name, '$'))
+	  if (like(varname, name, 0)) {
+	    // getval get's "copy" w/o dealloc
+	    // print it
+	    col++;
+	    int d= varfind(t, varnames[i]);
+	    printf(" %d", d);
 	  }
-	  if (result_action)
-	    result_action(NULL, val2dbval(&v), lineno+1, col);
-	}
       }
       spcs(); more= gotc(',');
     } else {
@@ -680,32 +675,19 @@ char* print_expr_list(char* e) {
       if (got("as")) {
 	// TDOO: use DBVAL
 	expectsymbol(name, NULL);
-	val v= {};
-	setnum(&v, d);
-	setvar(NULL, name, &v);
-	clearval(&v);
+	defvar(NULL, name, d);
       }
 
       // print it
-      //if (col) putchar(abs(delim));
       col++;
-      // TODO: Don't truncate if last col!
       spcs(); more= gotc(',');
-      if (doprint) {
-	// TDOO: hmmm
-	OL1("select", d);
-      }
+
+      printf(" %d", d);
     }
 
-    if (printprogress && lineno%100==0)
-      fprintf(stderr, "\r%ld rows produced\r", lineno);
   } while(more);
-  if (doprint) putchar('\n');
-  
-  lineno++;
-  
-  e= ps;
-  ps= old_ps;
+  putchar('\n');
+
   return e;
 }
 
@@ -732,7 +714,6 @@ int comparator(char cmp[NAMELEN]) {
 #define TWO(a, b) (a+16*b)
 
 int dcmp(char* cmp, int a, int b) {
-  printf("DCMP!\n");
   switch (TWO(cmp[0], cmp[1])) {
   case TWO('i', 'n'): expected("not implemented in");
     // lol
@@ -920,28 +901,9 @@ int after_where(char* selexpr) {
 }
 
 int where(char* selexpr) {
-  // ref - https://www.sqlite.org/lang_expr.html
-  val v= {};
-  char* saved= ps;
-  if (got("where")) {
-    int r= logical();
-    //printf("WHERE => %d\n", r);
-    v.not_null= (r==LTRUE);
-  } else {
-    v.not_null= 1;
-  }
-  
-  if (v.not_null) {
-    parse_only= 0;
-    after_where(selexpr);
-  }
-
-  ps= saved;
-  
-  return 1;
+  if (got("where")) (void)logical();
+  return after_where(selexpr);
 }
-
-
 
 // TOOD: print where?
 void printstats() {
@@ -1091,65 +1053,9 @@ int INT(char* selexpr) {
   return n;
 }
 
-void hack_foffset(char* col, FILE** dataf, long* foffset, double d) {
-  if (!col || strcmp(col, "$foffset")) return;
-
-  // reading index special value
-  // TODO: move more generic place
-  *foffset= d;
-  printf("FOFFSET=%ld\n", *foffset);
-  if (!*dataf) *dataf= fopen("foo.csv", "r");
-  if (*dataf) fseek(*dataf, *foffset, SEEK_SET);
-  if (*dataf) {
-    char* ln= NULL;
-    size_t l= 0;
-    getline(&ln, &l, *dataf);
-    printf("\t%s\n", ln);
-    if (ln) free(ln);
-  }
-}
-
 #include "index.c"
 
 typedef void(*action)(memindex* ix, char* table, char* joincol);
-
-void process_result(int col, val* vals, int* row, char* parse_after, char* selexpr,
-    action act, memindex* ix,  char* table, char* joincol) {
-  if (!col) return;
-  ps= parse_after;
-  if (act) act(ix, table, joincol);
-  // TODO:?
-  if (selexpr)
-    next_from_list(selexpr);
-  // TODO: consider not clearing here
-  //   can use current str as last!
-  for(int i=0; i<col; i++)
-    clearval(&vals[col]);
-  (*row)++;
-}
-
-keyoffset* vixadd(memindex* ix, val* v, int offset) {
-  // TODO: add null?
-  //if (!v) return NULL;
-  keyoffset* k= NULL;
-  if (!v || !v->not_null) // NULL
-    k= sixadd(ix, "", offset);
-  else if (v->s)
-    k= sixadd(ix, v->s, offset);
-  else
-    k= dixadd(ix, v->d, offset);
-  return k;
-}
-
-void action_insert_into_index(memindex* ix, char* table, char* joincol) {
-  //printf("\t(add %s.%s=", table, joincol);
-  val* v= findvar(table, joincol);
-  if (!vixadd(ix, v, foffset))
-    fprintf(stderr, "\n%% Insert into index failed!\n");
-}
-
-// TODO: remove
-int jdebug= 0;
 
 int READFILE(FILE* f, char* table, char* header, int(*action)(char* table)) {
   return 0;
@@ -1161,198 +1067,25 @@ int READFILE(FILE* f, char* table, char* header, int(*action)(char* table)) {
 // TODO: too big!
 //
 // header, if given, is free:d
-int TABCSV(FILE* f, char* table, char* header, int is_join, char* joincol, val* joinval, char* selexpr) {
-  int nvars= varcount;
+int TABCSV(FILE* f, char* table, int t, char* header, int fn, char* selexpr) {
+  printf("OL scan %d", t);
 
-  char* parse_after= ps;
-  
-  action act= NULL;
-  
-  // - create index?
-
-// TODO: hack for one index!
-static
-  memindex* ix= NULL;
-static
-  int index_complete= 0;
-  // TODO: don't create index first time?
-  //  (save nmatches, fantout,ms)
-  //   1st - scan and analyze join variable
-  //   2nd - create index
-  // 2,3rd - use index, drop/block
-  //            if too many seek / cpums
-  // TODO: maybe don't need all cols
-  //    maybe any "findvar" can create entry?
-  //    then can decide if index covers?
-  if (is_join && !index_complete) {
-    char ixname[NAMELEN]= {0};
-    snprintf(ixname, sizeof(ixname), "index.%s.%s", table, joincol);
-    ix= newindex(ixname, 0);
-    jdebug= debug;
-    if (jdebug) fprintf(stderr, "! CREATE INDEX %s ON %s(%s)\n", ixname, table, joincol);
-    act= action_insert_into_index;
-  }
-  // use index for JOIN!
-  if (is_join && ix && index_complete && joinval) {
-    // TODO: NULL?
-    keyoffset* f= NULL;
-    if (joinval->s)
-      f= sfindix(ix, joinval->s);
-    else
-      f= dfindix(ix, joinval->d);
-    
-    // set column value
-    // TODO: "joinval"? ok for eq
-    val v= *joinval;
-
-    // TODO;TODO;TODO;TODO;TODO;TODO;
-
-    // TODO: cleanup!!!!
-    linkval(table, joincol, &v);
-
-    // TODO: interval
-    keyoffset* cur= f;
-    // TODO: range
-    keyoffset* end= ix->kos + ix->n;
-    if (jdebug) printf(">>>>JOIN match\n");
-    while(cur && cur<end) {
-      if (eqko(cur, f)) {
-	if (jdebug) printko(f);
-
-	int row= 0;
-	process_result(
-          -1, joinval, &row, parse_after, selexpr,
-	  // no indexing!
-          NULL, NULL, NULL, NULL);
-      } else break;
-      cur++;
-    }
-    if (jdebug) printf("<<<<<<\n\n");
-
-    varcount= nvars;
-    ;
-    return 1;
-  }
-  
-  // --- parse header col names
-  char* cols[MAXCOLS]= {0};
-
-  size_t hlen= 0;
-  if (!header) {
-    getline(&header, &hlen, f);
-    if (!header) {
-      perror("getline failed ");
-      printf("ERRNO %d\n", errno);
-    }
-  }
-  
-  // Bad Hack for header: Remove '"'
-  // TODO: use the damn CSV reader instead!
-  while(1) {
-    char* z = strchr(header, '"');
-    if (!z) break;
-    memcpy(z, z+1, strlen(z));
-  }
-
-  char delim= decidedelim(header);
-  // TODO: read w freadCSV()
-  // extract ','-delimited names
-  // reads and modifies headers
-
-  char* h= header;
-  int col= 0, row= 0;
-  cols[0]= h;
-  while(*h && *h!='\n') {
-    if (*h==' ') ; // TODO: lol \t?
-    else if (*h==delim) {
-      while(*h && isspace(h[1])) h++;
-      *h= 0;
-      cols[++col]= h+1;
-    }
-    h++;
-  }
-  *h= 0;
-
-  //if (debug) printf("---TABCSV: %s\n", table);
-
-  // link column as variables
-  // TODO: dynamically allocate/use darr
-  val vals[MAXCOLS]={0};
-  for(int i=0; i<=col; i++){
-    //if (debug) printf("%d---TABCSV.col: %s\n", getpid(), cols[i]);
-    linkval(table, cols[i], &vals[i]);
-  }
-  foffset= 0; long fprev= ftell(f);
-  FILE* dataf= NULL;
-
-  // TODO: if we know we don't access any
-  //   columns (for this table) can we
-  //   avoid parsing? just count!
-  //   happy.csv: 136ms csvgetline;
-  //              450ms with freadCSV !
-
-  double d;
-  // TODO: WRONG, fix: too limited! dstr?
-  char s[1024]= {0}; 
+  char* line= header? header: csvgetline(f, ',');
   int r;
-  
-  // TODO: use csvgetline !
-  col= 0;
-  while(1) {
-    r= freadCSV(f, s, sizeof(s), &d, delim);
-    if (debug>2) printf(" {CSV: %2d '%s' %lg} ", r, s, d);
-    if (r==RNEWLINE || !r) {
-      readrows++;
-      if (debug && readrows%10000==0)
-	{ printf("\rTABCSV: row=%ld", readrows); fflush(stdout); }
-
-      // store offset of start of row
-      // (ovehead? not measurable)
-      foffset= fprev; fprev= ftell(f);
-
-      process_result(
-        col, vals, &row, parse_after, selexpr,
-        act, ix, table, joincol);
-
-      col= 0;
-      if (!r) break; else continue;
-    }
-
-    // got new value
-    setval(&vals[col], r, d, s);
-    hack_foffset(cols[col], &dataf, &foffset, d);
-    col++;
+  char name[NAMELEN]= {};
+  char delim= decidedelim(line);
+  char* p= line;
+  while((r= sreadCSV(&p, name, NAMELEN, NULL, delim))) {
+    //printf("COL: %s\n", name);
+    // even numbers will be in name
+    int n= defvar(table, name, 0);
+    printf(" -%d", n);
   }
-  // end of table
+  if (!header) free(line);
 
-  // post index revolution
-  if (ix) {
-    sortix(ix);
-    index_complete= 1;
-    if (jdebug || verbose || stats>1) printix(ix, jdebug);
+  printf("\n");
 
-    // TODO: retain somewhere!
-    if (0) {
-      free(ix); // pretty stupid...
-      ix= NULL;
-    }
-  }
-  
-  // deallocate values
-  // TODO: all??? correct ?
-  for(int i=0; i<varcount; i++)
-    clearval(varvals[i]);
-  
-  free(header); // column names
-  fclose(f);
-
-  //  if (1) printstats();
-
-  // restore
-  varcount= nvars;
-  ps= parse_after;
-
-  return 1;
+  return t;
 }
 
 // Parses a column list (COL, COL..)
@@ -1500,25 +1233,22 @@ int from_list(char* selexpr, int is_join) {
       if (!got("on")) expected("on joincol");
       // ON "foo"
       expectname(joincol, "join column name");
-      if (jdebug) printf("JOIN ON: %s = ", joincol);
       // TODO: get "last" table here?
       joinval= findvar(NULL, joincol);
-      if (jdebug) {
-	printval(joinval, 0, 0);
-	printf("\n");
-      }
     }
     
-    FILE* f= magicfile(spec);
+    int fn= defstr(spec);
+    //OL(defvar("$file", table, fn);
 
-    TABCSV(f, table, header, is_join, joincol, joinval, selexpr);
+    int t= defvar("$table", table, fn);
 
-    // TODO: json
-    // TODO: xml
-    // TODO: passwd styhle "foo:bar:fie"
-    // (designate delimiter, use TABCSV)
+    printf("OL file -%d %d\n", t, fn);
     
+    FILE* f= magicfile(spec);
+    TABCSV(f, table, t, header, fn, selexpr);
     fclose(f);
+
+    next_from_list(selexpr);
   }
 
   ps= backtrack;
@@ -1605,7 +1335,8 @@ int create_index() {
   // TODO: registerobj
 
   FILE* f= magicfile(table);
-  TABCSV(f, table, NULL, 1, col, NULL, NULL);
+  error("create index ...OL");
+  //TABCSV(f, table, NULL, 1, col, selexpr);
   fclose(f);
 
   return 1;
