@@ -19,10 +19,12 @@ int debug=0, stats=0, lineno=0, foffset=0;
 
 #include "utils.c"
 
+#include "malloc-count.c"
+
 #define MAXNUM 20000000l
 
 int trace= 0;
-long olops= 0;
+long olops= 0, nresults= 0;
 
 // all variables in a plan are numbered
 // zero:th var isn't used.
@@ -141,7 +143,7 @@ int lrun(dbval** start) {
 #define B (*b)
 #define C (*c)
 
-#define Pr     r=N
+#define Pr     r=N;dbfree(R)
 #define Pra    Pr;a=N
 #define Prab   Pra;b=N
 #define Prabc  Prab;c=N
@@ -154,6 +156,7 @@ int lrun(dbval** start) {
   
   long f;
   while((f=L(N))) {
+    olops++;
 
     if (trace) {
       printf("\n[");
@@ -190,7 +193,6 @@ int lrun(dbval** start) {
       }
 
       p++;
-      olops++;
       continue;
     }
 
@@ -299,7 +301,6 @@ int lrun(dbval** start) {
     CASE("CC"): { Pr; int len= 1;
 	dbval** n= p;
 	while(*n) {
-	  printf("\nSTR>>%s<<\n", STR(**n));
 	  len+= strlen(STR(**n));
 	  n++;
 	}
@@ -382,8 +383,6 @@ int lrun(dbval** start) {
     assert(!*p);
     p++;
   
-    olops++;
-
 #undef N
   
 #undef R
@@ -401,7 +400,10 @@ int lrun(dbval** start) {
 #undef Pabc  
   }
 
+  nresults++;
+  
  done: result = !result; 
+  
  fail: result = !result;
   
   // -- cleanup down to start
@@ -550,12 +552,13 @@ int main(int argc, char** argv) {
   //trace= 1;
 
   printf("\n\nLPLAN---Running...\n");
+  mallocsreset();
   long ms= mstime();
   lrun(lplan);
   ms = mstime()-ms;
-  printf("\n\n! Program took %ld ms and performed %ld ops\n", ms, olops);
+ printf("\n\n! %ld Results in %ld ms and performed %ld ops\n", nresults, ms, olops);
   hprint(olops*1000/ms, " ologs (/s)\n");
-
+  fprintmallocs(stdout);
   printf("\n\n");
 }
 
