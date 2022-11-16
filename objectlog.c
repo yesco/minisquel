@@ -295,6 +295,8 @@ int lrun(dbval** start) {
     // TODO: why need !*p ??? 
     // ONLY 100% slower than OPTIMAL!
     
+#define FAIL(a) {if(a) goto fail; NEXT;}
+
     switch(f) {
     // -- control flow
 END:    case   0: goto done;
@@ -321,7 +323,7 @@ OR:   case 'o': // OR nxt a b c...
 	  p= lplan+L(r); continue;
 	}
       goto fail;
-SET:  CASE(":="): Pra;  R= A; NEXT;
+SET:  CASE(":="): Pra; R= A; NEXT;
 
 // arith
 PLUS:  case '+': Prab; R.d= A.d+B.d; NEXT;
@@ -333,8 +335,8 @@ MOD:   case '%': Prab; R.d= L(A.d)%L(B.d); NEXT;
 // cmp
 //   number/string only compare - be sure!
 //   (10-20% FASTER than generic!)
-NUMEQ: CASE("N="): Pab; if (A.l!=B.l) goto fail; NEXT;
-STREQ: CASE("S="): Pab; if (dbstrcmp(A, B)) goto fail; NEXT;
+NUMEQ: CASE("N="): Pab; FAIL(A.l!=B.l);
+STREQ: CASE("S="): Pab; FAIL(dbstrcmp(A, B));
       
 // generic compare - 20% slower?
 EQ:   CASE("=="):
@@ -343,27 +345,26 @@ EQ:   CASE("=="):
       if (isnan(A.d) || isnan(A.d)) {
 	if (type(A)!=type(B)) goto fail;
 	// same type
-	if (dbstrcmp(A, B)) goto fail;
+	FAIL(dbstrcmp(A, B));
       } else
-	if (A.d != B.d) goto fail;
-      NEXT;
+	FAIL(A.d != B.d);
 
-NUMNEQ: CASE("N!"): Pab; if (A.l!=B.l) NEXT; goto fail;
-STRNEQ: CASE("S!"): Pab; if (dbstrcmp(A,B)) NEXT; goto fail;
+NUMNEQ: CASE("N!"): Pab; FAIL(A.l==B.l)
+STRNEQ: CASE("S!"): Pab; FAIL(!dbstrcmp(A,B));
 
 // Generic
 NEQ:  CASE("!="):
       CASE("<>"):
       // TODO: complete (see '=')
-      case '!': Pab; if (A.l==B.l) goto fail; NEXT;
+      case '!': Pab; FAIL(A.l==B.l);
 
 // TODO: do strings...
-LT:   case '<': Pab; if (A.d>=B.d) goto fail; NEXT;
-GT:   case '>': Pab; if (A.d<=B.d) goto fail; NEXT;
+LT:   case '<': Pab; FAIL(A.d>=B.d);
+GT:   case '>': Pab; FAIL(A.d<=B.d);
 GE:   CASE("!>"):
-      CASE("<="): Pab; if (A.d>B.d) goto fail; NEXT;
+      CASE("<="): Pab; FAIL(A.d>B.d);
 LE:   CASE("!<"):
-      CASE(">="): Pab; if (A.d<B.d) goto fail; NEXT;
+      CASE(">="): Pab; FAIL(A.d<B.d);
 
 // logic - mja (output? no shortcut?)
 LAND:  case '&': Prab; R.d= A.d&&B.d; NEXT;
