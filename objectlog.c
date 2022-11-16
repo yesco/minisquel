@@ -197,8 +197,12 @@ long lrun(dbval** start) {
 
   };
 
+#define JUMPER
+  
+#ifdef JUMPER
   static int firsttime= 1;
   if (firsttime) {
+    printf("--- JUMPER!\n");
     // TODO: for all plans
     dbval** p= start;
     while(*p) {
@@ -212,7 +216,7 @@ long lrun(dbval** start) {
 
     firsttime= 0;
   }
-
+#endif
 
   //lprintplan(start, -1);
 
@@ -249,17 +253,33 @@ long lrun(dbval** start) {
     olops++;
 
     if (trace) {
-      printf("\n[");
-      lprinthere(p-1);
-      putchar('\t');
+      if (1) {
+	int i= p-lplan-3;
+	while(plan[i]) i--;
+	i++;
+	if (i<0) i= 0;
+	//\n%*s", 2*i, "");
+	printf("@%2d", i);
+	printf("(%c", plan[i]);
+	int v;
+	while((v= plan[++i])) {
+	  printf(" %d:", v);
+	  printf("%s", STR(var[abs(v)]));
+	}
+	printf(")\n");
+      } else {
+	printf("\n[");
+	lprinthere(p-1);
+	putchar('\t');
 
-      // print vars
-      for(int i=1; i<=10; i++) {
-	//if (!v[i]) break; // lol
-	printvar(i);
+	// print vars
+	for(int i=1; i<=10; i++) {
+	  //if (!v[i]) break; // lol
+	  printvar(i);
+	}
+
+	printf("]\t");
       }
-
-      printf("]\t");
     }
 
     // -- use switch to dispatch
@@ -297,20 +317,25 @@ long lrun(dbval** start) {
 
 #define CASE(s) case TWO(s)
 
-    //#define NEXT break
+#ifndef JUMPER
+    #define NEXT break
+#endif
 
-    //mabye 2-3% faster..
-    //#define NEXT {p++; continue;}
+//mabye 2-3% faster..
+//#define NEXT {p++; continue;}
 
 // 10% SLOWER !? WTF, lol
 // (indirect jump?)
 //#efine NEXT {N; olops++; goto *jmp[L(N)];}
 
 // 8% FASTER w direct pointers...
-#define NEXT {N; olops++; \
+#ifdef JUMPER
+    #define NEXT {N; olops++; \
     if (trace) printf("NEXT '%c'(%d) @%ld %p\n", plan[p-lplan], plan[p-lplan], p-lplan, *p); \
     if (!*p) goto done;	\
       goto *(void*)*p++;}
+#endif
+    
     // TODO: why need !*p ??? 
     // ONLY 100% slower than OPTIMAL!
     
@@ -415,7 +440,7 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
 	  //printf("LINE:%s<\n",line);
 	  r+= n;
 	  if (!line || !*line) continue;
-	  if (delim) delim= decidedelim(line);
+	  if (!delim) delim= decidedelim(line);
 	  char str[len];
 	  char* cur= line;
 	  f= p;
@@ -539,7 +564,6 @@ default:
  done: result = !result; 
   results++;
   nresults++;
-  printf("NRESULT! %ld\n", nresults);
   
  fail: result = !result;
   
@@ -688,7 +712,7 @@ int main(int argc, char** argv) {
   lprintplan(lplan, -1);
 
   //trace= 1;
-  debug= 1;
+  //debug= 1;
 
   printf("\n\nLPLAN---Running...\n");
   mallocsreset();

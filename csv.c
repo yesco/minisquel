@@ -36,7 +36,6 @@ char decidedelim(char* line) {
     printf("decidedelim: '%c'\n", delim);
     printf("  DELIM: %d ,%d ;%d :%d \\t%d _%d\n", bigbest, comma, semi, colon, tab, spcs);
   }
-
   return delim;
 }
 
