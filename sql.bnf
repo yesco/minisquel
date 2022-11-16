@@ -27,6 +27,14 @@ having	:= HAVING or
 var	:= id | tname '.' id
 tname	:= name
 name	:= str | id
-id	:= '[' chars ']' | ?
+id	:= '[' idchars ']' | ?
 
-str	:= ' chars ' || " chars "
+str	:= ' chars1 ' || " chars2 "
+
+idchars	:= ( [^\[\]] ) ...
+chars1  := ( [^'] | '') ...
+chars2  := ( [^"] | "") ...
+
+num	:= [+ | -] [digits] ['.' [digits]] [e [+ | -] digits]
+
+digits	:= (0-9) ...
