@@ -179,13 +179,13 @@ int lrun(dbval** start) {
 
     ['F']= &&FIL,
 
-    [TWO("CC")]= &&CONCAT,
-    [TWO("CA")]= &&ASCII,
-    [TWO("SC")]= &&CHAR,
+    [TWO("CO")]= &&CONCAT,
+    [TWO("AS")]= &&ASCII,
+    [TWO("CA")]= &&CHAR,
     [TWO("CI")]= &&CHARIX,
-    [TWO("SL")]= &&LEFT,
-    [TWO("SR")]= &&RIGHT,
-    [TWO("LW")]= &&LOWER,
+    [TWO("LE")]= &&LEFT,
+    [TWO("RI")]= &&RIGHT,
+    [TWO("LO")]= &&LOWER,
     [TWO("UP")]= &&UPPER,
     [TWO("LT")]= &&LTRIM,
     [TWO("RT")]= &&RTRIM,
@@ -433,7 +433,7 @@ PRINC: case 'p': while(*p) printf("%s", STR(*N)); NEXT;
 NEWLINE: case 'n': putchar('\n'); NEXT;
     
 // -- strings
-CONCAT: CASE("CC"): { Pr; int len= 1;
+CONCAT: CASE("CO"): { Pr; int len= 1;
 	dbval** n= p;
 	while(*n) {
 	  len+= strlen(STR(**n));
@@ -449,24 +449,24 @@ CONCAT: CASE("CC"): { Pr; int len= 1;
 	SETR(mkstrfree(rr, 1));
 	NEXT; }
       
-ASCII:  CASE("SA"): Pra; SETR(mknum(STR(A)[0])); NEXT;
-CHAR:   CASE("SC"): { Pra; char s[2]={L(A.d),0}; SETR(mkstr7ASCII(s)); NEXT; }
+ASCII:  CASE("AS"): Pra; SETR(mknum(STR(A)[0])); NEXT;
+CHAR:   CASE("CA"): { Pra; char s[2]={L(A.d),0}; SETR(mkstr7ASCII(s)); NEXT; }
     
 CHARIX: CASE("CI"): { Prab; char* aa= STR(A);
   	char* rr= strchr(aa, STR(B)[0]);
 	SETR(aa ? mknum(rr-aa) : mknull());
 	NEXT; }
 
-LEFT:   CASE("SL"): Prab; dbfree(R);
+LEFT:   CASE("LE"): Prab; dbfree(R);
         SETR(mkstrfree(strndup(STR(A), num(B)), 1)); NEXT;
 
-RIGHT:  CASE("SR"): { Prab; char* aa= STR(A);
+RIGHT:  CASE("RI"): { Prab; char* aa= STR(A);
 	int len= strlen(aa) - num(B);
 	if (len<=0 || num(B)<=0) SETR(mkstrconst(""));
 	else SETR(mkstrdup(aa+len));
 	NEXT; }
 
-LOWER:  CASE("LW"): { Pra; char* aa= strdup(STR(A));
+LOWER:  CASE("LO"): { Pra; char* aa= strdup(STR(A));
 	char* ab= aa;
 	while(*ab) {
 	  *ab= tolower(*ab); ab++;
@@ -486,6 +486,7 @@ LTRIM:  CASE("LT"): Pra; SETR(mkstrdup(ltrim(STR(A)))); NEXT;
 RTRIM:  CASE("RT"): Pra; SETR(mkstrfree(rtrim(strdup(STR(A))), 1)); NEXT;
 TRIM:   CASE("TR"): Pra; SETR(R= mkstrfree(trim(strdup(ltrim(STR(A)))), 1)); NEXT;
 STR:    CASE("ST"): Pra; SETR(mkstrdup(STR(A))); NEXT;
+
 TS    : CASE("ts"): Pr;  SETR(mkstrdup(isotime())); NEXT;
       
 default:

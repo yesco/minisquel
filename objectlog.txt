@@ -1,0 +1,73 @@
+OBJECTLOG FUNCTIONS
+===================
+
+
+CONTROL
+
+t	true, done/exit
+f	fail, exit
+j	jump relative
+g	goto absolute
+o	OR
+	AND = imlicit!
+	
+:=	set variable
+
+
+NUMBERS
+
++
+-
+*
+/
+%
+
+N=
+N!
+
+
+COMPARE
+
+!=	<>
+=	==
+<	
+>
+<=	!>
+>=	!<
+
+
+LOOPS
+
+i B E		iota: i 1 10= 1..10
+d B E S		dota: i 1 10 0.1
+l F f...	line: l FILE field ...
+
+F FILE fname	FILE, fopen(fname)
+
+
+PRINTING
+
+.	print "columns" (truncated)
+n	newline
+p	print no formatting
+
+
+STRINGS
+
+S=
+S!
+
+CO	concat
+AS	ascii
+CA	char
+CI	charindex
+LE	left
+RI	right
+LO	lower
+UP	upper
+LT	ltrim
+RT	rtrim
+TR	trim
+ST	str
+
+ts	timestamp
