@@ -123,12 +123,79 @@ typedef int(*fun)(dbval**p);
 
 fun func[TWORANGE]= {0};
 
-
+void* jmp[TWORANGE]= {0};
 
 
 
 // lrun is 56% faster!
 int lrun(dbval** start) {
+  static void* jmp[]= {
+    [  0]= &&END,
+    ['t']= &&TRUE,
+    ['f']= &&FAIL,
+    ['r']= &&REVERSE,
+    ['j']= &&JUMP,
+    ['g']= &&GOTO,
+    [127]= &&DEL,
+    ['o']= &&OR,
+    [TWO(":+")]= &&SET,
+    ['+']= &&PLUS,
+    ['-']= &&MINUS,
+    ['*']= &&MUL,
+    ['/']= &&DIV,
+    ['%']= &&MOD,
+    [TWO("N=")]= &&NUMEQ,
+    [TWO("S=")]= &&STREQ,
+    ['=']= &&EQ,
+    [TWO("==")]= &&EQ,
+    ['!']= &&NEQ,
+    [TWO("!=")]= &&NEQ,
+    [TWO("<>")]= &&NEQ,
+    [TWO("N!")]= &&NUMNEQ,
+    [TWO("S!")]= &&STRNEQ,
+    ['<']= &&LT,
+    ['>']= &&GT,
+    [TWO("<=")]= &&LE,
+    [TWO("!>")]= &&LE,
+    [TWO(">=")]= &&GE,
+    [TWO("!<")]= &&GE,
+    ['&']= &&LAND,
+    ['|']= &&LOR,
+    ['i']= &&IOTA,
+    ['d']= &&DOTA,
+    ['.']= &&PRINT,
+    ['p']= &&PRINC,
+    ['n']= &&NEWLINE,
+    [TWO("CC")]= &&CONCAT,
+    [TWO("CA")]= &&ASCII,
+    [TWO("SC")]= &&CHAR,
+    [TWO("CI")]= &&CHARINDEX,
+    [TWO("SL")]= &&LEFT,
+    [TWO("SR")]= &&RIGHT,
+    [TWO("LW")]= &&LOWER,
+    [TWO("UP")]= &&UPPER,
+    [TWO("LT")]= &&LTRIM,
+    [TWO("RT")]= &&RTRIM,
+    [TWO("TR")]= &&TRIM,
+    [TWO("ST")]= &&STR,
+    [TWO("TS")]= &&TIMESTAMP,
+
+  };
+
+  static int firsttime= 1;
+  if (firsttime) {
+    // TODO: for all plans
+    dbval** p= start;
+    while(*p) {
+      printf("TRANS '%c' %p\n", (int)L(*p), jmp[L(*p)]);
+      *p= (dbval*)jmp[L(*p)];
+      while(*p++);
+    }
+
+    firsttime= 0;
+  }
+
+
   //lprintplan(start, -1);
 
   dbval** p= start;
@@ -179,6 +246,14 @@ int lrun(dbval** start) {
 
     // direct function pointers!
     if (0 || ((unsigned long)f) > (long)TWORANGE) {
+      if (1) {
+	// label
+	//printf("...JMP\n");
+	goto *(void*)f;
+
+      } else {
+	// TODO: funcall...
+      printf("FOOL\n");
       fun fp= func[f];
 
       if (!fp) goto done;
@@ -193,6 +268,7 @@ int lrun(dbval** start) {
       case  2: result = !result; break;
       default: error("Unknown ret action!");
       }
+      }
 
       p++;
       continue;
@@ -203,17 +279,35 @@ int lrun(dbval** start) {
     //#define NEXT break
 
     //mabye 2-3% faster..
-#define NEXT {p++; continue;} 
+    //#define NEXT {p++; continue;}
 
+// 10% SLOWER !? WTF, lol
+// (indirect jump?)
+//#efine NEXT {N; olops++; goto *jmp[L(N)];}
+
+// 8% FASTER w direct pointers...
+#define NEXT {N; olops++; \
+    if (0) printf("NEXT '%c'(%d) @%ld %p\n", plan[p-lplan], plan[p-lplan], p-lplan, *p); \
+    if (!*p) goto done; \
+      goto *(void*)*p++;}
+    // TODO: why need !*p ??? 
+    // ONLY 100% slower than OPTIMAL!
+    
     switch(f) {
     // -- control flow
+    END:
     case   0: goto done; // end = true
+    TRUE:
     case 't': goto done; // true (ret)
+    FAIL:
     case 'f': goto fail; // fail
-
+    REVERSE:
     case 'r': result = !result;NEXT;// rev
+    JUMP:
     case 'j': Pr; p+=L(r);     NEXT;// jmp
+    GOTO:
     case 'g': Pr; p=lplan+L(r);NEXT;// go
+    DEL:
     case 127: while(127==L(N));NEXT;// nop
     // (127 = DEL, overwritten/ignore!)
     
@@ -225,6 +319,7 @@ int lrun(dbval** start) {
     // 15: OR (! "n" "5")
     // 16:    (t)
     // 17: (. "Maybe prime" "n")
+    OR:
     case 'o': // OR nxt a b c...
       Pr;
       while(*p)
@@ -233,27 +328,36 @@ int lrun(dbval** start) {
 	}
       goto fail;
       
+    SET:
     // set var
     CASE(":="): Pra;  R= A; NEXT;
 
     // arith
+    PLUS:
     case '+': Prab; R.d= A.d+B.d; NEXT;
+    MINUS:
     case '-': Prab; R.d= A.d-B.d; NEXT;
+    MUL:
     case '*': Prab; R.d= A.d*B.d; NEXT;
+    DIV:
     case '/': Prab; R.d= A.d/B.d; NEXT;
+    MOD:
     case '%': Prab; R.d= L(A.d)%L(B.d); NEXT;
 
     // cmp
     //   number only compare - be sure!
     //   (10-20% FASTER than generic!)
+    NUMEQ:
     CASE("N="): Pab;
       if (A.l!=B.l) goto fail; NEXT;
 
     // string only compare - be sure!
+    STREQ:
     CASE("S="): Pab;
       if (dbstrcmp(A, B)) goto fail; NEXT;
       
     // generic compare - 20% slower?
+    EQ:
     CASE("=="):
     case '=': Pab;
       if (A.l==B.l) NEXT;
@@ -265,46 +369,62 @@ int lrun(dbval** start) {
 	if (A.d != B.d) goto fail;
       NEXT;
 
+    NUMNEQ:
     CASE("N!"): Pab;
       if (A.l!=B.l) NEXT; goto fail;
 
+    STRNEQ:
     CASE("S!"): Pab;
       if (dbstrcmp(A,B)) NEXT; goto fail;
 
     // Generic
+    NEQ:
     CASE("!="):
     CASE("<>"):
       // TODO: complete (see '=')
     case '!': Pab; if (A.l==B.l) goto fail; NEXT;
 
     // TODO: do strings...
+    LT:
     case '<': Pab; if (A.d>=B.d) goto fail; NEXT;
+    GT:
     case '>': Pab; if (A.d<=B.d) goto fail; NEXT;
 
+    GE:
     CASE("!>"):
     CASE("<="): Pab; if (A.d>B.d) goto fail; NEXT;
 
+    LE:
     CASE("!<"):
     CASE(">="): Pab; if (A.d<B.d) goto fail; NEXT;
 
     // logic - mja (output? no shortcut?)
+    LAND:
     case '&': Prab; R.d= A.d&&B.d; NEXT;
+    LOR:
     case '|': Prab; R.d= A.d||B.d; NEXT;
 
     // generators
+    IOTA:
     case 'i': Prab;
       for(R.d=A.d; R.d<=B.d; R.d+=1) lrun(p+1); goto done;
+    DOTA:
     case 'd': Prabc;
       for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
 
     // print
-    case '.': while(*p) printvar(N-var); NEXT;
+    PRINT:
+    case '.':
+      while(*p) printvar(N-var); NEXT;
+    PRINC:
     case 'p': while(*p) printf("%s", STR(*N)); NEXT;
+    NEWLINE:
     case 'n': putchar('\n'); NEXT;
     
     // -- strings
 
     // CONCAT
+    CONCAT:
     CASE("CC"): { Pr; int len= 1;
 	dbval** n= p;
 	while(*n) {
@@ -322,25 +442,30 @@ int lrun(dbval** start) {
 	NEXT; }
       
     // ASCII
+    ASCII:
     CASE("SA"):
       Pra; R= mknum(STR(A)[0]); NEXT;
 
     // CHAR
+    CHAR:
     CASE("SC"): { Pra; char s[2]={L(A.d),0};
 	R= mkstr7ASCII(s); NEXT; }
     
     // CHARINDEX
+    CHARINDEX:
     CASE("CI"): { Prab; char* aa= STR(A);
 	char* rr= strchr(aa, STR(B)[0]);
 	R= aa ? mknum(rr-aa) : mknull();
 	NEXT; }
 
     // LEFT      
+    LEFT:
     CASE("SL"): { Prab;
 	R= mkstrfree(strndup(STR(A), num(B)), 1);
 	NEXT; }
     
     // RIGHT
+    RIGHT:
     CASE("SR"): { Prab; char* aa= STR(A);
 	int len= strlen(aa) - num(B);
 	if (len<=0 || num(B)<=0) R= mkstrconst("");
@@ -348,6 +473,7 @@ int lrun(dbval** start) {
 	NEXT; }
 
     // LOWER
+    LOWER:
     CASE("LW"): { Pra; char* aa= strdup(STR(A));
 	char* ab= aa;
 	while(*ab) {
@@ -357,6 +483,7 @@ int lrun(dbval** start) {
 	NEXT; }
   
     // UPPER
+    UPPER:
     CASE("UP"): { Pra; char* aa= strdup(STR(A));
 	char* ab= aa;
 	while(*ab) {
@@ -366,19 +493,24 @@ int lrun(dbval** start) {
 	NEXT; }
       
     // LTRIM
+    LTRIM:
     CASE("LT"): Pra; R= mkstrdup(ltrim(STR(A))); NEXT;
       
     // RTRIM
+    RTRIM:
     CASE("RT"): Pra; R= mkstrfree(rtrim(strdup(STR(A))), 1); NEXT;
 
     // TRIM
+    TRIM:
     CASE("TR"): Pra; R= mkstrfree(trim(strdup(ltrim(STR(A)))), 1); NEXT;
       
       
     // STR
+    STR:
     CASE("ST"): Pra; R= mkstrdup(STR(A)); NEXT;
 
     // TIMESTAMP
+    TIMESTAMP:
     CASE("ts"): Pr; R= mkstrdup(isotime()); NEXT;
       
     default:
