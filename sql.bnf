@@ -1,0 +1,32 @@
+sql	:= select | set | create (view | function)
+
+select	:= SELECT cexprs [from] [where] [group] [order] [having]
+cexprs	:= cexpr [, ...]
+cexpr	:= * | id | nexpr
+exprs	:= nexpr [, ...]
+nexpr	:= expr [AS name]
+expr	:= prim [(* | / | %) ...]
+prim	:= simple [(+ | -)] ...]
+simple	:= num | str | call | var
+call	:= 
+
+from	:= FROM table tname [, ... ..]
+
+where	:= WHERE or
+or	:= '(' or ')' | and [OR ...]
+and	:= cmp [AND ...]
+cmp	:= [NOT] expr op expr
+op	:= LIKE | ILIKE | = | == | != | <> | < | > | <= | >= | !< | !>
+
+call	:= id '(' [expr [, ...]] ')'
+
+group	:= GROUP BY col
+order	:= ORDER BY col [ASC[ENDING] | DESC[ENDING] ]
+having	:= HAVING or
+
+var	:= id | tname '.' id
+tname	:= name
+name	:= str | id
+id	:= '[' chars ']' | ?
+
+str	:= ' chars ' || " chars "
