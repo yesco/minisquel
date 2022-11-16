@@ -291,13 +291,14 @@ int tableaddrow(table* t, dbval v[]) {
   return addarena(t->data, v, t->cols * sizeof(dbval));
 }
 
+// T is optional
 dbval dbreadCSV(table* t, char** csv, char* str, int len, char delim) {
   double d;
   int r= sreadCSV(csv, str, len, &d, delim);
   switch(r){
   case RNULL:    return mknull();
   case RNUM:     return mknum(d);
-  case RSTRING:  return tablemkstr(t, str);
+  case RSTRING:  return t ? tablemkstr(t, str) : mkstrdup(str);
   case RNEWLINE: 
   default:       return mkend();
   }

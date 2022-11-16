@@ -9,15 +9,20 @@
 #include <assert.h>
 #include <string.h>
 
-int debug=0, stats=0, lineno=0, foffset=0;
+int debug=0, stats=0, lineno=0, foffset=0, security= 0;
+
+int nfiles= 0;
+
+#define NAMELEN 64
+#define VARCOUNT 256
+#define MAXCOLS 32
 
 #include "utils.c"
 
 #include "csv.c"
 #include "vals.c"
 #include "dbval.c"
-
-#include "utils.c"
+#include "table.c"
 
 #include "malloc-count.c"
 
@@ -138,12 +143,15 @@ int lrun(dbval** start) {
     ['g']= &&GOTO,
     [127]= &&DEL,
     ['o']= &&OR,
-    [TWO(":+")]= &&SET,
+
+    [TWO(":=")]= &&SET,
+
     ['+']= &&PLUS,
     ['-']= &&MINUS,
     ['*']= &&MUL,
     ['/']= &&DIV,
     ['%']= &&MOD,
+
     [TWO("N=")]= &&NUMEQ,
     [TWO("S=")]= &&STREQ,
     ['=']= &&EQ,
@@ -163,9 +171,14 @@ int lrun(dbval** start) {
     ['|']= &&LOR,
     ['i']= &&IOTA,
     ['d']= &&DOTA,
+    ['l']= &&LINE,
+
     ['.']= &&PRINT,
     ['p']= &&PRINC,
     ['n']= &&NEWLINE,
+
+    ['F']= &&FIL,
+
     [TWO("CC")]= &&CONCAT,
     [TWO("CA")]= &&ASCII,
     [TWO("SC")]= &&CHAR,
@@ -178,6 +191,7 @@ int lrun(dbval** start) {
     [TWO("RT")]= &&RTRIM,
     [TWO("TR")]= &&TRIM,
     [TWO("ST")]= &&STR,
+
     [TWO("ts")]= &&TS,
 
   };
@@ -187,7 +201,10 @@ int lrun(dbval** start) {
     // TODO: for all plans
     dbval** p= start;
     while(*p) {
-      printf("TRANS '%c' %p\n", (int)L(*p), jmp[L(*p)]);
+      if (!jmp[L(*p)]) {
+	printf("TRANS '%c' %p\n", (int)L(*p), jmp[L(*p)]);
+	error("ObjectLog: Function not recognized");
+      }
       *p= (dbval*)jmp[L(*p)];
       while(*p++);
     }
@@ -373,6 +390,42 @@ LOR:  case '|': Prab; R.d= A.d||B.d; NEXT;
 // generators
 IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) lrun(p+1); goto done;
 DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
+LINE: case 'l': { Pa; FILE* fil= A.p;
+	char *line= NULL, delim= 0;
+	size_t len= 0;
+	ssize_t n= 0;
+	long r= 0;
+	table* t= NULL;
+	// TODO: csv get line?
+	dbval** f;
+	// skip header
+	getline(&line, &len, fil);
+	// read lines
+	while((n= getline(&line, &len, fil))!=EOF) {
+	  r+= n;
+	  if (!line || !*line) continue;
+	  if (delim) delim= decidedelim(line);
+	  char str[len];
+	  char* cur= line;
+	  f= p;
+	  // get values
+	  while(*f &&
+	    !isend((**f = dbreadCSV(
+              t, &cur, str, len, delim)))) {
+	    f++;
+	  }
+	  lrun(f+1);
+	}
+	free(line);
+	fclose(fil);
+	p= f;
+	goto done; }
+
+FIL:   case 'F': { Pra;
+       FILE* fil= magicfile(STR(A));
+       if (!fil) goto fail;
+       R.p= fil;
+       NEXT; }
 
 // print
 PRINT: case '.': while(*p) printvar(N-var); NEXT;

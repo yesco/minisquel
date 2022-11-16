@@ -814,7 +814,8 @@ int INT(char* selexpr) {
 
 // header, if given, is free:d
 int TABCSV(FILE* f, char* table, int t, char* header, int fn, char* selexpr) {
-  printf("OL scan %d", t);
+  int ol[64]= {};
+  int oln= 0;
 
   char* line= header? header: csvgetline(f, ',');
   int r;
@@ -824,11 +825,13 @@ int TABCSV(FILE* f, char* table, int t, char* header, int fn, char* selexpr) {
   while((r= sreadCSV(&p, name, NAMELEN, NULL, delim))) {
     //printf("COL: %s\n", name);
     // even numbers will be in name
-    int n= defvar(table, name, 0);
-    printf(" -%d", n);
+    ol[oln++]= defvar(table, name, 0);
   }
   free(line);
 
+  printf("OL l %d", t);
+  for(int i=0; i<= oln; i++)
+    printf(" %d", -ol[i]);
   printf("\n");
 
   return t;
@@ -853,93 +856,6 @@ char* getcollist() {
   return strndup(start, ps-start-1);
 }
 
-// tries to find it in ./ and ./Test/
-FILE* openfile(char* spec) {
-  if (!spec || !*spec) expected("filename");
-
-  FILE* f= NULL;
-
-  // popen? see if ends with '|'
-  int len= strlen(spec);
-  if (spec[len-1]=='|') {
-    if (security) expected2("Security doesn't allow POPEN style queries/tables", spec);
-    spec[strlen(spec)-1]= 0;
-    if (debug) printf(" { POPEN: %s }\n", spec);
-    f= popen(spec, "r");
-  } else {
-
-    // try open actual FILENAME
-    // TODO: make a fopen_debug
-    if (debug) printf(" [trying %s]\n", spec);
-    f= fopen(spec, "r");
-
-    // try open Temp/FILENAME
-    if (!f) {
-      char fname[NAMELEN]= {0};
-      snprintf(fname, sizeof(fname), "Test/%s", spec);
-      if (debug) printf(" [trying %s]\n", fname);
-      f= fopen(fname, "r");
-    }
-  }
-
-  nfiles++;
-  return f;
-}
-
-FILE* expectfile(char* spec) {
-  FILE* f= openfile(spec);
-  if (!f) expected2("File not exist", spec);
-  return f;
-}
-
-// opens a file:
-// - type .sql - call ./sql on it...
-// - type .csv just read it
-FILE* _magicopen(char* spec) {
-  // TODO:maybe not needed?
-  spec= strdup(spec);
-  // handle foo.sql script -> popen!
-  if (endsWith(spec, ".sql")) {
-    char fname[NAMELEN]= {0};
-    snprintf(fname, sizeof(fname), "./minisquel --batch --init %s |", spec);
-    free(spec);
-    spec= strdup(fname);
-  }
-  if (debug) printf(" [trying %s]\n", spec);
-  FILE* f= openfile(spec);
-  free(spec);
-  return f;
-}
-  
-
-// opens a magic file
-// - if "foobar |" run it and read output
-// - try it as given
-// - try open.csv if not exist
-// - try open.sql and run it
-// - fail+exit (not return) if fail
-// - guaranteed to return file descriptor
-FILE* magicfile(char* spec) {
-  if (!spec || !*spec) expected("filename");
-  spec= strdup(spec); // haha
-
-  FILE* f= _magicopen(spec);
-  if (!f && spec[strlen(spec)-1]!='|') {
-    if (!f) { // .csv ?
-      spec= realloc(spec, strlen(spec)+1+4);
-      strcat(spec, ".csv");
-      f= _magicopen(spec);
-    }
-    if (!f) { // .sql ?
-      strcpy(spec+strlen(spec)-4, ".sql");
-      f= _magicopen(spec);
-    }
-  }
-  if (!f) expected2("File not exist (tried X X.csv X.sql", spec);
-  if (debug && f) printf(" [found %s]\n", spec);
-  free(spec);
-  return f;
-}
 
 int from_list(char* selexpr, int is_join) {
   char* backtrack= ps;
@@ -988,7 +904,7 @@ int from_list(char* selexpr, int is_join) {
 
     int t= defvar("$table", table, 0);
 
-    printf("OL file -%d %d\n", t, fn);
+    printf("OL F -%d %d 0\n", t, fn);
     
     FILE* f= magicfile(spec);
     TABCSV(f, table, t, header, fn, selexpr);

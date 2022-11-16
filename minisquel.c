@@ -13,6 +13,12 @@
 
 int stats= 1, debug= 0, security= 0;
 
+// stats
+long lineno= -2, readrows= 0, nfiles= 0;
+
+#define NAMELEN 64
+#define VARCOUNT 256
+#define MAXCOLS 32
 
 
 #include "utils.c"
@@ -23,15 +29,8 @@ int stats= 1, debug= 0, security= 0;
 //   to handle aggregates (not print every row, only last (in group))
 int parse_only= 0;
 
-#define NAMELEN 64
-#define VARCOUNT 256
-#define MAXCOLS 32
-
 char *query=NULL, *ps= NULL;
 long foffset= 0;
-
-// stats
-long lineno= -2, readrows= 0, nfiles= 0;
 
 // TODO: generalize output formats:
 //
@@ -1207,94 +1206,6 @@ char* getcollist() {
     if (!gotc(',')) expected("colname list");
   }
   return strndup(start, ps-start-1);
-}
-
-// tries to find it in ./ and ./Test/
-FILE* openfile(char* spec) {
-  if (!spec || !*spec) expected("filename");
-
-  FILE* f= NULL;
-
-  // popen? see if ends with '|'
-  int len= strlen(spec);
-  if (spec[len-1]=='|') {
-    if (security) expected2("Security doesn't allow POPEN style queries/tables", spec);
-    spec[strlen(spec)-1]= 0;
-    if (debug) printf(" { POPEN: %s }\n", spec);
-    f= popen(spec, "r");
-  } else {
-
-    // try open actual FILENAME
-    // TODO: make a fopen_debug
-    if (debug) printf(" [trying %s]\n", spec);
-    f= fopen(spec, "r");
-
-    // try open Temp/FILENAME
-    if (!f) {
-      char fname[NAMELEN]= {0};
-      snprintf(fname, sizeof(fname), "Test/%s", spec);
-      if (debug) printf(" [trying %s]\n", fname);
-      f= fopen(fname, "r");
-    }
-  }
-
-  nfiles++;
-  return f;
-}
-
-FILE* expectfile(char* spec) {
-  FILE* f= openfile(spec);
-  if (!f) expected2("File not exist", spec);
-  return f;
-}
-
-// opens a file:
-// - type .sql - call ./sql on it...
-// - type .csv just read it
-FILE* _magicopen(char* spec) {
-  // TODO:maybe not needed?
-  spec= strdup(spec);
-  // handle foo.sql script -> popen!
-  if (endsWith(spec, ".sql")) {
-    char fname[NAMELEN]= {0};
-    snprintf(fname, sizeof(fname), "./minisquel --batch --init %s |", spec);
-    free(spec);
-    spec= strdup(fname);
-  }
-  if (debug) printf(" [trying %s]\n", spec);
-  FILE* f= openfile(spec);
-  free(spec);
-  return f;
-}
-  
-
-// opens a magic file
-// - if "foobar |" run it and read output
-// - try it as given
-// - try open.csv if not exist
-// - try open.sql and run it
-// - fail+exit (not return) if fail
-// - guaranteed to return file descriptor
-FILE* magicfile(char* spec) {
-  if (!spec || !*spec) expected("filename");
-  spec= strdup(spec); // haha
-
-  FILE* f= _magicopen(spec);
-  if (!f && spec[strlen(spec)-1]!='|') {
-    if (!f) { // .csv ?
-      spec= realloc(spec, strlen(spec)+1+4);
-      strcat(spec, ".csv");
-      f= _magicopen(spec);
-    }
-    if (!f) { // .sql ?
-      strcpy(spec+strlen(spec)-4, ".sql");
-      f= _magicopen(spec);
-    }
-  }
-  if (!f) expected2("File not exist (tried X X.csv X.sql", spec);
-  if (debug && f) printf(" [found %s]\n", spec);
-  free(spec);
-  return f;
 }
 
 int from_list(char* selexpr, int is_join) {
