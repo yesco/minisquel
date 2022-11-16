@@ -155,7 +155,9 @@ int lrun(dbval** start) {
   int result= 1;
   
   long f;
-  while((f=L(N))) {
+  while(1) {
+    // 2-3% faster cmp while(f=...)
+    f=L(N);
     olops++;
 
     if (trace) {
@@ -200,7 +202,7 @@ int lrun(dbval** start) {
 
     //#define NEXT break
 
-    // mabye 2-3% faster..
+    //mabye 2-3% faster..
 #define NEXT {p++; continue;} 
 
     switch(f) {
