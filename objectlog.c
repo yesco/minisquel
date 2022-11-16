@@ -202,11 +202,11 @@ long lrun(dbval** start) {
     // TODO: for all plans
     dbval** p= start;
     while(*p) {
-      if (!jmp[L(*p)]) {
-	printf("TRANS '%c' %p\n", (int)L(*p), jmp[L(*p)]);
-	error("ObjectLog: Function not recognized");
-      }
-      *p= (dbval*)jmp[L(*p)];
+      int f= L(*p);
+      void* x= jmp[f];
+      if (!x || !debug) printf("TRANS '%c' %p\n", f, x);
+      if (!x) error("ObjectLog: Function not recognized");
+      *p= (dbval*)x;
       while(*p++);
     }
 
@@ -239,6 +239,7 @@ long lrun(dbval** start) {
 
 #define SETR(a) do{dbfree(R);R=(a);}while(0)
   
+  long results= 0;
   int result= 1;
   
   long f;
@@ -307,8 +308,8 @@ long lrun(dbval** start) {
 
 // 8% FASTER w direct pointers...
 #define NEXT {N; olops++; \
-    if (0) printf("NEXT '%c'(%d) @%ld %p\n", plan[p-lplan], plan[p-lplan], p-lplan, *p); \
-    if (!*p) return nresults; 	\
+    if (trace) printf("NEXT '%c'(%d) @%ld %p\n", plan[p-lplan], plan[p-lplan], p-lplan, *p); \
+    if (!*p) goto done;	\
       goto *(void*)*p++;}
     // TODO: why need !*p ??? 
     // ONLY 100% slower than OPTIMAL!
@@ -389,8 +390,8 @@ LAND: case '&': Prab; R.d= A.d&&B.d; NEXT;
 LOR:  case '|': Prab; R.d= A.d||B.d; NEXT;
 
 // generators
-IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) nresults+= lrun(p+1); goto done;
-DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) nresults+= lrun(p+1); goto done;
+IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) results+= lrun(p+1); goto done;
+DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) results+= lrun(p+1); goto done;
 LINE: case 'l': { Pa; FILE* fil= A.p;
 	//   165ms time cat fil10M.tsv
 	//  3125ms time wc fil...
@@ -536,7 +537,9 @@ default:
   }
 
  done: result = !result; 
+  results++;
   nresults++;
+  printf("NRESULT! %ld\n", nresults);
   
  fail: result = !result;
   
@@ -560,7 +563,7 @@ default:
   }
 
   //return result;
-  return nresults; // about same? lol?
+  return results;
 }
 
 
@@ -685,6 +688,7 @@ int main(int argc, char** argv) {
   lprintplan(lplan, -1);
 
   //trace= 1;
+  debug= 1;
 
   printf("\n\nLPLAN---Running...\n");
   mallocsreset();
