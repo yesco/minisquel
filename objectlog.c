@@ -178,7 +178,7 @@ int lrun(dbval** start) {
     [TWO("RT")]= &&RTRIM,
     [TWO("TR")]= &&TRIM,
     [TWO("ST")]= &&STR,
-    [TWO("TS")]= &&TIMESTAMP,
+    [TWO("ts")]= &&TS,
 
   };
 
@@ -367,16 +367,16 @@ LE:   CASE("!<"):
       CASE(">="): Pab; FAIL(A.d<B.d);
 
 // logic - mja (output? no shortcut?)
-LAND:  case '&': Prab; R.d= A.d&&B.d; NEXT;
-LOR:   case '|': Prab; R.d= A.d||B.d; NEXT;
+LAND: case '&': Prab; R.d= A.d&&B.d; NEXT;
+LOR:  case '|': Prab; R.d= A.d||B.d; NEXT;
 
 // generators
-IOTA:  case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) lrun(p+1); goto done;
-DOTA:  case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
+IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) lrun(p+1); goto done;
+DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
 
 // print
-PRINT:   case '.': while(*p) printvar(N-var); NEXT;
-PRINC:   case 'p': while(*p) printf("%s", STR(*N)); NEXT;
+PRINT: case '.': while(*p) printvar(N-var); NEXT;
+PRINC: case 'p': while(*p) printf("%s", STR(*N)); NEXT;
 NEWLINE: case 'n': putchar('\n'); NEXT;
     
 // -- strings
@@ -429,11 +429,11 @@ UPPER:  CASE("UP"): { Pra; char* aa= strdup(STR(A));
 	SETR(mkstrfree(aa, 1));
 	NEXT; }
       
-LTRIM:     CASE("LT"): Pra; SETR(mkstrdup(ltrim(STR(A)))); NEXT;
-RTRIM:     CASE("RT"): Pra; SETR(mkstrfree(rtrim(strdup(STR(A))), 1)); NEXT;
-TRIM:      CASE("TR"): Pra; SETR(R= mkstrfree(trim(strdup(ltrim(STR(A)))), 1)); NEXT;
-STR:       CASE("ST"): Pra; SETR(mkstrdup(STR(A))); NEXT;
-TIMESTAMP: CASE("ts"): Pr;  SETR(mkstrdup(isotime())); NEXT;
+LTRIM:  CASE("LT"): Pra; SETR(mkstrdup(ltrim(STR(A)))); NEXT;
+RTRIM:  CASE("RT"): Pra; SETR(mkstrfree(rtrim(strdup(STR(A))), 1)); NEXT;
+TRIM:   CASE("TR"): Pra; SETR(R= mkstrfree(trim(strdup(ltrim(STR(A)))), 1)); NEXT;
+STR:    CASE("ST"): Pra; SETR(mkstrdup(STR(A))); NEXT;
+TS    : CASE("ts"): Pr;  SETR(mkstrdup(isotime())); NEXT;
       
 default:
       printf("\n\n%% Illegal opcode at %ld: %ld '%c'\n", p-lplan-1, f, (int)(isprint(f)?f:'?'));
