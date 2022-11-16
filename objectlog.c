@@ -81,7 +81,8 @@ void printvars() {
   for(int i=1; i<=nextvar-var; i++) {
     printf("%3d: ", i);
     //printf("\t%p", &var[i]);
-    printvar(i);
+    //printvar(i);
+    printf("%s", STR(var[i]));
     putchar('\n');
   }
 }
@@ -133,7 +134,7 @@ void* jmp[TWORANGE]= {0};
 
 
 // lrun is 56% faster!
-int lrun(dbval** start) {
+long lrun(dbval** start) {
   static void* jmp[]= {
     [  0]= &&END,
     ['t']= &&TRUE,
@@ -307,7 +308,7 @@ int lrun(dbval** start) {
 // 8% FASTER w direct pointers...
 #define NEXT {N; olops++; \
     if (0) printf("NEXT '%c'(%d) @%ld %p\n", plan[p-lplan], plan[p-lplan], p-lplan, *p); \
-    if (!*p) goto done; \
+    if (!*p) return nresults; 	\
       goto *(void*)*p++;}
     // TODO: why need !*p ??? 
     // ONLY 100% slower than OPTIMAL!
@@ -388,9 +389,16 @@ LAND: case '&': Prab; R.d= A.d&&B.d; NEXT;
 LOR:  case '|': Prab; R.d= A.d||B.d; NEXT;
 
 // generators
-IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) lrun(p+1); goto done;
-DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) lrun(p+1); goto done;
+IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) nresults+= lrun(p+1); goto done;
+DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) nresults+= lrun(p+1); goto done;
 LINE: case 'l': { Pa; FILE* fil= A.p;
+	//   165ms time cat fil10M.tsv
+	//  3125ms time wc fil...
+	//  4054ms time ./olrun sql where 1=0
+	// 14817ms time ./olrun sql p cols
+	// 15976ms    full strings
+	// 33s     time ./run sql p cols
+	// 56         full strings
 	char *line= NULL, delim= 0;
 	size_t len= 0;
 	ssize_t n= 0;
@@ -402,6 +410,8 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
 	getline(&line, &len, fil);
 	// read lines
 	while((n= getline(&line, &len, fil))!=EOF) {
+	//while(!feof(fil) && ((line= csvgetline(fil, delim)))) {
+	  //printf("LINE:%s<\n",line);
 	  r+= n;
 	  if (!line || !*line) continue;
 	  if (delim) delim= decidedelim(line);
@@ -409,15 +419,24 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
 	  char* cur= line;
 	  f= p;
 	  // get values
-	  while(*f &&
+	  while(*f && (dbfree(**f), 1) &&
 	    !isend((**f = dbreadCSV(
               t, &cur, str, len, delim)))) {
+	    //printf("\t'%s'\n", str);
+	    //printf("\t%s\n", STR(**f));
+	    f++;
+	  }
+	  // set missing values to null...
+	  while(*f) {
+	    dbfree(**f);
+	    **f= mknull();
 	    f++;
 	  }
 	  lrun(f+1);
+	  //free(line); // for csvgetline
 	}
-	free(line);
 	fclose(fil);
+	free(line); // for getline
 	p= f;
 	goto done; }
 
@@ -516,9 +535,8 @@ default:
 #undef Pabc  
   }
 
-  nresults++;
-  
  done: result = !result; 
+  nresults++;
   
  fail: result = !result;
   
@@ -541,7 +559,8 @@ default:
     }
   }
 
-  return result;
+  //return result;
+  return nresults; // about same? lol?
 }
 
 
@@ -670,9 +689,9 @@ int main(int argc, char** argv) {
   printf("\n\nLPLAN---Running...\n");
   mallocsreset();
   long ms= mstime();
-  lrun(lplan);
+  long res= lrun(lplan);
   ms = mstime()-ms;
- printf("\n\n! %ld Results in %ld ms and performed %ld ops\n", nresults, ms, olops);
+  printf("\n\n! %ld ... %ld Results in %ld ms and performed %ld ops\n", res, nresults, ms, olops);
   hprint(olops*1000/ms, " ologs (/s)\n");
   fprintmallocs(stdout);
   printf("\n\n");
