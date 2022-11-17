@@ -318,7 +318,7 @@ long lrun(dbval** start) {
       switch(ret) {
       case -1: goto fail;
       case  0: while(*++p); break;
-      case  1: goto done;
+      case  1: goto succeed;
       case  2: result = !result; break;
       default: error("Unknown ret action!");
       }
@@ -345,7 +345,7 @@ long lrun(dbval** start) {
 #ifdef JUMPER
     #define NEXT {N; olops++; \
     if (trace) printf("NEXT '%c'(%d) @%ld %p\n", plan[p-lplan], plan[p-lplan], p-lplan, *p); \
-    if (!*p) goto done;	\
+    if (!*p) goto succeed;	\
       goto *(void*)*p++;}
 #endif
     
@@ -356,8 +356,8 @@ long lrun(dbval** start) {
 
     switch(f) {
     // -- control flow
-END:    case   0: goto done;
-TRUE:   case 't': goto done;
+END:    case   0: goto succeed;
+TRUE:   case 't': goto succeed;
 FAIL:   case 'f': goto fail;
 REVERSE:case 'r': result = !result;NEXT;
 JUMP:   case 'j': Pr; p+=L(r);     NEXT;
@@ -704,9 +704,11 @@ default:
 #undef Pabc  
   }
 
- done: result = !result; 
+ succeed:
   results++;
   nresults++;
+
+ done: result = !result; 
   
  fail: result = !result;
   
