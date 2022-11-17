@@ -468,20 +468,10 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
 
 	  // get values
 	  // NO: malloc/strdup/free!
-	  if (simple) {
-	    // 2600 ms
-	    while(*f && s) {
-	      dbfree(**f);
-	      **f++ = conststr2dbval(nextTSV(&s, delim));
-	    }
-	  } else {
-	    // 3760 ms
-	    // inlining loops, lol
-	    // NO: malloc/strdup/free!
-	    while(*f && s) {
-	      dbfree(**f);
-	      **f++ = conststr2dbval(nextCSV(&s, delim));
-	    }
+	  while(*f && s) {
+	    dbfree(**f);
+	    **f++ = conststr2dbval(
+              nextfield(&s, delim));
 	  }
 
 	  // set missing values to null
