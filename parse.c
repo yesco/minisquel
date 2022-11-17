@@ -32,7 +32,7 @@ int nextvarnum= 1;
 
 #define OLcmp(f, a, b) (printf("OL %s %d %d 0\n", f, (int)a, (int)b))
 
-#define OL3(f, a, b) (printf("OL : 0\nOL %s -%d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
+#define OL3(f, a, b) (printf("OL : -666\nOL %s -%d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
 
 #define ROLcmp(f, a, b) return OLcmp(f, a, b)
 
@@ -53,7 +53,7 @@ int defvar(char* table, char* col, int d) {
   if (nextvarnum!=old) {
     fprintf(stderr, "@%d", nextvarnum);
     fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
-    printf("OL : 0\n");
+    printf("OL : -666\n");
   } else {
     fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
   }
@@ -346,7 +346,7 @@ int call(char* name) {
   } 
 
   // TODO: pointer? who?
-  printf("OL : 0\nOL %s -%d", name, nextvarnum);
+  printf("OL : -666\nOL %s -%d", name, nextvarnum);
   for(int i=0; i<pcount; i++)
     printf(" %d", params[i]);
   printf(" 0\n");
@@ -423,7 +423,12 @@ int mult() {
 
 int expr() {
   spcs();
+  int neg= gotc('-');
   int v= mult();
+  if (neg) {
+    int n0= defnum(0);
+    v= OL3("-", n0, v);
+  }
   if (!v) return v;
   char op;
   while ((op= gotcs("+-"))) {

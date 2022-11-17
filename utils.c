@@ -128,6 +128,7 @@ void print_stacktrace() {
 }
  
 void debugger() {
+  printf("\n\n---ENTERING DEBUGGER---\n\n");
   char cmd[100]= {};
   snprintf(cmd, sizeof(cmd), "gdb -p %d -iex 'set pagination off' -n -ex thread -ex where", getpid());
   system(cmd);

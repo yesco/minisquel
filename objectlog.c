@@ -25,6 +25,7 @@ int nfiles= 0;
 #include "table.c"
 
 #include "malloc-count.c"
+//#include "malloc-simple.c"
 
 #define MAXNUM 20000000l
 
@@ -210,7 +211,7 @@ long lrun(dbval** start) {
 
 // Not sure can tell the speed diff!
 
-#define JUMPER
+//#define JUMPER
   
 #ifdef JUMPER
   static int firsttime= 1;
@@ -245,7 +246,8 @@ long lrun(dbval** start) {
 #define B (*b)
 #define C (*c)
 
-#define Pr     r=N;dbfree(R)
+//#define Pr     r=N;dbfree(R)
+#define Pr     r=N
 #define Pra    Pr;a=N
 #define Prab   Pra;b=N
 #define Prabc  Prab;c=N
@@ -254,6 +256,7 @@ long lrun(dbval** start) {
 #define Pab    a=N;b=N
 #define Pabc   a=N;b=N;c=N
 
+//#define SETR(a) do{dbfree(R);R=(a);}while(0)
 #define SETR(a) do{dbfree(R);R=(a);}while(0)
   
   long results= 0;

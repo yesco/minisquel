@@ -36,10 +36,10 @@ s  6 bytes  type
 0  666 6oo  ooo0 = 6b ASCII(x4)+27b offset
 0  777 777  7701 = 7ASCII inline 49b
 
-0  PPP PPp  0011 = inline 48b POINTER
+0  PPP PPp  p011 = inline 48b POINTER
                    p = xxxx x000 typically
 		   8 byte alignment heap
-0  MMM MMm  0111 = malloced, FREE it!
+0  MMM MMm  m111 = malloced, FREE it!
 1  PPP PPP  PPPP = ??? 52b AMD64 future...
 (-- see memory-count.c for more info --)
 (-- and below section for Android    --)
@@ -287,7 +287,7 @@ dbval mkerr() {return(dbval){.l=CERROR};}
 
 // These valuies are transient
 // Don't store permanently!
-typedef enum{TNULL=0, TNUM, TSTR, T7ASCII, TATOM, TEND=100,TBAD,TFAIL,TERROR} dbtype;
+typedef enum{TNULL=0, TNUM, TPTR, TSTR, T7ASCII, TATOM, TEND=100,TBAD,TFAIL,TERROR} dbtype;
 
 	 
 inline int isnull(dbval v) {return v.l==CNULL;}
@@ -323,11 +323,13 @@ dbtype type(dbval v) {
   long i= is53(v.d);
   long u= i<0 ? -i : i;
 
-  // TODO: for negatives...
-  // it may be faulty
   if (i==IFAIL) return TFAIL; /// ???
 
+  if (u==INULL) return TNULL;
+  if (i<0) return TPTR;
   if (u>INULL && u<ISTRLIMIT) {
+    return TPTR;
+    // TODO: keep?
     if ((u & 0x03)==0x01) return T7ASCII;
     else return TSTR;
   }
@@ -396,6 +398,7 @@ inline double num(dbval v) {return v.d;}
 // - too long strings (>7)
 // - null pointer
 dbval mkstr7ASCII(char* s) {
+  error("don't use for now");
   if (!s || !*s) return mknull();
   int len= strlen(s);
   if (len>7) return mkfail();
@@ -442,7 +445,60 @@ int nstrings= 3;
 int nstrfree= 0;
 int strnext= 4;
 
+typedef unsigned long ulong;
+
+
+// only to be used by malloced ptrs?
+// - https://stackoverflow.com/questions/93039/where-are-static-variables-stored-in-c-and-c
+// - https://stackoverflow.com/questions/14588767/where-in-memory-are-my-variables-stored-in-c
+
+dbval mkptr(void* p, int tofree) {
+  ulong u= (ulong)p;
+  //
+  // "constant"
+  // char s[]="global";
+  // fun(){ char s[]="stack";
+  // strdup("constant") -> heap
+  //
+  // b400007966e54250 heap
+  // 0000007ff520ea5c stack
+  // 0000005a0f2f9668 constant
+
+  //printf("mkptr %016lx %lf\n      %016lx\n", (long)p, log2(u), u);
+
+  // this would clash with NAN-encoding
+  const ulong ILLEGAL=0x00fff00000000000L;
+  if (u & ILLEGAL) error("mkptr: overlap with NAN (after shift)");
+
+  // ARM top code-byte (CD) is security
+  //   CD 000 xx...xx
+  //   00 0 xx...xxCD
+  char code= u >> (64-8);
+  u <<= 8;
+  u |= code;
+
+  long l= u;
+  dbval v;
+  v.d= make53(tofree ? -l : l);
+  return v;
+}
+
+void* ptr(dbval d) {
+  if (isnull(d)) return NULL;
+  long l= labs(is53(d.d));
+  if (!l) return NULL;
+  ulong u= labs(l);
+  ulong code= (l & 0xff) << (64-8);
+  u >>= 8;
+  u |= code;
+  return (void*)u;
+}
+
 dbval mkstrfree(char* s, int tofree) {
+  return mkptr(s, tofree);
+  
+// TODO: what to do? move to table?
+  
   dbval v= mkstr7ASCII(s);
   if (!isfail(v)) {
     if (tofree) free(s);
@@ -485,6 +541,8 @@ dbval mkstrdup(char* s) {
 // WARNING: will return NULL if
 //   not a string type!
 char* str(dbval v) {
+  return ptr(v);
+  
   if (is7ASCII(v)) error("str(): Can't get string from 7ASCII use ...cmp");
   long i= is53(v.d);
   // 0 maps to NULL!
@@ -506,14 +564,19 @@ char* STR(dbval v) {
   // alternate between two strings, LOL
   static char seven[2][32]= {0};
   static char sel= 0;
-  if (is7ASCII(v))
-    return str7ASCIIcpy(seven[sel=!sel], v);
+
   if (isnum(v)) {
     sprintf(seven[sel=!sel], "%.15lg", v.d);
     return seven[sel];
   }
   if (isnull(v)) return "";
   if (isend(v)) return "\n";
+
+  return ptr(v);
+
+  // TODO: clever but needed only for table?
+  if (is7ASCII(v))
+    return str7ASCIIcpy(seven[sel=!sel], v);
   return str(v);
 }
 
@@ -521,13 +584,23 @@ void dbfree(dbval v) {
   // TODO: use arena code unless globalatom
   // if not nan can't be string!
   if (!isnan(v.d)) return;
-  int i= is53(v.d);
+  long i= is53(v.d);
+  if (i<0) {
+    if (2==labs(i)) return;
+    char* p= ptr(v);
+    //printf("===> FREE: %s (%p)\n", p, p);
+    free(p);
+    return;
+  }
+
+return;
+
   // TODO: fix for tablestr s...
   if (type(v) != TSTR) return;
   // 
   i/= 2;
   if (i<0) {
-    if (debug) printf("{ dbfree[%d]: %lx '%s' }\n", i, v.l, dbstrings[-i]);
+    if (debug) printf("{ dbfree[%ld]: %lx '%s' }\n", i, v.l, dbstrings[-i]);
     free(dbstrings[(i=-i)]);
   }
   dbstrings[i]= NULL;
@@ -632,6 +705,7 @@ int dbprinth(dbval v, int width, int human) {
     // TODO: truncation? (if width<8)
     printf("%-*s", width, c7);
   } break;
+  case TPTR:
   case TSTR:  {
     char* s= str(v);
     if (!s) {

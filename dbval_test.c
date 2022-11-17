@@ -5,12 +5,14 @@
 #include <stdio.h>
 
 
-int debug= 0, stats= 0, lineno= -1, foffset= 0;
+int debug= 0, stats= 0, lineno= -1, foffset= 0, security= 0, nfiles= 0;
 
 #include "utils.c"
 
 #include "csv.c" 
 #include "vals.c"
+
+#include "malloc-count.c"
 
 #include "dbval.c"
 
@@ -59,7 +61,33 @@ void arith(dbval a, dbval b) {
   //  printf("\t+"); dbprinth(mknum(a+b), 8, 1); nl();
 }
 
+void testptr(char* s, int tofree) {
+  printf("---- '%s'\n", s);
+  dbval p= mkptr(s, tofree);
+  char* x= ptr(p);
+  printf("s '%s'\n", ptr(p));
+  printf(" p= %016p\n x= %016p\n", p.p, x);
+  printf("HELLO\n");
+  dbfree(p);
+}
+
+void pointers() {
+  char bar[]= "x";
+  char foo[]="FOOO";
+  const char x[]= "xyz";
+  const char f[]= "fishxy";
+  testptr(foo, 0);
+  testptr(strdup("foo"), 1);
+  testptr("fishxy", 0);
+}
+
+int foo= 0;
 int main(void) {
+  foo++;
+  printf("foo=%d\n", foo);
+  pointers();
+  exit(1);
+  
   if (1) {
     nl();
     printf("nan==nan %d, != %d\n",

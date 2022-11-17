@@ -348,12 +348,12 @@ void dbval2val(dbval d, val* v) {
   switch(type(d)) {
   case TNULL: setnull(v); break;
   case TNUM:  setnum(v, d.d); break;
+  case TPTR:
+  case TSTR:  setstr(v, str(d)); break;
   case T7ASCII: {
     char c7[8]= {};
     str7ASCIIcpy(c7, d);
     setstr(v, c7); } break;
-  case TSTR:  setstr(v, str(d)); break;
-
   case TATOM:
   case TBAD:  
   case TFAIL: 

@@ -74,7 +74,7 @@ int concat(val* r, int n, val* v) {
       strcat(s, num);
     }
   }
-  setstr(r, s);
+  setstrfree(r, s);
   return 1;
   #undef NUMLEN
 }

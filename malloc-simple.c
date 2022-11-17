@@ -24,6 +24,12 @@ void* malloc(size_t len) {
   return r;
 }
 
+void* calloc(size_t n, size_t size) {
+  void* r= malloc(n*size);
+  if (r) memset(r, 0, n*size);
+  return r;
+}
+
 void free(void* p) {
   if (!p) return;
   // TODO: reclaim?, LOL

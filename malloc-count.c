@@ -59,6 +59,8 @@ than the virtual 4 GB address space of
 
 long nalloc= 0, nfree= 0, nbytes= 0;
 
+unsigned long malloc_bits= 0;
+
 void* malloc(size_t size) {
   static void* (*omalloc)(size_t)= NULL;
   if (!omalloc) omalloc= dlsym(RTLD_NEXT, "malloc");
@@ -73,6 +75,7 @@ void* malloc(size_t size) {
       //    0xb400007a82eb0050 = android
       mask= 0xffff000000000000;
       stored= mask & (long)r;
+      malloc_bits= stored;
     } else if (1) {
       // no measurable cost of these tests
       
@@ -91,6 +94,12 @@ void* malloc(size_t size) {
       //assert((((long)r) & 0x0f)==0); // 16
     }
   }
+  return r;
+}
+
+void* calloc(size_t n, size_t size) {
+  void* r= malloc(n*size);
+  if (r) memset(r, 0, n*size);
   return r;
 }
 
