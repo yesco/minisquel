@@ -71,3 +71,35 @@ TR	trim
 ST	str
 
 ts	timestamp
+
+
+MATH FUNCTIONS
+
+sr	sqrt
+si	sin
+co	cos
+ta	tan
+
+ab	abs
+ac	acos
+as	asin
+at	atan
+a2	atan2
+cr	dbrt
+ce	ceil
+de	degrees
+fl	floor
+ep	exp
+
+ie	isfinite
+ii	isinf
+in	isnan
+
+ln	log
+lg	log10
+l2	log2
+
+rd	radians
+ra	random
+ri	srandom/init
+sg	sign

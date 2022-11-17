@@ -617,44 +617,49 @@ STR:    CASE("ST"): Pra; SETR(mkstrdup(STR(A))); NEXT;
 
 
 #define MATH(short, fun) short: CASE(#short): Pra; R.d=fun(A.d); NEXT
+#define MATH2(short, fun) short: CASE(#short): Prab; R.d=fun(A.d, B.d); NEXT
 
-SQ: CASE("SQ"): Pra; R.d=A.d*A.d; NEXT;
+// Use lowercase for math (str is upper)
+SQ: CASE("sq"): Pra; R.d=A.d*A.d; NEXT;
 
-MATH(SR, sqrt);
-MATH(SI, sin);
-//MATH(CO, cos); // concat
-MATH(TA, tan);
-  //MATH(CT, cot);
+MATH(sr, sqrt);
+MATH(si, sin);
+MATH(co, cos);
+MATH(ta, tan);
+  //MATH(ct, cot);
   // TODO:** ^
   // TODO: & | << >>
   // bit_count
-MATH(AB, fabs);
-//MATH(AC, acos); // S=
-//MATH(AS, asin); // ASCII AS
-MATH(AT, atan);
-  //MATH(A2, atan2);
-//MATH(CR, cbrt); // CR
-MATH(CE, ceil);
-  //MATH(DE, degrees);
-  //MATH(EV roundtoeven);
-  //MATH(FA, fac);
-MATH(FL, floor);
-  //MATH(GA, gamma);
-  //MATH(GR, greatest);
-//MATH(IF, isfinite); == LE
-MATH(II, isinf);
-MATH(IN, isnan);
+MATH(ab, fabs);
+MATH(ac, acos);
+MATH(as, asin);
+MATH(at, atan);
+MATH2(a2, atan2);
+MATH(cr, cbrt);
+MATH(ce, ceil);
+  //MATH(deE, degrees);
+  //MATH(ev roundtoeven); NAH!
+  //MATH(fa, fac);
+MATH(fl, floor);
+//MATH(mg, gamma);// aMmaG (android math?)
+  //MATH(gr, greatest);
+MATH(ep, exp); // ExP
+MATH(ie, isfinite); // LOL IsfinitE
+MATH(ii, isinf);
+MATH(in, isnan);
   //MATH(LE, least)
-MATH(LN, log);
-MATH(LG, log10);
-MATH(L2, log2);
+MATH(ln, log);
+MATH(lg, log10);
+MATH(l2, log2);
 // pi
-  //MATH(PO, pow);
-  //MATH(RA, radians);
-//MATH(RD, random);
-//MATH(SR, srandom); // SR used
+MATH2(pw, pow);
+de: CASE("de"): Pra; R.d=A.d/180*M_PI; NEXT;
+rd: CASE("rd"): Pra; R.d=A.d/M_PI*180; NEXT;
+//MATH(RA, radians);
+ra: CASE("ra"): Pr; R.d=random(); NEXT;
+ri: CASE("ri"): Pa; srandom((int)A.d); NEXT; // random int/init
 //MATH(RO, round);
-//MATH(SN, sign);
+sg: CASE("sg"): Pra; R.d=A.d<0?-1:(A.d>0?+1:0); NEXT;
 
 	
 TS    : CASE("ts"): Pr;  SETR(mkstrdup(isotime())); NEXT;
