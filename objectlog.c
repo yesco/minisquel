@@ -199,7 +199,7 @@ long lrun(dbval** start) {
 
 // Not sure can tell the speed diff!
 
-//#define JUMPER
+#define JUMPER
   
 #ifdef JUMPER
   static int firsttime= 1;
@@ -615,6 +615,48 @@ RTRIM:  CASE("RT"): Pra; SETR(mkstrfree(rtrim(strdup(STR(A))), 1)); NEXT;
 TRIM:   CASE("TR"): Pra; SETR(R= mkstrfree(trim(strdup(ltrim(STR(A)))), 1)); NEXT;
 STR:    CASE("ST"): Pra; SETR(mkstrdup(STR(A))); NEXT;
 
+
+#define MATH(short, fun) short: CASE(#short): Pra; R.d=fun(A.d); NEXT
+
+SQ: CASE("SQ"): Pra; R.d=A.d*A.d; NEXT;
+
+MATH(SR, sqrt);
+MATH(SI, sin);
+//MATH(CO, cos); // concat
+MATH(TA, tan);
+  //MATH(CT, cot);
+  // TODO:** ^
+  // TODO: & | << >>
+  // bit_count
+MATH(AB, fabs);
+//MATH(AC, acos); // S=
+//MATH(AS, asin); // ASCII AS
+MATH(AT, atan);
+  //MATH(A2, atan2);
+//MATH(CR, cbrt); // CR
+MATH(CE, ceil);
+  //MATH(DE, degrees);
+  //MATH(EV roundtoeven);
+  //MATH(FA, fac);
+MATH(FL, floor);
+  //MATH(GA, gamma);
+  //MATH(GR, greatest);
+//MATH(IF, isfinite); == LE
+MATH(II, isinf);
+MATH(IN, isnan);
+  //MATH(LE, least)
+MATH(LN, log);
+MATH(LG, log10);
+MATH(L2, log2);
+// pi
+  //MATH(PO, pow);
+  //MATH(RA, radians);
+//MATH(RD, random);
+//MATH(SR, srandom); // SR used
+//MATH(RO, round);
+//MATH(SN, sign);
+
+	
 TS    : CASE("ts"): Pr;  SETR(mkstrdup(isotime())); NEXT;
       
 default:
