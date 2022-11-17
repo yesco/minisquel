@@ -168,8 +168,11 @@ long lrun(dbval** start) {
     [TWO("!>")]= &&LE,
     [TWO(">=")]= &&GE,
     [TWO("!<")]= &&GE,
+
     ['&']= &&LAND,
     ['|']= &&LOR,
+    [TWO("xo")] = &&LXOR,
+    
     ['i']= &&IOTA,
     ['d']= &&DOTA,
     ['l']= &&LINE,
@@ -195,6 +198,14 @@ long lrun(dbval** start) {
 
     [TWO("ts")]= &&TS,
 
+#define DEF(a) [TWO(#a)]= &&a
+    DEF(sr), DEF(si), DEF(co), DEF(ta),
+    DEF(ab), DEF(ac), DEF(as), DEF(at), DEF(a2), DEF(cr), DEF(ce), DEF(fl), DEF(ep),
+    DEF(ie), DEF(ii), DEF(in),
+    DEF(ln), DEF(lg), DEF(l2),
+    DEF(pi), DEF(pw), DEF(ss), DEF(de), DEF(rd), DEF(sg),
+
+#undef DEF
   };
 
 // Not sure can tell the speed diff!
@@ -412,9 +423,10 @@ GE:   CASE("!>"):
 LE:   CASE("!<"):
       CASE(">="): Pab; FAIL(A.d<B.d);
 
-// logic - mja (output? no shortcut?)
-LAND: case '&': Prab; R.d= A.d&&B.d; NEXT;
-LOR:  case '|': Prab; R.d= A.d||B.d; NEXT;
+// and/or
+LAND: case '&': Prab; R.d=L(A.d)&L(B.d); NEXT;
+LOR:  case '|': Prab; R.d=L(A.d)|L(B.d); NEXT;
+LXOR: CASE("xo"): Prab; R.d=L(A.d)^L(B.d); NEXT;
 
 // generators
 IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) results+= lrun(p+1); goto done;
@@ -637,13 +649,13 @@ MATH(at, atan);
 MATH2(a2, atan2);
 MATH(cr, cbrt);
 MATH(ce, ceil);
-  //MATH(deE, degrees);
   //MATH(ev roundtoeven); NAH!
   //MATH(fa, fac);
 MATH(fl, floor);
 //MATH(mg, gamma);// aMmaG (android math?)
   //MATH(gr, greatest);
 MATH(ep, exp); // ExP
+
 MATH(ie, isfinite); // LOL IsfinitE
 MATH(ii, isinf);
 MATH(in, isnan);
@@ -651,7 +663,8 @@ MATH(in, isnan);
 MATH(ln, log);
 MATH(lg, log10);
 MATH(l2, log2);
-// pi
+pi: CASE("pi"): Pr; R.d=M_PI; NEXT;
+ss: CASE("**"): case '^':
 MATH2(pw, pow);
 de: CASE("de"): Pra; R.d=A.d/180*M_PI; NEXT;
 rd: CASE("rd"): Pra; R.d=A.d/M_PI*180; NEXT;

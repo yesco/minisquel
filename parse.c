@@ -398,7 +398,7 @@ int mult() {
   int v= prim();
   if (!v) return v;
   char op;
-  while ((op= gotcs("*/%"))) {
+  while ((op= gotcs("*/%^"))) {
     int vv= prim();
     if (!vv) return vv;
     // type num op num => num
@@ -407,6 +407,7 @@ int mult() {
     case '*': v= OL3("*", v, vv); break;
     case '/': v= OL3("/", v, vv); break;
     case '%': v= OL3("%", v, vv); break;
+    case '^': v= OL3("^", v, vv); break;
     default: error("Undefined operator!");
       return 0;
     }

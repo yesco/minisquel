@@ -21,6 +21,11 @@ NUMBERS
 *
 /
 %
+^	a^b / pow / **
+
+|	or bitwise (52 bits)
+&	and bitwise (52 bits)
+xo	xor bitwise (52 bits)
 
 N=
 N!
@@ -98,6 +103,9 @@ in	isnan
 ln	log
 lg	log10
 l2	log2
+
+pi	PI
+po	pow ** ^
 
 rd	radians
 ra	random
