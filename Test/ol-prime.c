@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int debug=0, stats=0, foffset=0, lineno= 0;
+int debug=0, stats=0, foffset=0, lineno= 0, nfiles= 0, security= 0;
+
+#define NAMELEN 64
 
 #include "../utils.c"
 
@@ -13,6 +15,15 @@ int main(int argc, char** argv) {
   long pp= argc>1 ? atol(argv[1]) : 2124679;
 
   if (1) {
+    // 4237 ms 105k^2
+    long s= 0;
+    for(long i=0; i<105000l; i++) {
+      for(long j=0; j<105000l; j++) {
+	if (i==j) s++;
+      }
+    }
+    printf("%ld\n", s);
+  } else if (0) {
     // using dbval
     // - no slowdown!
     // why did it in objectlog.c ???

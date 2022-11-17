@@ -224,9 +224,10 @@ val* findvar(char* table, char* name) {
   if (!name) return NULL;
   // Search names from last to first
   //   would work better w recursive func
-  for(int i=varcount-1; i>=0; i--)
+  for(int i=varcount-1; i>=0; i--) {
     if (0==strcmp(name, varnames[i]))
       if (!table || !tablenames[i] || 0==strcmp(table, tablenames[i])) return varvals[i];
+  }
   return NULL;
 }
 

@@ -57,6 +57,12 @@ int defvar(char* table, char* col, int d) {
   } else {
     fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
   }
+  if (0){
+  if (varfind(table, col)==d)
+    printf("SAMEAVAR %d\n", d);
+  else
+    printf("BADVAR\n");
+  }
   return d;
 }
 
@@ -359,14 +365,14 @@ int var() {
     val v= {};
     if (gotc('(')) return call(name);
 
-    // "plain variable"
+    // split into table . name
     char* dot= strchr(name, '.');
     if (dot) *dot= 0;
     char* column= dot?dot+1:name;
     char* table= dot?name:NULL;
 
     // find or define var
-    int n= varfind(table, name);
+    int n= varfind(table, column);
     return n?n:defvar(table, name, 0);
   }
   return 0;
