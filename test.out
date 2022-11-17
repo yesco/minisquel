@@ -1,7 +1,7 @@
 SQL> select 1234567, 42
 1234567	42
 ======= ======= 
-1234567	     42
+ 1.235M	     42
 
 1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
@@ -92,7 +92,7 @@ fish
 SQL> select 12345, 123456, 1234567, 12345678, 123456789
 12345	123456	1234567	12345..	123456789
 ======= ======= ======= ======= ======= 
-  12345	 123456	1234567	 12.35M	 123.5M
+  12345	 123456	 1.235M	 12.35M	 123.5M
 
 1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
@@ -125,7 +125,7 @@ SQL> select -0.1, -0.02, -0.003, -0.0004, -0.00005, -1.2e5 , -1.2e5, -9.9e99, -9
 SQL> select 1M, 2k, 3M, 4G, 5T, 6P, 6E
 1M	2k	3M	4G	5T	6P	6E
 ======= ======= ======= ======= ======= ======= ======= 
-1000000	   2000	3000000	     4G	     5T	     6P	     6E
+1000000	   2000	     3M	     4G	     5T	     6P	     6E
 
 1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
@@ -133,10 +133,34 @@ SQL> select 1M, 2k, 3M, 4G, 5T, 6P, 6E
 SQL> select 1Mi, 2ki, 3Mi, 4Gi, 5Ti, 6Pi, 6Ei
 1Mi	2ki	3Mi	4Gi	5Ti	6Pi	6Ei
 ======= ======= ======= ======= ======= ======= ======= 
-1048576	   2048	3145728	    4Gi	    5Ti	    6Pi	    6Ei
+ 1.049M	   2048	    3Mi	    4Gi	    5Ti	    6Pi	    6Ei
 
 1 rows in 1 ms (read 0 lines)
 [0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> select 42+"FOO", "FOO"+42, "FOO"+"BAR", "BAR"+"FOO"
+42+"F..	"FOO"..	"FOO"..	"BAR"+"FOO"
+======= ======= ======= ======= 
+     42	FOO	FOO	BAR
+
+1 rows in 1 ms (read 0 lines)
+[18 malloc 9 free (leak +9) 72 bytes]
+
+SQL> select 42+NULL, NULL+42, 99
+42+NULL	NULL+42	99
+======= ======= ======= 
+NULL	NULL	     99
+
+1 rows in 1 ms (read 0 lines)
+[0 malloc 0 free (leak +0) 0 bytes]
+
+SQL> select 42*"FOO", "FOO"*42, "FOO"*"BAR", "BAR"*"FOO"
+42*"F..	"FOO"..	"FOO"..	"BAR"*"FOO"
+======= ======= ======= ======= 
+      0	FOO	FOO	BAR
+
+1 rows in 1 ms (read 0 lines)
+[18 malloc 9 free (leak +9) 72 bytes]
 
 SQL> select 42, "foo"
 42	"foo"
@@ -283,7 +307,7 @@ f	F	lower(F)
 NULL	NULL	NULL
 
 1 rows in 1 ms (read 0 lines)
-[2 malloc 0 free (leak +2) 4 bytes]
+[4 malloc 0 free (leak +4) 196 bytes]
 
 SQL> select "A" as f, char(ascii(lower(f)))
 f	char(ascii(lower(f)))
@@ -291,7 +315,7 @@ f	char(ascii(lower(f)))
 A	a
 
 1 rows in 1 ms (read 0 lines)
-[5 malloc 5 free (leak +0) 10 bytes]
+[7 malloc 5 free (leak +2) 108 bytes]
 
 SQL> select concat("foo", "bar", "fie") as ccc
 ccc
@@ -299,7 +323,7 @@ ccc
 foobarfie
 
 1 rows in 1 ms (read 0 lines)
-[11 malloc 10 free (leak +1) 50 bytes]
+[12 malloc 10 free (leak +2) 148 bytes]
 
 SQL> select concat(null, "foo", 42, "bar")
 concat(null, "foo", 42, "bar")
@@ -307,7 +331,7 @@ concat(null, "foo", 42, "bar")
 foo42bar
 
 1 rows in 1 ms (read 0 lines)
-[7 malloc 7 free (leak +0) 33 bytes]
+[7 malloc 7 free (leak +0) 114 bytes]
 
 SQL> select concat(null, "foo", 12345678901234567890, "bar")
 concat(null, "foo", 12345678901234567890, "bar")
@@ -315,7 +339,7 @@ concat(null, "foo", 12345678901234567890, "bar")
 foo12345678901234567168bar
 
 1 rows in 1 ms (read 0 lines)
-[7 malloc 7 free (leak +0) 51 bytes]
+[7 malloc 7 free (leak +0) 114 bytes]
 
 SQL> select left(concat("foo", "bar", "fie"),5) as c5
 c5
@@ -323,7 +347,7 @@ c5
 fooba
 
 1 rows in 1 ms (read 0 lines)
-[12 malloc 11 free (leak +1) 55 bytes]
+[13 malloc 11 free (leak +2) 153 bytes]
 
 SQL> select right(concat("foo", "bar", "fie"),5) as c5
 c5
@@ -331,7 +355,7 @@ c5
 arfie
 
 1 rows in 1 ms (read 0 lines)
-[12 malloc 11 free (leak +1) 55 bytes]
+[13 malloc 11 free (leak +2) 153 bytes]
 
 SQL> select left(right(concat("foo", "bar", "fie"), 6),4)
 left(right(concat("foo", "bar", "fie"), 6),4)
@@ -339,7 +363,7 @@ left(right(concat("foo", "bar", "fie"), 6),4)
 barf
 
 1 rows in 1 ms (read 0 lines)
-[12 malloc 12 free (leak +0) 58 bytes]
+[12 malloc 12 free (leak +0) 60 bytes]
 
 SQL> select count(i) from int(1,10) i
 count(i)
@@ -364,7 +388,7 @@ tnull	tstr	tnumber	tint
 none	none	num	int
 
 1 rows in 1 ms (read 0 lines)
-[4 malloc 0 free (leak +4) 24 bytes]
+[8 malloc 0 free (leak +8) 408 bytes]
 
 SQL> select 1 as foo, sum(foo) from int(1,10) i
 foo	sum(foo)
@@ -381,7 +405,7 @@ foo	sum(foo)
       1	     10
 
 10 rows in 1 ms (read 0 lines)
-[1 malloc 0 free (leak +1) 4 bytes]
+[2 malloc 0 free (leak +2) 100 bytes]
 
 SQL> select count(i), sum(i), min(i), avg(i), max(i), stdev(i) from int(1,10) i
 count..	sum(i)	min(i)	avg(i)	max(i)	stdev(i)
@@ -408,7 +432,7 @@ foo	null	12345..	i+333333333
      42	NULL	 1.235G	NULL
 
 3 rows in 1 ms (read 0 lines)
-[1 malloc 0 free (leak +1) 4 bytes]
+[2 malloc 0 free (leak +2) 100 bytes]
 
 SQL> select ta.a, tb.a from foo.csv ta, foo.csv tb where ta.a=tb.a
 ta.a	tb.a
@@ -451,7 +475,7 @@ t1.a	t2.a	b
       5	      5	foobar
       6	      6	foobarfie
 
-6 rows in 2 ms (read 49 lines)
+6 rows in 1 ms (read 49 lines)
 [64 malloc 70 free (leak -6) 31766 bytes]
 
 SQL> select t1.a, t2.a, b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
@@ -465,7 +489,7 @@ t1.a	t2.a	b
       6	      6	foobarfie
 
 6 rows in 1 ms (read 14 lines)
-[30 malloc 30 free (leak +0) 11132 bytes]
+[32 malloc 30 free (leak +2) 12764 bytes]
 
 SQL> select name from "ls Test/*.csv|"(name) file
 name
@@ -828,7 +852,7 @@ t1.a	t2.a	b
       6	      6	foobarfie
 
 11 rows in 1 ms (read 14 lines)
-[30 malloc 30 free (leak +0) 11132 bytes]
+[32 malloc 30 free (leak +2) 12764 bytes]
 
 SQL> select t1.a, t2.a, t2.b from foo.csv t1 join foo.csv t2 on a where t1.a=t2.a
 t1.a	t2.a	t2.b
@@ -841,7 +865,7 @@ t1.a	t2.a	t2.b
       6	      6	NULL
 
 6 rows in 1 ms (read 14 lines)
-[30 malloc 30 free (leak +0) 11132 bytes]
+[32 malloc 30 free (leak +2) 12764 bytes]
 
 SQL> select "foo"
 "foo"
@@ -858,7 +882,7 @@ affec
 bondi
 exerc
 
-100535 rows in 1140 ms (read 100536 lines)
+100535 rows in 1070 ms (read 100536 lines)
 [617340 malloc 617340 free (leak +0) 21385354 bytes]
 
 SQL> select a,b,c,d,e from null n
