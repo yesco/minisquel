@@ -561,6 +561,28 @@ dbval val2dbval(val* v) {
   return mknum(v->d);
 }
 
+// convert a CONSTANT string to either:
+// - dbval.null if empty string
+// - dbval.num  if number
+// - dbval.str  if string
+// - dbval.end  if !pointer
+//
+// NOTICE: this string is assumed to
+// never be deleted as long as the
+// here returned values are still around.
+dbval conststr2dbval(char* s) {
+  if (!s) return mkend();
+  if (!*s) return mknull();
+
+  if (isdigit(*s) || *s=='-' || *s=='+' || *s=='.') {
+    char* ne;
+    double d= strtod(s, &ne);
+    if (ne!=s) return mknum(d);
+  }
+  return mkstrconst(s);
+}
+
+
 int dbprinth(dbval v, int width, int human);
 // rename to dbcmp()
 int dbstrcmp(dbval a, dbval b) {

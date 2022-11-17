@@ -439,6 +439,10 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
 	// 15976ms    full strings
 	// 33s     time ./run sql p cols
 	// 56         full strings
+
+	// - 30 610 ms !!!
+	// ./run 'select * from "fil10M.tsv" fil where 1=0' | tail
+
 	char *line= NULL, delim= 0;
 	size_t len= 0;
 	ssize_t n= 0;
@@ -450,105 +454,37 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
 	getline(&line, &len, fil);
 	if (!delim) delim= decidedelim(line);
 	char simple= !!strchr("\t;:|", delim);
+	char* (*nextfield)(char**, char)
+	  = simple ? nextTSV : nextCSV;
+
 	// read lines
 	while((n= getline(&line, &len, fil))!=EOF) {
 	//while(!feof(fil) && ((line= csvgetline(fil, delim)))) {
-	  //printf("LINE:%s<\n",line);
 	  r+= n;
 	  if (!line || !*line) continue;
-	  char str[len];
+
 	  char* s= line;
 	  f= p;
 
 	  // get values
 	  // NO: malloc/strdup/free!
-	  char* end= s;
-
-	  
-	  // Performance Experiments
-	  // TODO: cleanup/call f?
-	  // -- old ./run =>
-	  
-	  // We're 10x faster!
-	  // - 30 610 ms !!!
-	  // ./run 'select * from "fil10M.tsv" fil where 1=0' | tail
-	  
 	  if (simple) {
 	    // 2600 ms
-	    while(*f) {
+	    while(*f && s) {
 	      dbfree(**f);
-
-	      char* e= s;
-	      while(*e && *e!=delim) e++;
-	      *e++ = 0;
-
-	      if (!*s)
-		**f++ = mknull();
-	      else if (isdigit(*s) || *s=='-' || *s=='+' || *s=='.') {
-		char* ne;
-		double d= strtod(s, &ne);
-		if (ne!=s)
-		  (**f++).d= d;
-		else
-		  **f++ = mkstrconst(s);
-	      } else {
-		**f++ = mkstrconst(s);
-	      }
-	      s= e;
+	      **f++ = conststr2dbval(nextTSV(&s, delim));
 	    }
-	  } else if(1) {
+	  } else {
 	    // 3760 ms
 	    // inlining loops, lol
 	    // NO: malloc/strdup/free!
-	    while(*f) {
+	    while(*f && s) {
 	      dbfree(**f);
-
-	      while(*s==' ') s++;
-
-	      char q= *s=='"' ? *s++ :
-		(*s=='\'' ? *s++ : 0);
-	    
-	      char* e= s;
-	      while(*e && *e!=delim) {
-		// not wholly correct
-		// (remove extra " or \\)
-		if (*e==q && e[1]!=q) break;
-		if (*e=='\\') e++;
-		e++;
-	      }
-	      char o= *e;
-	      *e++ = 0;
-
-	      if (o==delim && !*s)
-		**f++ = mknull();
-	      else if (isdigit(*s) || *s=='-' || *s=='+' || *s=='.') {
-		char* ne;
-		double d= strtod(s, &ne);
-		if (ne!=s)
-		  (**f++).d= d;
-		else
-		  **f++ = mkstrconst(s);
-	      } else {
-		**f++ = mkstrconst(s);
-	      }
-
-	      // go past one delim
-	      if (o != delim)
-		while(*e && *e!=delim) e++;
-	      s= e;
-	    }
-	  } else {
-	    // 10,000 ms
-	    char* cur= line;
-	    while(*f && (dbfree(**f), 1) &&
-		  !isend((**f = dbreadCSV(
-					  t, &cur, str, len, delim)))) {
-	      //printf("\t'%s'\n", str);
-	      //printf("\t%s\n", STR(**f));
-	      f++;
+	      **f++ = conststr2dbval(nextCSV(&s, delim));
 	    }
 	  }
-	  // set missing values to null...
+
+	  // set missing values to null
 	  while(*f) {
 	    dbfree(**f);
 	    **f++= mknull();

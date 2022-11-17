@@ -189,6 +189,62 @@ char* csvgetline(FILE* f, char delim) {
   return r;
 }
 
+// Given a CURsor that points to a string
+// variable, this function returns the
+// next field as DELIMeted.
+//
+// CUR variable points at next field.
+char* nextTSV(char** cur, char delim) {
+  char* s= *cur;
+  char* e= s;
+  while(*e && *e!=delim) e++;
+  *e++ = 0;
+  *cur= e;
+  return s;
+}
+
+// Given a CURsor that points to a string
+// variable, this function returns the
+// next field as DELIMeted.
+//
+// CUR variable points at next field.
+char* nextCSV(char** cur, char delim) {
+  char* s= *cur;
+
+  while(*s==' '||*s=='\t') s++;
+
+  // if quoted q is true
+  char q= *s=='"' ? *s++ :
+    (*s=='\'' ? *s++ : 0);
+
+  char* e= s;
+  while(*e && (q || *e!=delim)) {
+    if (*e=='\n' || *e=='\r') break;
+    if (*e==q && e[1]!=q) break;// ..""..
+    if (*e=='\\') e++; // \"
+    e++;
+  }
+  // truncate
+  char endchar= *e;
+  *e++ = 0;
+  // fix the string
+  char *t=s, *f=s;
+  while(*f) {
+    if (*f==q) f++; // ...""... keep one
+    if (*f=='\\') f++;
+    *t++ = *f++;
+  }
+
+  // "foo" ILLEGAL ,
+  while(*e && *e!=delim) e++;
+
+  *cur = *e ? e+1 : NULL;
+
+  return s;
+}
+
+
+
 // TODO: https://en.m.wikipedia.org/wiki/Flat-file_database
 // - flat-file
 // - ; : TAB (modify below?)
