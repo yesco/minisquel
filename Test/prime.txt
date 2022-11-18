@@ -1,11 +1,11 @@
-
-
 # Programming Languages Speed Compare
 #
 #   "canonical source"
 #   braindead simple prime/divisor-test:
 #
 #   - https://github.com/yesco/minisquel/blob/main/Test/prime.c
+#
+#   FB - https://m.facebook.com/groups/441341066956027?view=permalink&id=798981547858642&eav=AfbeN3AfSdfBovFqPtkjFGZ2i9H6cesGbpIEk94d1e6kJk_9dHxFo1kS2AaPaqxqVpE&paipv=0
 
 rank	slower	mstime	lang
 1	 1	  710	C 
