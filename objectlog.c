@@ -508,14 +508,16 @@ CONCAT: CASE("CO"): { Pr; int len= 1;
 	  len+= strlen(STR(**n));
 	  n++;
 	}
-	char* rr= calloc(1, len);
+	// +3.5% alloca
+	char* rr= alloca(len); 
+	*rr= 0;
 	char* rp= rr;
 	while(*p) {
 	  char* rs= STR(*N);
 	  strcat(rp, rs);
-	  //rp += strlen(rs);
+	  rp += strlen(rs);
 	}
-	SETR(mkstrfree(rr, 1));
+	SETR(mkstrfree(rr, 0));
 	NEXT; }
       
 ASCII:  CASE("AS"): Pra; SETR(mknum(STR(A)[0])); NEXT;
