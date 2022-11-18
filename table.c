@@ -503,6 +503,13 @@ int tablecmp(table* t, dbval a, dbval b) {
   if (la>0 && lb>0) {
     if (!t) error("tablecmp: needs table!");
     ncmptab++;
+    // I'm assuming this is from:
+    // ./run --browse 'select * from "../../GIT/minisquel/fil10M.tsv" fil order by 2'
+    
+    // comparing/sorting [*]:
+    //  3-5 s	[*]
+    //  300 ms	titleId, region
+
     // - previously
     // sort -3 took 7342 ms
     // sort 3  took 3701 ms
@@ -526,6 +533,9 @@ int tablecmp(table* t, dbval a, dbval b) {
     // sort 3  took 4259 ms
     //    ncmptab=513121514
 			  
+    // DuckDB on sorting...
+    // -- https://duckdb.org/2021/08/27/external-sorting.html
+
     long r= cmptablestr(a, b);
     if (r) return r;
     ncmptabmiss++;
