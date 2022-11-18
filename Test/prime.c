@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// braindead find divisors algorithm
+// - simple to implement in langauges
+
 int main(int argc, char** argv) {
   long pp= argc>1 ? atol(argv[1]) : 2124680;
 
