@@ -773,13 +773,31 @@ int main(int argc, char** argv) {
   while(--argc>0 && *++argv) {
     char* s= *argv;
     if (*s == ':') {
-      // init var
-      // TODO: "can't just store strptr!"
-      --argc; s= *++argv;
-      *++nextvar = strisnum(s) ? mknum(atol(s)) : mkstrconst(s);
-      printf("var[%ld] = ", nextvar-var); dbp(*nextvar);
+      if (s[1] == ':') {
+
+	// :: head head head 0
+
+	// store "index" as num
+	var[4]= mknum(nextvar-var+1);
+	while (0!=strcmp("0", s)) {
+	  --argc; s= *++argv;
+	  *++nextvar = strisnum(s) ? mknum(atol(s)) : mkstrconst(s);
+	}
+	
+	// header :: str str str ... 0
+	
+      } else {
+
+	// init var
+	// TODO: "can't just store strptr!"
+	--argc; s= *++argv;
+	*++nextvar = strisnum(s) ? mknum(atol(s)) : mkstrconst(s);
+	//printf("var[%ld] = ", nextvar-var); dbp(*nextvar);
+      }
+
     } else {
-      // add plan
+
+      // add to plan
       printf("%s ", *argv);
       long f= TWO(s);
       long isnum= strisnum(s);
@@ -789,6 +807,7 @@ int main(int argc, char** argv) {
       //printf("v= %p\n", v);
       if (!*p) putchar('\n');
       p++; lp++;
+
     }
   }
 

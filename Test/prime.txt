@@ -7,11 +7,12 @@
 #
 #   FB - https://m.facebook.com/groups/441341066956027?view=permalink&id=798981547858642&eav=AfbeN3AfSdfBovFqPtkjFGZ2i9H6cesGbpIEk94d1e6kJk_9dHxFo1kS2AaPaqxqVpE&paipv=0
 
-rank	slower	mstime	lang
-1	 1	  710	C 
-2	 2.02	 1432	javascript
-3	 2.58	 1832	objectlog.c
-4	52.90	37557	s2
-5	71.71	50916	python
-6	85.93	61010	sql
-7	94.04	66771	perl
+slower	mstime	lang
+ 1	  710	C -O3
+ 2.02	 1432	javascript
+ 2.58	 1832	objectlog.c
+26.01	17760	s2 -O3
+52.90	37557	s2 
+71.71	50916	python
+85.93	61010	sql
+94.04	66771	perl

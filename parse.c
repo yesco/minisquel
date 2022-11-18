@@ -73,7 +73,10 @@ int defstr(char* s) {
   fprintf(stderr, "@%d ", nextvarnum);
   defvar("$const", s, nextvarnum);
   printf("OL : ");
-  fprintquoted(stdout, s, -1, '"', 0);
+  if (s && *s)
+    fprintquoted(stdout, s, -1, '"', 0);
+  else
+    printf("''");
   printf("\n");
   return nextvarnum++;
 }
@@ -455,6 +458,7 @@ char* print_header(char* e, int dodef) {
   val v= {};
   int more= 0;
 
+  char head[10240]= {0};
   int ol[100]= {0};
   int oln= 0;
   
@@ -486,6 +490,15 @@ char* print_header(char* e, int dodef) {
 	      col++;
 	      if (dodef) {
 		int d= varfind(t, varnames[i]);
+		// TODO: quote...
+		strcat(head, " '");
+		if (t) {
+		  strcat(head, t);
+		  strcat(head, ".");
+		}
+		strcat(head, varnames[i]);
+		strcat(head, "'");
+
 		ol[oln++]= d;
 	      }
 	    }
@@ -508,6 +521,9 @@ char* print_header(char* e, int dodef) {
       spcs(); more= gotc(',');
       col++;
 
+      strcat(head, " '");
+      strcat(head, name);
+      strcat(head, "'");
       ol[oln++]= d;
     }
 
@@ -519,6 +535,8 @@ char* print_header(char* e, int dodef) {
     for(int i=0; i<=oln; i++)
       printf(" %d", ol[i]);
     printf("\n");
+
+    printf("OL :: %s 0\n", head);
   }
 
   e= ps;
@@ -968,6 +986,7 @@ int sqlselect() {
   if (got("format") && !getname(format)) expected("format name");
   if (!got("select")) return 0;
   char* expr= ps;
+
   // "skip" (dummies) to get beyond
   parse_only= 1;
   char* end= print_header(expr, 0);
@@ -1147,6 +1166,11 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readrows, long ro
 }
 
 void runquery(char* cmd) {
+
+  defstr(""); // 1
+  defnum(0);  // 2
+  defnum(1);  // 3
+  defvar("$system","$header", 0); // 4
 
   if (echo) defvar("$system", "sql", defstr(cmd));
   if (!*cmd) return;
