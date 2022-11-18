@@ -555,8 +555,8 @@ int dcmp(char* cmp, int a, int b) {
   case TWO('~','='):
     //TODO:
 
-  case TWO('i','l'):  // ilike, like
-  case TWO('l','i'):
+  case TWO('i','l'): ROLcmp("ilike", a, b);
+  case TWO('l','i'): ROLcmp("like", a, b);
 
   case TWO('=','='):
   case '=': ROLcmp("=", a, b);

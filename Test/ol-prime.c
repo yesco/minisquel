@@ -15,6 +15,7 @@ int main(int argc, char** argv) {
   long pp= argc>1 ? atol(argv[1]) : 2124679;
 
   if (1) {
+  } else if (1) {
     // 4237 ms 105k^2
     long s= 0;
     for(long i=0; i<105000l; i++) {

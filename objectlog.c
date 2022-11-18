@@ -170,6 +170,9 @@ long lrun(dbval** start) {
     [TWO(">=")]= &&GE,
     [TWO("!<")]= &&GE,
 
+    [TWO("li")]= &&LIKE,
+    [TWO("il")]= &&ILIKE,
+
     ['&']= &&LAND,
     ['|']= &&LOR,
     [TWO("xo")] = &&LXOR,
@@ -204,7 +207,7 @@ long lrun(dbval** start) {
     DEF(ab), DEF(ac), DEF(as), DEF(at), DEF(a2), DEF(cr), DEF(ce), DEF(fl), DEF(ep),
     DEF(ie), DEF(ii), DEF(in),
     DEF(ln), DEF(lg), DEF(l2),
-    DEF(pi), DEF(pw), DEF(ss), DEF(de), DEF(rd), DEF(sg),
+    DEF(pi), DEF(pw), DEF(ss), DEF(de), DEF(rd), DEF(ra), DEF(rr), DEF(sg),
 
 #undef DEF
   };
@@ -426,6 +429,10 @@ GE:   CASE("!>"):
 LE:   CASE("!<"):
       CASE(">="): Pab; FAIL(A.d<B.d);
 
+// like
+LIKE: CASE("li"): Pab; FAIL(!like(STR(A), STR(B), 0));
+ILIKE:CASE("il"): Pab; FAIL(!like(STR(A), STR(B), 1));
+
 // and/or
 LAND: case '&': Prab; R.d=L(A.d)&L(B.d); NEXT;
 LOR:  case '|': Prab; R.d=L(A.d)|L(B.d); NEXT;
@@ -601,7 +608,7 @@ de: CASE("de"): Pra; R.d=A.d/180*M_PI; NEXT;
 rd: CASE("rd"): Pra; R.d=A.d/M_PI*180; NEXT;
 //MATH(RA, radians);
 ra: CASE("ra"): Pr; R.d=random(); NEXT;
-ri: CASE("ri"): Pa; srandom((int)A.d); NEXT; // random int/init
+rr: CASE("rr"): Pa; srandom((int)A.d); NEXT;
 //MATH(RO, round);
 sg: CASE("sg"): Pra; R.d=A.d<0?-1:(A.d>0?+1:0); NEXT;
 
