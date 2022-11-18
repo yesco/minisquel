@@ -1,0 +1,8 @@
+rank	slower	mstime	lang
+1	 1	  710	C -
+2	 2.02	 1432	javascript
+3	 2.58	 1832	objectlog.c
+4	52.90	37557	s2
+5	71.71	50916	python
+6	85.93	61010	sql
+7	94.04	66771	perl

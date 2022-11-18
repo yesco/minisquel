@@ -345,8 +345,9 @@ int call(char* name) {
     if (*ps!=')' && !gotc(',')) expected("comma");
   } 
 
-  // TODO: pointer? who?
-  printf("OL : -666\nOL %s -%d", name, nextvarnum);
+  // output '' (null)
+  //  we don't know return type
+  printf("OL : \'\'\nOL %s -%d", name, nextvarnum);
   for(int i=0; i<pcount; i++)
     printf(" %d", params[i]);
   printf(" 0\n");

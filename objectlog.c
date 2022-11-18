@@ -214,7 +214,7 @@ long lrun(dbval** start) {
 
 // Not sure can tell the speed diff!
 
-//#define JUMPER
+#define JUMPER
   
 #ifdef JUMPER
   static int firsttime= 1;
@@ -227,6 +227,18 @@ long lrun(dbval** start) {
       void* x= jmp[f];
       if (!x || !debug) printf("TRANS '%c' %p\n", f, x);
       if (!x) error("ObjectLog: Function not recognized");
+
+      // "optimize"
+      if (x==&&EQ) {
+	int ta= type(*p[1]), tb= type(*p[2]);
+	printf("----EQ %d %d\n", ta, tb);
+	if (ta==TNUM || tb==TNUM)
+	  x= &&NUMEQ; // 4 % savings
+	else if (ta==TSTR || tb==TSTR)
+	  x= &&STREQ;
+	else if (ta==TPTR || tb==TPTR)
+	  x= &&STREQ;
+      }
       *p= (dbval*)x;
       while(*p++);
     }
