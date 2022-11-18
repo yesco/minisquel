@@ -1,5 +1,12 @@
+# Programming Languages Speed Compare
+#
+#   "canonical source"
+#   braindead simple prime/divisor-test:
+#
+#   - https://github.com/yesco/minisquel/blob/main/Test/prime.c
+
 rank	slower	mstime	lang
-1	 1	  710	C -
+1	 1	  710	C 
 2	 2.02	 1432	javascript
 3	 2.58	 1832	objectlog.c
 4	52.90	37557	s2
