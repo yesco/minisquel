@@ -99,14 +99,6 @@ int defint(long d) {
   return defnum(d);
 }
 
-// global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
-// TODO: change to eparse_num(disable_call, disable_print, print_header)
-//   to handle header name def/print
-//   to handle aggregates (not print every row, only last (in group))
-int parse_only= 0;
-
-char *query=NULL, *ps= NULL;
-
 // -- Options
 
 int batch= 0, force= 0, browse= 0;
@@ -117,10 +109,56 @@ int globalecho= 1, echo= 1;
 char globalformat[30]= {0};
 char format[30]= {0};
 
+//////////////////////////////
+// Parser
+// ======
+
+// In general, parsing functions that
+// generate ObjectLog will output OL
+// predicates as side-effect, while
+// returning an int representing the
+// variable number where the result
+// was stored. This represents the value
+// and is used by the caller when
+// generating predicates to refer to it.
+//
+// A negative number means operation is
+// setting the value. Any usage is pos.
+
+// Example (in principle):
+//
+// 33 + 44 * 55
+//
+//  : -1 33
+//  : -2 44
+//  : -3 55
+//  * -4 2 3
+//  + -5 1 4
+
+// global flag: skip some evals/sideeffects as printing during a "parse"/skip-only phase... (hack)
+// TODO: change to eparse_num(disable_call, disable_print, print_header)
+//   to handle header name def/print
+//   to handle aggregates (not print every row, only last (in group))
+int parse_only= 0;
+
+// ps points at parse position into query
+char *query=NULL, *ps= NULL;
+
+// not returning variable;
 int parse(char* s) {
   free(query);
   query= ps= s;
-  return 1;
+
+  defstr(""); // 1
+  defnum(0);  // 2
+  defnum(1);  // 3
+  defvar("$system","$header", 0); // 4
+  int q= defstr(query);
+  assert(q==5);
+  defvar("$system", "sql", q); // 5
+  assert(nextvarnum==6);
+
+  return q;
 }
 
 int end() {
@@ -222,9 +260,6 @@ int parse_str(char** s) {
 
 int parse_into_str(char name[NAMELEN]) {
   spcs();
-
-  // TODO: catch cache... or in getname/getsymbol?
-
   char q= gotcs("\"'");
   if (!q) return 0;
   char* start= ps;
@@ -250,7 +285,6 @@ int parse_into_str(char name[NAMELEN]) {
   return 1;
 }
 
-// TODO: sql allows names to be quoted!
 int getname(char name[NAMELEN]) {
   spcs();
   ZERO(*name);
@@ -289,38 +323,6 @@ void expectsymbol(char name[NAMELEN], char* msg) {
   }
 }
 
-// functions
-typedef struct func {
-  char* name;
-  void* f;
-  struct func* next;
-} func;
-
-func* funcs= NULL;
-
-void registerfun(char* name, void* f) {
-  func* p= funcs;
-  funcs= calloc(1, sizeof(func));
-  funcs->name= name;
-  funcs->f= f;
-  funcs->next= p;
-}
-
-func* findfunc(char* name) {
-  func* f= funcs;
-  while(f) {
-    if (0==strcmp(f->name, name))
-      return f;
-    f= f->next;
-  }
-  return NULL;
-}
-
-// hack to include C, haha
-#include "funs.c"
-
-// end functions
-
 // parser
 
 #define EXPECTMSG(f, msg) ({typeof(f) v= f; if (!v) expected(msg); v;})
@@ -343,17 +345,13 @@ int call(char* name) {
   while(*p!='\n' && p>OLnames) p--;
   strncpy(olname, p+1, s-p);
   olname[s-p-1]= 0;
+
   if (debug) fprintf(stderr, "Call.OLNAME '%s' ... '%s'\n", name, olname);
 
   // -- get parameters
   val r= {};
   int params[MAXPARAMS]= {0};
   int pcount= 0;
-  func* f= findfunc(name);
-
-  // TODO: objectlog OL
-  
-  //if (!f) expected2("not found func", name);
   if (debug && !parse_only) printf("\n---CALL: %s\n", name);
   while(!gotc(')')) {
     int v= EXPECT(expr());
@@ -1117,27 +1115,6 @@ int sql() {
   return r;
 }
 
- void testread() {
-  // not crash for either file
-  //FILE* f= fopen("foo.csv", "r");
-  FILE* f= fopen("happy.csv", "r");
-  //FILE* f= fopen("err.csv", "r");
-  //FILE* f= fopen("fil.csv", "r");
-  if (!f) error("NOFILE");
-  char s[10240];
-  int r= 0;
-  double d= 0;
-  while((r=freadCSV(f, s, sizeof(s), &d, ','))) {
-    if (r==RNEWLINE) printf("\n");
-    else if (r==RNUM) printf("=> %3d  >%lg<\n", r, d);
-    else if (r==RNULL) printf("=> %3d  NULL\n", r);
-    else printf("=> %3d  >%s<\n", r, s);
-  }
-  printf("=> %3d  %s\n", r, s);
-  fclose(f);
-}
-
-
 // TODO: this doesn't feel minimal, lol
 
 // TODO: first call (sql, "start", NULL...)
@@ -1180,13 +1157,6 @@ void sqllog(char* sql, char* state, char* err, char* msg, long readrows, long ro
 }
 
 void runquery(char* cmd) {
-
-  defstr(""); // 1
-  defnum(0);  // 2
-  defnum(1);  // 3
-  defvar("$system","$header", 0); // 4
-
-  if (echo) defvar("$system", "sql", defstr(cmd));
   if (!*cmd) return;
   
   mallocsreset();
@@ -1340,11 +1310,6 @@ void process_file(FILE* in, int prompt) {
 // nn=30 Mops 9.99 M/s in 3003 ms !clr
 // nn=30 Mops 5.14 M/s in 5842 ms findf
 
-// - findfunc overhead (/ 6.12 5.14)
-//    1.19 x == it's going to inc!!!
-//
-// TODO: could cache at parsepos! LOL
-
 // - clear overhead (/ 9.99 9.65)
 //    1.03 x == ok...
 
@@ -1357,56 +1322,6 @@ void process_file(FILE* in, int prompt) {
 
 // - sql overhead (/ 6.12 1.6)
 //    3.8 x
-
-
-void speedtest() {
-  int N= 10*1000*1000;
-  val n4={},n5={},n6={};
-  val a={},b={},c={},d={};
-  val foo={},bar={},fie={};
-  val fbf={},r={},l={};
-  int n= 0;
-  long ms= cpums();
-  for(int i=0; i<N; i++) {
-    if(0){
-    typeof(concat) *_concat;  _concat= findfunc("concat")->f;
-    typeof(left) *_left;  _left= findfunc("left")->f;
-    typeof(right) *_right; _right= findfunc("right")->f;
-    if (_concat) n++;
-    if (_left) n++;
-    if (_right) n++;
-    }
-    setnum(&n4, 4);
-    setnum(&n5, 5);
-    setnum(&n6, 6);
-
-    setstr(&foo, "foo");
-    setstr(&bar, "bar");
-    setstr(&fie, "fie");
-    concat(&fbf, 3, (void*)&(val[]){foo,bar,fie});
-    right(&r, 2, &fbf, &n6);
-    left(&l, 2, &r, &n4);
-    n+= 1;
-
-    if (1) {
-      clearval(&n4);
-      clearval(&n5);
-      clearval(&n6);
-      clearval(&foo);
-      clearval(&bar);
-      clearval(&fbf);
-      clearval(&r);
-      clearval(&l);
-    }
-  }
-  ms= cpums()-ms;
-  int nn= N*3;
-  float calls= (0.0+nn)/ms/1000;
-  printf("nn=%d Mops %.2f M/s in %ld ms\n", nn/1000000, calls, ms);
-  printf("n=%d\n", n);
-  exit(0);
-}
-
 
 void print_at_error(char* msg, char* param) {
   fprintf(stderr, "\nquery:\n%s\n", query);
@@ -1476,14 +1391,6 @@ int main(int argc, char** argv) {
 
   // carry on!
   print_exit_info= print_at_error;
-  
-  // crash! (test to catch)
-  //char* null= NULL; *null= 42;
-  
-  register_funcs();
-  
-  //speedtest();
-  // testread(); exit(0);
   
   // -- main stuff
   char* arg0= *argv;

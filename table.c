@@ -659,6 +659,27 @@ long printtable(table* t, int details) {
   return bytes;
 }
 
+// TODO: remove?
+void testread() {
+  // not crash for either file
+  //FILE* f= fopen("foo.csv", "r");
+  FILE* f= fopen("happy.csv", "r");
+  //FILE* f= fopen("err.csv", "r");
+  //FILE* f= fopen("fil.csv", "r");
+  if (!f) error("NOFILE");
+  char s[10240];
+  int r= 0;
+  double d= 0;
+  while((r=freadCSV(f, s, sizeof(s), &d, ','))) {
+    if (r==RNEWLINE) printf("\n");
+    else if (r==RNUM) printf("=> %3d  >%lg<\n", r, d);
+    else if (r==RNULL) printf("=> %3d  NULL\n", r);
+    else printf("=> %3d  >%s<\n", r, s);
+  }
+  printf("=> %3d  %s\n", r, s);
+  fclose(f);
+}
+
 
 
 #include "ansi.c"
