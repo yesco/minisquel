@@ -1,1 +1,2 @@
-clang -lm -O3 parse.c && ./a.out "$@" > p && ./ol < p | tee o | sh
+clang -lm -O3 parse.c && ./a.out "$@" > p && ( grep -v "OL" p ; (./ol < p | tee o | sh))
+

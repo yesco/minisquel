@@ -36,6 +36,8 @@ char* OLnames= NULL;
 
 #define OL3(f, a, b) (printf("OL : -666\nOL %s -%d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
 
+#define OL4(f, a, b, c) (printf("OL : -666\nOL %s -%d %d %d %d 0\n", f, nextvarnum, (int)a, (int)b, (int)c), nextvarnum++)
+
 #define ROLcmp(f, a, b) return OLcmp(f, a, b)
 
 int varfind(char* table, char* col) {
@@ -673,7 +675,6 @@ int next_from_list(char* selexpr) {
 
 
 int VIEW(char* table, char* selexpr) {
-  int nvars= varcount;
   char* backtrack= ps;
 
   val type={}, name={}, params={}, select={}, impl={};
@@ -702,7 +703,6 @@ int VIEW(char* table, char* selexpr) {
   }
   */
   ps= backtrack;
-  varcount= nvars;
   return 1;
 }
 
@@ -721,30 +721,30 @@ int VIEW(char* table, char* selexpr) {
 // TODO: add (start,stop,STEP)
 //   https://duckdb.org/docs/sql/statements/create_sequence
 int INT(char* selexpr) {
-  int nvars= varcount;
-
   char name[NAMELEN]= {};
-  double start= 0, stop= 0, step= 1;
+  double start= 0, stop= 0, step= 0;
   // TODO: generalize, use functions?
   if (gotc('(')) {
-    int dstart= EXPECT(parse_num());
-    start= dstart;
+    start= EXPECT(expr());
     spcs();
     EXPECT(gotc(','));
-    int dstop= EXPECT(parse_num());
-    stop= dstop;
+    stop= EXPECT(expr());
     spcs();
+    if (gotc(',')) {
+      step= EXPECT(expr());
+      spcs();
+    }
     EXPECT(gotc(')'));
-    stop+= 0.5;
     spcs();
     expectname(name, NULL);
   } else expected("(");
 
-  int n= OL3("i", start, stop);
-  defvar("int", name, n);
+  int n= step
+    ? OL4("d", start, stop, step)
+    : OL3("i", start, stop);
+  defvar("num", name, n);
 
   next_from_list(selexpr);
-
   return n;
 }
 
@@ -756,13 +756,12 @@ int TABCSV(FILE* f, char* table, int t, char* header, int fn, char* selexpr) {
   int oln= 0;
 
   char* line= header? header: csvgetline(f, ',');
-  int r;
-  char name[NAMELEN]= {};
   char delim= decidedelim(line);
+
   char* p= line;
+  char name[NAMELEN]= {};
+  int r;
   while((r= sreadCSV(&p, name, NAMELEN, NULL, delim))) {
-    //printf("COL: %s\n", name);
-    // even numbers will be in name
     ol[oln++]= defvar(table, name, 0);
   }
   free(line);
@@ -794,6 +793,26 @@ char* getcollist() {
   return strndup(start, ps-start-1);
 }
 
+// --- JOIN
+// - https://dev.mysql.com/doc/refman/5.7/en/join.html
+//   FROM tab (|AS t)
+//   (|LEFT|RIGHT)
+//   (|INNER|OUTER|NATURAL|CROSS)
+//   JOIN tab (|AS t)
+//   (ON (a=b AND ...) | USING (col, col, col))
+// simplify:
+//   from a (|MERGE) JOIN b USING(col, ...)
+//   from a NATURAL JOIN b 
+//
+// 1. implemnt as nested loop
+//    a. create index
+//    b. lookup from outer loop
+//    c. read matching/lines
+// 2. merge join if sorted
+//    a. analyze file -> create link if sorted:
+//        FILTAB.index:a,b,c
+//    b. merge-join
+//    c. sort files/create index
 
 int from_list(char* selexpr, int is_join) {
   char* backtrack= ps;
@@ -802,23 +821,19 @@ int from_list(char* selexpr, int is_join) {
   char spec[NAMELEN]= {0};
   expectsymbol(spec, "from-iterator");
 
-  // TODO: how to do fulltest search/filter
-  //   like sqlite3 MATCH?
-  //   - https://www.sqlite.org/fts5.html
-  //   - https://www.ibm.com/docs/en/db2/11.1?topic=indexes-full-text-search-methods
-  //  my thinking, "and grep it!"
-  // FROM  "foo.csv" MATCH "+must +have" ftab
-  // FROM GREP("mail.csv" from:jsk subject:fish) myfish
-  
   // dispatch to named iterator
   if (0==strcmp("$view", spec)) {
+
     char table[NAMELEN]= {0};
     expectname(table, "table alias name");
     VIEW(table, selexpr);
-  } else if (0==strcmp("int", spec)) {
+
+  } else if (0==strcmp("int", spec) || 0==strcmp("num", spec)) {
+
     INT(selexpr);
-    // TODO: is_join?
+
   } else {
+
     // - foo.csv(COL, COL..) foo
     char* header= getcollist();
 
@@ -830,7 +845,6 @@ int from_list(char* selexpr, int is_join) {
     char joincol[NAMELEN]= {0};
     val* joinval= NULL;
     if (is_join) {
-      // ON "foo"
       EXPECT(got("on"));
       expectname(joincol, "join column name");
       // TODO: get "last" table here?
@@ -838,10 +852,7 @@ int from_list(char* selexpr, int is_join) {
     }
     
     int fn= defstr(spec);
-    //OL(defvar("$file", table, fn);
-
     int t= defvar("$table", table, 0);
-
     printf("OL F -%d %d 0\n", t, fn);
     
     FILE* f= magicfile(spec);
@@ -865,29 +876,6 @@ int from(char* selexpr) {
   }
 }
 
-// --- JOIN
-// - https://dev.mysql.com/doc/refman/5.7/en/join.html
-//   FROM tab (|AS t)
-//   (|LEFT|RIGHT)
-//   (|INNER|OUTER|NATURAL|CROSS)
-//   JOIN tab (|AS t)
-//   (ON (a=b AND ...) | USING (col, col, col))
-// simplify:
-//   from a (|MERGE) JOIN b USING(col, ...)
-//   from a NATURAL JOIN b 
-//
-// 1. implemnt as nested loop
-//    a. create index
-//    b. lookup from outer loop
-//    c. read matching/lines
-// 2. merge join if sorted
-//    a. analyze file -> create link if sorted:
-//        FILTAB.index:a,b,c
-//    b. merge-join
-//    c. sort files/create index
-
-
-// just an aggregator!
 int sqlselect() {
   strcpy(format, globalformat);
   if (got("format")) EXPECT(getname(format));
@@ -917,24 +905,18 @@ int sqlcreate_function() {
 // TODO: make resident in mem! LOL
 int create_index() {
   char name[NAMELEN]= {0};
-  expectname(name, "index name");
-
-  if (!got("on")) expected("ON");
-
   char table[NAMELEN]= {0};
-  expectsymbol(table, "table namex");
-
-  if (!gotc('(')) expected("(");
-
   char col[NAMELEN]= {0};
+
+  expectname(name, "index name");
+  EXPECT(got("on"));
+  expectsymbol(table, "table namex");
+  EXPECT(gotc('('));
   // TODO: computed expressions?
   // or ... AS SELECT ...
   expectname(col, "column name");
-
   EXPECT(gotc(')'));
-  
   // TODO: registerobj
-
   FILE* f= magicfile(table);
   error("create index ...OL");
   //TABCSV(f, table, NULL, 1, col, selexpr);
@@ -961,8 +943,8 @@ int create_view() {
   }
 
   EXPECT(got("as"));
-
   spcs();
+
   char* impl= ps;
   //regobj("view", name, params, impl, got("select"));
   return 1;
@@ -973,11 +955,10 @@ int sqlcreate() {
   int (*creator)()= NULL;
   
   if (got("index")) return create_index();
-  if (got("view")) return create_view();
+  if (got("view"))  return create_view();
   //  if (got("function")) return create_function();
   return 0;
 }
-
 
 // TODO: DECLARE var [= 3+4]
 //   - if in file, forget after load!
@@ -995,8 +976,6 @@ int setvarexp() {
   setvar("global", name, &v);
   return 1;
 }
-
-
 
 int sql() {
   spcs();
@@ -1055,27 +1034,10 @@ void runquery(char* cmd) {
   
   mallocsreset();
 
-  long ms= cpums();
   parse(cmd);
   int r= sql();
-  ms= cpums()-ms;
   
-  // lineno= -2 when starts
-  // lineno= 0 when printed printed header just beore printint one row
-  // if no rows, no header printed so -1
-
-  // just shows FROM ... 
-  //printf("AT> '%s'\n", ps);
-
-  if (stats && lineno >= -1) {
-    // remove "jitter"
-    if (ms<1) ms= 1;
-    if (ms>1000) ms= (ms+5)/10*10;
-    printf("\n%ld rows in %ld ms (read %ld lines)\n", lineno<0 ? 0 : lineno, ms, readrows);
-    fprintmallocs(stdout);
-  }
-
-  // TODO: clean stats!
+  fprintmallocs(stdout);
 
   // TODO: catch/report parse errors
   if (r!=1) printf("\n%% Couldn't parse that\n");
@@ -1167,13 +1129,11 @@ int process_arg(char* arg, char* next) {
 \n");
     printf("Unknown option: %s\n", arg);
     fprintf(stderr, "Unknown option: %s\n", arg);
-
     error("Unkonwn option");
 
   } else {
     //  no option match: assume sql
     runquery(arg);
-
     interactive= 0;
   }
 
@@ -1195,27 +1155,6 @@ void process_file(FILE* in, int prompt) {
   } while(strcmp("exit", line) && strcmp("quit", line));
   if (prompt) printf("\n");
 }
-
-// speed "sql' 1.6 M/s
-// nn=30M ops 4.55 M/s in 6600 ms -c
-// nn=30 Mops 6.12 M/s in 4903 ms -O3
-// nn=30 Mops 9.58 M/s in 3132 ms const
-// nn=30 Mops 9.65 M/s in 3108 ms !stat
-// nn=30 Mops 9.99 M/s in 3003 ms !clr
-// nn=30 Mops 5.14 M/s in 5842 ms findf
-
-// - clear overhead (/ 9.99 9.65)
-//    1.03 x == ok...
-
-// - updatestats overhead (/ 9.65 9.58)
-//    1.007 x == free!
-
-// const: (using setstrconst)
-// - mall/free overhead (/ 9.58 4.05)
-//    2.4 x
-
-// - sql overhead (/ 6.12 1.6)
-//    3.8 x
 
 void print_at_error(char* msg, char* param) {
   fprintf(stderr, "\nquery:\n%s\n", query);

@@ -536,6 +536,9 @@ OUT:   CASE("ou"): if (var[4].d>0) {
 	  putchar('\n');
 	  var[4].d= -var[4].d;
        }
+      while(*p) printvar(N-var);
+      putchar('\n');
+      NEXT;
 PRINT: case '.': while(*p) printvar(N-var); NEXT;
 PRINC: case 'p': while(*p) printf("%s", STR(*N)); NEXT;
 NEWLINE: case 'n': putchar('\n'); NEXT;
@@ -801,7 +804,7 @@ int main(int argc, char** argv) {
 	var[4]= mknum(nextvar-var+1);
 	while (0!=strcmp("0", s)) {
 	  --argc; s= *++argv;
-	  *++nextvar = strisnum(s) ? mknum(atol(s)) : mkstrconst(s);
+	  *++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
 	}
 	
 	// header :: str str str ... 0
@@ -811,7 +814,7 @@ int main(int argc, char** argv) {
 	// init var
 	// TODO: "can't just store strptr!"
 	--argc; s= *++argv;
-	*++nextvar = strisnum(s) ? mknum(atol(s)) : mkstrconst(s);
+	*++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
 	//printf("var[%ld] = ", nextvar-var); dbp(*nextvar);
       }
 
