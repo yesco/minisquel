@@ -1,4 +1,5 @@
 # --------- fail - TODO:
+./sql 'select 42 where 3<=4'
 ./sql 'select 42 where (1)=1'
 ./sql 'select 42 where ((1)=1)'
 ./sql 'select count(42)'

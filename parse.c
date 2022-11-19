@@ -32,7 +32,7 @@ int nextvarnum= 1;
 
 char* OLnames= NULL;
 
-#define OLcmp(f, a, b) (printf("OL %s %d %d 0\n", f, (int)a, (int)b))
+#define OLcmp(f, a, b) (printf("OL \"%s\" %d %d 0\n", f, (int)a, (int)b))
 
 #define OL3(f, a, b) (printf("OL : -666\nOL %s -%d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
 
@@ -200,12 +200,14 @@ int got(char* s) {
   if (end() || !s) return 0;
   spcs();
   char* p= ps;
+  int alnum= 1;
   while(*p && *s && tolower(*p) == tolower(*s)) {
+    alnum &= isalnum(*s);
     p++; s++;
   }
   if (*s) return 0;
   // got("f") not match "foo"
-  if (isid(*p)) return 0;
+  if (alnum && isid(*p)) return 0;
   ps= p;
   spcs();
   return 1;
@@ -226,7 +228,7 @@ int parse_num() {
 // A pointer to the parsed string
 // is returned in *s.
 // ! DO NOT FREE!
-int parse_str(char** s) {
+int parse_str() {
   spcs();
 
   char* start= ps;
@@ -234,7 +236,7 @@ int parse_str(char** s) {
 
   char q= gotcs("\"'");
   if (!q) return 0; // fail
-  *s= ps;
+  char* s= ps;
   while(!end()) {
     if (*ps==q && *++ps!=q) break; // 'foo''bar'
     if (*ps=='\\') ps++; // 'foo\'bar'
@@ -243,8 +245,8 @@ int parse_str(char** s) {
   ps--;
   if (*ps!=q) return 0; // fail
 
-  char* a= strndup(*s, ps-*s);
-  *s= a;
+  char* a= strndup(s, ps-s);
+  s= a;
   ps++;
   // fix quoted \' and 'foo''bar'
   while(*a) {
@@ -253,8 +255,8 @@ int parse_str(char** s) {
     a++;
   }
 
-  int n= defstr(*s);
-  free(*s);
+  int n= defstr(s);
+  free(s);
   return n;
 }
 
@@ -323,10 +325,15 @@ void expectsymbol(char name[NAMELEN], char* msg) {
   }
 }
 
-// parser
+// macros
 
 #define EXPECTMSG(f, msg) ({typeof(f) v= f; if (!v) expected(msg); v;})
 #define EXPECT(f) EXPECTMSG(f, #f)
+
+#define OR(a, b) ({typeof(a) o= a; if (!o) o= b; o; })
+
+#define IFRETURN(x) ({typeof(x) _x= x; if (_x) return _x;})
+
 
 int expr();
 
@@ -408,35 +415,21 @@ int prim() {
     EXPECT(gotc(')'));
     return v;
   }
-  int n= parse_num();
-  if (n) return n;
 
-  char* s= NULL;
-  n= parse_str(&s);
-  if (n) return n;
-  
+  IFRETURN(OR(parse_num(), parse_str()));
+
   // only if has name
   if (isid(*ps)) return var();
-  return v;
+  return 0;
 }
 
 int mult() {
   int v= prim();
-  if (!v) return v;
-  char op;
-  while ((op= gotcs("*/%^"))) {
-    int vv= prim();
-    if (!vv) return vv;
-    // type num op num => num
-    // other types => nan
-    switch(op){
-    case '*': v= OL3("*", v, vv); break;
-    case '/': v= OL3("/", v, vv); break;
-    case '%': v= OL3("%", v, vv); break;
-    case '^': v= OL3("^", v, vv); break;
-    default: error("Undefined operator!");
-      return 0;
-    }
+  if (!v) return 0;
+  char op[2]= {0, 0};
+  while ((op[0]= gotcs("*/%^"))) {
+    int vv= EXPECT(prim());
+    v= OL3(op, v, vv);
   }
   return v;
 }
@@ -449,24 +442,17 @@ int expr() {
     int n0= defnum(0);
     v= OL3("-", n0, v);
   }
-  if (!v) return v;
-  char op;
-  while ((op= gotcs("+-"))) {
-    int vv= mult();
-    if (!v) return v;
-    if (op == '+') {
-      v= OL3("+", v, vv);
-    } else if (op == '-') {
-      v= OL3("-", v, vv);
-    }
-    // TODO: null propagate?
+
+  char op[2]= {0, 0};
+  while ((op[0]= gotcs("+-"))) {
+    int vv= EXPECT(mult());
+    v= OL3(op, v, vv);
   }
   return v;
 }
 
-#include "table.c"
-
-char* print_header(char* e, int dodef) {
+char* select_exprs_and_header(char* e, int dodef) {
+  if (!e) return NULL;
   char* old_ps= ps;
   ps= e;
   
@@ -481,8 +467,6 @@ char* print_header(char* e, int dodef) {
   
   if (!dodef) parse_only= 1;
   do {
-    // TODO: SELECT *, tab.*
-
     spcs();
     char* start= ps;
     char name[NAMELEN]= {};
@@ -545,6 +529,7 @@ char* print_header(char* e, int dodef) {
     clearval(&v);
   } while(more);
   if (!dodef) parse_only= 0;
+
   if (dodef) {
     printf("OL out");
     for(int i=0; i<=oln; i++)
@@ -556,110 +541,30 @@ char* print_header(char* e, int dodef) {
 
   e= ps;
   ps= old_ps;
+  // return pos after select ...
   return e;
 }
 
 int comparator(char cmp[NAMELEN]) {
   spcs();
-  // TODO: not prefix?
-  if (got("like")) { strcpy(cmp, "like"); return 1; }
-  if (got("ilike")) { strcpy(cmp, "ilike"); return 1; }
-  if (got("in")) { strcpy(cmp, "in"); return 1; }
-  // TODO: (not) between...and...
-  //   is (not)
-  
-  cmp[0]= gotcs("<=>!");
-  cmp[1]= gotcs("<=>!");
-  // third? <=> (mysql)
-  //   nullsafe =
-  //   null==null ->1 null=? -> 0
-  //   - https://dev.mysql.com/doc/refman/8.0/en/comparison-operators.html#operator_equal-to
-  if (!cmp[0]) expected("comparator");
-  spcs();
-  return 1;
-}
-
-#define TWO(a, b) (a+16*b)
-
-int dcmp(char* cmp, int a, int b) {
-  switch (TWO(cmp[0], cmp[1])) {
-  case TWO('i', 'n'): error("not implemented in");
-    // lol
-
-  case TWO('~','='):
-    //TODO:
-
-  case TWO('i','l'): ROLcmp("ilike", a, b);
-  case TWO('l','i'): ROLcmp("like", a, b);
-
-  case TWO('=','='):
-  case '=': ROLcmp("=", a, b);
-
-  case TWO('<','>'):
-  case TWO('!','='): ROLcmp("!", a, b);
-
-  case TWO('!','>'):
-  case TWO('<','='): ROLcmp("<=", a, b);
-  case '<': ROLcmp("<", a, b);
-
-  case TWO('!','<'):
-  case TWO('>','='): ROLcmp(">=", a, b);
-  case '>': ROLcmp(">", a, b);
-
-  default: expected("dcmp: comparator");
+  char* start= ps;
+  // TODO: [not] BETWEEN ... AND
+  // TODO: IS [not]
+  if (got("like") || got("ilike") || got("in") || got("==") || got("<>") || got("!+") || got("<=") || got(">=") || got("!<") || got("!>") || gotcs("=<>")) {
+    strncpy(cmp, start, ps-start);
+    cmp[ps-start]= 0;
+    // got eats trailing spaces...
+    rtrim(cmp);
+    spcs();
+    return 1;
   }
+  
+  expected("Operator: LIKE ILIKE IN < <= = != <> > >=");
   return 0;
 }
 
-// TODO:??? optimize if know is string
-int scmp(char* cmp, dbval da, dbval db) {
-  // TODO: benchmark this...
-  if (da.l==db.l && cmp[0]!='!' && (cmp[0]=='=' || cmp[1]=='=')) return 1;
-
-  // relative difference
-  int r= dbstrcmp(da, db);
-  
-  // the ops not requiring str()
-  switch (TWO(cmp[0], cmp[1])) {
-  case '=':
-  case TWO('=','='): return !r;
-
-  case TWO('<','>'):
-  case TWO('!','='): return !!r;
-
-  case TWO('!','>'):
-  case TWO('<','='): return (r<=0);
-  case '<': return (r<0);
-
-  case TWO('!','<'):
-  case TWO('>','='): return (r>=0);
-  case '>': return (r>0);
-  }
-
-  // not going to work for 7 etc...
-  char* a= str(da);
-  char* b= str(db);
-  
-  switch (TWO(cmp[0], cmp[1])) {
-  case TWO('i', 'n'): error("not implemented in");
-
-  case TWO('i','l'): return like(a, b, 1);
-  case TWO('l','i'): return like(a, b, 0);
-    
-  //case TWO('~','='): return !strcasecmp(a, b);
-
-  default:
-    printf("OP= %s\n", cmp);
-    expected("legal opoerator");
-  }
-  return -666;
-}
-
-// returns "extended boolean"
-#define LFALSE (-1)
-#define LFAIL 0
-#define LTRUE 1
-// NOTE: -LFALSE==LTRUE !!
+#define TWO(a, b) (a+16*b)
+#define CASE(s) case TWO(s[0], s[1])
 
 int comparison() {
   char op[NAMELEN]= {};
@@ -667,14 +572,7 @@ int comparison() {
   if (!a) return 0;
   EXPECT(comparator(op));
   int b= EXPECT(expr());
-  // TODO: optimzie for type if known
-
-  //if (isnum(a) && isnum(b))
-  //r= dcmp(op, a.d, b.d)?LTRUE:LFALSE;
-  //else
-  //r= scmp(op, a, b)?LTRUE:LFALSE;
-  // don't even care type now!
-  return dcmp(op, a, b);
+  ROLcmp(op, a, b);
 }
 
 int logical();
@@ -683,41 +581,37 @@ int logsimple() {
   // TODO: WHERE (1)=1    lol
   // ==extended expr & use val?
   if (gotc('(')) {
-      int r= logical();
-      EXPECT(gotc(')'));
-      return r;
+    int r= EXPECT(logical());
+    EXPECT(gotc(')'));
+    return r;
   }
   if (got("not")) {
-    // TODO: 
-    error("NOT not implemented");
-    return -logsimple();
+    int r= EXPECT(logical());
+    error("NOT not implemented in ObjectLog");
+    return 0;
   }
-  // TODO "or here"?
-  // but need lower prio than not
   return comparison();
 }
 
-// returns boolean of evaluation
 int logical() {
   spcs();
-  int r= LTRUE, n;
+  int n;
   while((n= logsimple())) {
-    r= ((r==LTRUE) && (n==LTRUE))?LTRUE:LFALSE;
     if (got("and")) {
       continue;
     } else if (!got("or")) {
-      return r;
+      return n;
     } else {
       // OR
+      error("OR not implemented in ObjectLog");
       while((n= logsimple())) {
-	if (n==LTRUE) r= n;
 	printf("OL or\n");
 	if (!got("or")) break;
       }
-      if (!got("and")) return r;
+      if (!got("and")) return n;
     }
   }
-  return r;
+  return n;
 }
 
 int after_where(char* selexpr) {
@@ -736,8 +630,8 @@ int after_where(char* selexpr) {
   }
 
   if (got("order by")) {
+    error("ORDER BY not implemented in ObjectLog");
     // will order on groups already generated... valuies order by might be aggregate
-    double d;
     // TODO: or column name...
     //   now -4 also works as "ASC" lol
     int db= EXPECTMSG(parse_num(), "order by column number");
@@ -751,7 +645,7 @@ int after_where(char* selexpr) {
     //if (debug) printf("ORDER BY %d\n", col);
   }
 
-  if (selexpr) return !!print_header(selexpr, 1);
+  select_exprs_and_header(selexpr, 1);
   return 1;
 }
 
@@ -1002,7 +896,7 @@ int sqlselect() {
 
   // "skip" (dummies) to get beyond
   parse_only= 1;
-  char* end= print_header(expr, 0);
+  char* end= select_exprs_and_header(expr, 0);
   if (end) ps= end;
 
   from(expr);

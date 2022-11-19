@@ -76,6 +76,9 @@ RT	rtrim
 TR	trim
 ST	str
 
+li	like
+il	ilike
+
 ts	timestamp
 
 

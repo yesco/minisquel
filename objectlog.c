@@ -2,6 +2,10 @@
 // ----------------------
 // (>) 2022 jsk@yesco.org
 
+// An early "simple" variant of this is
+// in Test/objectlog-simple.c read that
+// one instead!
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -415,6 +419,10 @@ NUMEQ: CASE("N="): Pab; FAIL(A.l!=B.l);
 STREQ: CASE("S="): Pab; FAIL(dbstrcmp(A, B));
       
 // generic compare - 20% slower?
+// TODO:
+//   nullsafe =
+//   null==null ->1 null=? -> 0
+//   - https://dev.mysql.com/doc/refman/8.0/en/comparison-operators.html#operator_equal-to
 EQ:   CASE("=="):
       case '=': Pab;
       if (A.l==B.l) NEXT;
@@ -437,9 +445,9 @@ NEQ:  CASE("!="):
 // TODO: do strings...
 LT:   case '<': Pab; FAIL(A.d>=B.d);
 GT:   case '>': Pab; FAIL(A.d<=B.d);
-GE:   CASE("!>"):
+LE:   CASE("!>"):
       CASE("<="): Pab; FAIL(A.d>B.d);
-LE:   CASE("!<"):
+GE:   CASE("!<"):
       CASE(">="): Pab; FAIL(A.d<B.d);
 
 // like
@@ -523,7 +531,7 @@ OUT:   CASE("ou"): if (var[4].d>0) {
 	  }
 	  putchar('\n');
 	  for(int i= var[4].d; var[i].d; i++) {
-	    printf("------- ");
+	    printf("======= ");
 	  }
 	  putchar('\n');
 	  var[4].d= -var[4].d;
@@ -738,7 +746,7 @@ void regfuncs() {
   func['/']= fdiv;
   func['%']= fper;
   func['=']= func[TWO("==")]= feq;
-  func['!']= func[TWO("!+")]= func[TWO("<>")]= fneq;
+  func['!']= func[TWO("!=")]= func[TWO("<>")]= fneq;
   //  func['<']= 
 
     //  case '<': Pab; if (A>=B) goto fail; break;
