@@ -51,11 +51,11 @@ int defvar(char* table, char* col, int d) {
   setvar(table, col, &v);
   // allocate?
   if (nextvarnum!=old) {
-    fprintf(stderr, "@%d", nextvarnum);
-    fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
+    if (debug) fprintf(stderr, "@%d", nextvarnum);
+    if (debug) fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
     printf("OL : -666\n");
   } else {
-    fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
+    if (debug) fprintf(stderr, "\t{OL@%d %s %s}\n", d, table, col);
   }
   if (0){
   if (varfind(table, col)==d)
@@ -70,7 +70,7 @@ int defstr(char* s) {
   int n= varfind("$const", s);
   if (n) return n;
   
-  fprintf(stderr, "@%d ", nextvarnum);
+  if (debug) fprintf(stderr, "@%d ", nextvarnum);
   defvar("$const", s, nextvarnum);
   printf("OL : ");
   if (s && *s)
@@ -88,7 +88,7 @@ int defnum(double d) {
   int n= varfind("$const", name);
   if (n) return n;
 
-  fprintf(stderr, "@%d ", nextvarnum);
+  if (debug) fprintf(stderr, "@%d ", nextvarnum);
   defvar("$const", name, nextvarnum);
   return (printf("OL %s %s\n", ":", name), nextvarnum++);
 }

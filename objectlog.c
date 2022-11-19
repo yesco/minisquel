@@ -846,7 +846,7 @@ int main(int argc, char** argv) {
   long res= lrun(lplan);
   ms = mstime()-ms;
   printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);
-  hprint(olops*1000/ms, " ologs (/s)\n");
+  hprint_hlp(olops*1000/ms, " ologs (/s)\n", 0);
   fprintmallocs(stdout);
   printf("\n\n");
 }
