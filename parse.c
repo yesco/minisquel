@@ -1391,11 +1391,11 @@ void speedtest() {
 
 
 void print_at_error(char* msg, char* param) {
-  printf("\nquery:\n%s\n", query);
-  for(int i=0; i< ps-query; i++) putchar(' '); printf("|------>\n");
-  if (msg) printf("\nWANTED(?): %s\n", msg);
-  if (param) printf("\t%s\n", param);
-  printf("\nAT: '%s'\n\n", ps);
+  fprintf(stderr, "\nquery:\n%s\n", query);
+  fprintf(stderr, "%*s|------>\n", (int)(ps-query), "");
+  if (msg) fprintf(stderr, "\nEXPECTED: %s\n", msg);
+  if (param) fprintf(stderr, "\t%s\n", param);
+  fprintf(stderr, "\nAT: '%s'\n\n", ps);
 }
 
 void bang() {

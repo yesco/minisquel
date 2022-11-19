@@ -1,1 +1,1 @@
-clang -lm -O3 parse.c && ./a.out "$@" | ./ol | tee o | sh
+clang -lm -O3 parse.c && ./a.out "$@" > p && ./ol < p | tee o | sh

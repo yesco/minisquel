@@ -219,13 +219,13 @@ long lrun(dbval** start) {
 #ifdef JUMPER
   static int firsttime= 1;
   if (firsttime) {
-    printf("--- JUMPER!\n");
+    if (debug) printf("--- JUMPER!\n");
     // TODO: for all plans
     dbval** p= start;
     while(*p) {
       int f= L(*p);
       void* x= jmp[f];
-      if (!x || !debug) printf("TRANS '%c' %p\n", f, x);
+      if (!x || debug) printf("TRANS '%c' %p\n", f, x);
       if (!x) error("ObjectLog: Function not recognized");
 
       // "optimize"
