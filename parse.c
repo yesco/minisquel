@@ -30,6 +30,8 @@ long lineno= -2, readrows= 0, nfiles= 0;
 
 int nextvarnum= 1;
 
+char* OLnames= NULL;
+
 #define OLcmp(f, a, b) (printf("OL %s %d %d 0\n", f, (int)a, (int)b))
 
 #define OL3(f, a, b) (printf("OL : -666\nOL %s -%d %d %d 0\n", f, nextvarnum, (int)a, (int)b), nextvarnum++)
@@ -321,7 +323,7 @@ func* findfunc(char* name) {
 
 // parser
 
-#define EXPECTMSG(f, msg) ({int v= f; if (!v) expected(msg); v;})
+#define EXPECTMSG(f, msg) ({typeof(f) v= f; if (!v) expected(msg); v;})
 #define EXPECT(f) EXPECTMSG(f, #f)
 
 int expr();
@@ -329,6 +331,21 @@ int expr();
 int call(char* name) {
   #define MAXPARAMS 10
 
+  // --- look up ObjectLog name
+  char olname[NAMELEN]= {};
+  snprintf(olname, NAMELEN, "\t%s", name);
+  char* s= strcasestr(OLnames, olname);
+  char* p= s;
+  if (!p) {
+    ps-= strlen(name)+1;
+    expected2("Unknown func()", name);
+  }
+  while(*p!='\n' && p>OLnames) p--;
+  strncpy(olname, p+1, s-p);
+  olname[s-p-1]= 0;
+  if (debug) fprintf(stderr, "Call.OLNAME '%s' ... '%s'\n", name, olname);
+
+  // -- get parameters
   val r= {};
   int params[MAXPARAMS]= {0};
   int pcount= 0;
@@ -352,7 +369,7 @@ int call(char* name) {
 
   // output '' (null)
   //  we don't know return type
-  printf("OL : \'\'\nOL %s -%d", name, nextvarnum);
+  printf("OL : \'\'\nOL %s -%d", olname, nextvarnum);
   for(int i=0; i<pcount; i++)
     printf(" %d", params[i]);
   printf(" 0\n");
@@ -1455,7 +1472,7 @@ int main(int argc, char** argv) {
   }
   // END assumptions
 
-
+  OLnames= readfile("objectlog.txt");
 
   // carry on!
   print_exit_info= print_at_error;

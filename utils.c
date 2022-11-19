@@ -546,6 +546,16 @@ FILE* magicfile(char* spec) {
   return f;
 }
 
+// reads till 0. i.e. whole TEXT file
+// Returns NULL at error or malloced str
+char* readfile(char* name) {
+  FILE* f= fopen(name, "r");
+  char* r= NULL;
+  size_t len= 0;
+  getdelim(&r, &len, 0, f);
+  fclose(f);
+  return r;
+}
 
 
 #define JSK_INCLUDED_UTILS

@@ -52,9 +52,10 @@ F FILE fname	FILE, fopen(fname)
 
 PRINTING
 
-.	print "columns" (truncated)
-n	newline
+ou	out "columns" w header (first time)
+.	print list of values formatted
 p	print no formatting
+n	newline
 
 
 STRINGS
