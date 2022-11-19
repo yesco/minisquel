@@ -459,6 +459,7 @@ char* print_header(char* e, int dodef) {
   val v= {};
   int more= 0;
 
+  // TODO: magic constants...
   char head[10240]= {0};
   int ol[100]= {0};
   int oln= 0;

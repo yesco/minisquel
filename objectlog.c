@@ -181,6 +181,7 @@ long lrun(dbval** start) {
     ['d']= &&DOTA,
     ['l']= &&LINE,
 
+    [TWO("ou")]= &&OUT,
     ['.']= &&PRINT,
     ['p']= &&PRINC,
     ['n']= &&NEWLINE,
@@ -516,6 +517,17 @@ FIL:   case 'F': { Pra;
        NEXT; }
 
 // print
+OUT:   CASE("ou"): if (var[4].d>0) {
+	  for(int i= var[4].d; var[i].d; i++) {
+	    printvar(i);
+	  }
+	  putchar('\n');
+	  for(int i= var[4].d; var[i].d; i++) {
+	    printf("------- ");
+	  }
+	  putchar('\n');
+	  var[4].d= -var[4].d;
+       }
 PRINT: case '.': while(*p) printvar(N-var); NEXT;
 PRINC: case 'p': while(*p) printf("%s", STR(*N)); NEXT;
 NEWLINE: case 'n': putchar('\n'); NEXT;
@@ -798,18 +810,19 @@ int main(int argc, char** argv) {
     } else {
 
       // add to plan
-      printf("%s ", *argv);
+      if (debug) printf("%s ", *argv);
       long f= TWO(s);
       long isnum= strisnum(s);
       long num= atol(s);
       *p = isnum ? (num ? num : 0) : f;
       dbval* v= *lp = isnum?( num ? var+labs(num) : NULL) : (void*)f;
       //printf("v= %p\n", v);
-      if (!*p) putchar('\n');
+      if (!*p && debug) putchar('\n');
       p++; lp++;
 
     }
   }
+  if (debug) putchar('\n');
 
   *p++ = 0; // just to be sure!
   *p++ = 0; // just to be sure!
@@ -817,23 +830,22 @@ int main(int argc, char** argv) {
   *lp++ = 0; // just to be sure!
   *lp++ = 0; // just to be sure!
 
-  putchar('\n');
-
-  printf("\nLoaded %ld constants %ld plan elemewnts\n", nextvar-var, p-plan);
+  if (debug) {
+    printf("\n\nLoaded %ld constants %ld plan elemewnts\n", nextvar-var, p-plan);
   
-  printvars();
-
-  lprintplan(lplan, -1);
+    printvars();
+    lprintplan(lplan, -1);
+  }
 
   //trace= 1;
   //debug= 1;
 
-  printf("\n\nLPLAN---Running...\n");
+  if (debug) printf("\n\nLPLAN---Running...\n\n");
   mallocsreset();
   long ms= mstime();
   long res= lrun(lplan);
   ms = mstime()-ms;
-  printf("\n\n! %ld ... %ld Results in %ld ms and performed %ld ops\n", res, nresults, ms, olops);
+  printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);
   hprint(olops*1000/ms, " ologs (/s)\n");
   fprintmallocs(stdout);
   printf("\n\n");
