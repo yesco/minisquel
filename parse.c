@@ -321,6 +321,9 @@ func* findfunc(char* name) {
 
 // parser
 
+#define EXPECTMSG(f, msg) ({int v= f; if (!v) expected(msg); v;})
+#define EXPECT(f) EXPECTMSG(f, #f)
+
 int expr();
 
 int call(char* name) {
@@ -336,8 +339,7 @@ int call(char* name) {
   //if (!f) expected2("not found func", name);
   if (debug && !parse_only) printf("\n---CALL: %s\n", name);
   while(!gotc(')')) {
-    int v= expr();
-    if (!v) expected("expression");
+    int v= EXPECT(expr());
 
     params[pcount++]= v;
     if (debug && !parse_only) {
@@ -345,7 +347,7 @@ int call(char* name) {
     }
 
     spcs();
-    if (*ps!=')' && !gotc(',')) expected("comma");
+    if (*ps!=')') EXPECT(gotc(','));
   } 
 
   // output '' (null)
@@ -386,10 +388,9 @@ int prim() {
   int v= 0;
   spcs();
   if (gotc('(')) {
-    v= expr();
-    if (!v) expected("expr");
+    v= EXPECT(expr());
     spcs();
-    if (!gotc(')')) expected("')'");
+    EXPECT(gotc(')'));
     return v;
   }
   int n= parse_num();
@@ -505,9 +506,7 @@ char* print_header(char* e, int dodef) {
       }
       spcs(); more= gotc(',');
     } else {
-      //EXPECT(d, expr);
-      int d= expr();
-      if (!d) expected("expression");
+      int d= EXPECT(expr());
 
       // select 42 AS foo
       if (got("as")) {
@@ -568,7 +567,7 @@ int comparator(char cmp[NAMELEN]) {
 
 int dcmp(char* cmp, int a, int b) {
   switch (TWO(cmp[0], cmp[1])) {
-  case TWO('i', 'n'): expected("not implemented in");
+  case TWO('i', 'n'): error("not implemented in");
     // lol
 
   case TWO('~','='):
@@ -626,7 +625,7 @@ int scmp(char* cmp, dbval da, dbval db) {
   char* b= str(db);
   
   switch (TWO(cmp[0], cmp[1])) {
-  case TWO('i', 'n'): expected("not implemented in");
+  case TWO('i', 'n'): error("not implemented in");
 
   case TWO('i','l'): return like(a, b, 1);
   case TWO('l','i'): return like(a, b, 0);
@@ -650,9 +649,8 @@ int comparison() {
   char op[NAMELEN]= {};
   int a= expr();
   if (!a) return 0;
-  if (!comparator(op)) expected("op compare");
-  int b= expr();
-  if (!b) return 0;
+  EXPECT(comparator(op));
+  int b= EXPECT(expr());
   // TODO: optimzie for type if known
 
   //if (isnum(a) && isnum(b))
@@ -670,12 +668,12 @@ int logsimple() {
   // ==extended expr & use val?
   if (gotc('(')) {
       int r= logical();
-      if (!gotc(')')) expected(")");
+      EXPECT(gotc(')'));
       return r;
   }
   if (got("not")) {
     // TODO: 
-    expected("NOT not implemented");
+    error("NOT not implemented");
     return -logsimple();
   }
   // TODO "or here"?
@@ -726,8 +724,7 @@ int after_where(char* selexpr) {
     double d;
     // TODO: or column name...
     //   now -4 also works as "ASC" lol
-    int db= parse_num();
-    if (!db) expected("order by COL");
+    int db= EXPECTMSG(parse_num(), "order by column number");
     int col= db;
     got("ASC") || got("ASCENDING");
     if (got("DESC") || got("DESCENDING"))
@@ -820,14 +817,14 @@ int INT(char* selexpr) {
   double start= 0, stop= 0, step= 1;
   // TODO: generalize, use functions?
   if (gotc('(')) {
-    int dstart= parse_num();
-    if (!dstart) expected("number");
+    int dstart= EXPECT(parse_num());
     start= dstart;
-    if (!gotc(',')) expected(",");
-    int dstop= parse_num();
-    if (!dstop) expected("number");
+    spcs();
+    EXPECT(gotc(','));
+    int dstop= EXPECT(parse_num());
     stop= dstop;
-    if (!gotc(')')) expected(")");
+    spcs();
+    EXPECT(gotc(')'));
     stop+= 0.5;
     spcs();
     expectname(name, NULL);
@@ -882,7 +879,7 @@ char* getcollist() {
     expectname(col, "colname");
     spcs();
     if (gotc(')')) break;
-    if (!gotc(',')) expected("colname list");
+    EXPECTMSG(gotc(','), "colname list");
   }
   return strndup(start, ps-start-1);
 }
@@ -923,8 +920,8 @@ int from_list(char* selexpr, int is_join) {
     char joincol[NAMELEN]= {0};
     val* joinval= NULL;
     if (is_join) {
-      if (!got("on")) expected("on joincol");
       // ON "foo"
+      EXPECT(got("on"));
       expectname(joincol, "join column name");
       // TODO: get "last" table here?
       joinval= findvar(NULL, joincol);
@@ -983,7 +980,7 @@ int from(char* selexpr) {
 // just an aggregator!
 int sqlselect() {
   strcpy(format, globalformat);
-  if (got("format") && !getname(format)) expected("format name");
+  if (got("format")) EXPECT(getname(format));
   if (!got("select")) return 0;
   char* expr= ps;
 
@@ -1024,7 +1021,7 @@ int create_index() {
   // or ... AS SELECT ...
   expectname(col, "column name");
 
-  if (!gotc(')')) expected(")");
+  EXPECT(gotc(')'));
   
   // TODO: registerobj
 
@@ -1045,15 +1042,15 @@ int create_view() {
   char name[NAMELEN]= {0};
   expectname(name, "index name");
 
-  // parameters
+  // parameters (a,b,c)
   char* params= NULL;
   if (gotc('(')) {
-    params= params;
+    params= params; // TOOD: lol
     while(!gotc(')'));
     if (!*ps) expected(")");
   }
 
-  if (!got("as")) expected("AS");
+  EXPECT(got("as"));
 
   spcs();
   char* impl= ps;
@@ -1081,9 +1078,8 @@ int setvarexp() {
   char name[NAMELEN]= {0};
   expectname(name, "variable");
   spcs();
-  if (!gotc('=')) expected("=");
-  int d= expr();
-  if (!d) expected("expression");
+  EXPECT(gotc('='));
+  int d= EXPECT(expr());
   val v= {};
   setnum(&v, d);
   setvar("global", name, &v);

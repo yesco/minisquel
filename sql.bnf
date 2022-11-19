@@ -1,8 +1,21 @@
 sql	:= select | set | create (view | function)
 
 select	:= SELECT cexprs [from] [where] [group] [order] [having]
+
+  start= ps;
+  if (got("SELECT")) {
+    OL("out ", EXPECT(cexprs));
+  }
+  return start;	
+
 cexprs	:= cexpr [, ...]
+
+  l= listof(cexpr, ',');
+
 cexpr	:= * | id | nexpr
+
+  d= OR(IF('*', matchnames), id, nexpr);
+	
 exprs	:= nexpr [, ...]
 nexpr	:= expr [AS name]
 expr	:= prim [(* | / | %) ...]
@@ -13,12 +26,31 @@ call	:=
 from	:= FROM table tname [, ... ..]
 
 where	:= WHERE or
-or	:= '(' or ')' | and [OR ...]
+or	:= [NOT] '(' or ')' | and [OR ...]
+	
+  not= got("NOT");
+  l= listof(and, "OR");
+
 and	:= cmp [AND ...]
+
+  l= listof(or, "AND");
+
 cmp	:= [NOT] expr op expr
+
+  not= got("NOT");
+  a=   EXPECT(expr);
+       EXPECT(op);
+  b=   EXPECT(expr);
+  OL(op, a, b);
+
 op	:= LIKE | ILIKE | = | == | != | <> | < | > | <= | >= | !< | !>
 
 call	:= id '(' [expr [, ...]] ')'
+
+  f= GOT(fname)
+     EXPECT('(');
+  l= listof(expr, ',');
+     EXPECT(')');
 
 group	:= GROUP BY col
 order	:= ORDER BY col [ASC[ENDING] | DESC[ENDING] ]
@@ -28,7 +60,7 @@ var	:= id | tname '.' id
 tname	:= name
 name	:= str | id
 id	:= '[' idchars ']' | ?
-
+fname   := idchars
 str	:= ' chars1 ' || " chars2 "
 
 idchars	:= ( [^\[\]] ) ...
