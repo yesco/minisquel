@@ -1,0 +1,13 @@
+(de prime (p)
+  (for d p
+    (if (= 0 (% p d))
+      (println p "not a prime says" d))))
+
+(de doprime (p)
+  (for d 98
+    (prime p)))
+
+(doprime 2124680)
+
+(bye)
+
