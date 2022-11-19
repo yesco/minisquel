@@ -11,6 +11,7 @@ slower	mstime	lang
  1	  710	C -O3
  2.02	 1432	javascript
  2.58	 1832	objectlog.c
+ 3.61    2710*	prime.f ( C03: 750ms)
  8.61	 6113	picolisp
 26.01	17760	s2 -O3
 52.90	37557	s2 
