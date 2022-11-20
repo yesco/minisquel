@@ -77,11 +77,11 @@ void init(int size) {
   lplan= realloc(lplan, size*sizeof(*lplan));
 }
 
-void printvar(int i) {
+void printvar(int i, dbval* var) {
   dbp(var[i]);
 }
 
-void printvars() {
+void printvars(dbval* var) {
   printf("\n\nVARS\n");
   for(int i=1; i<=nextvar-var; i++) {
     printf("%3d: ", i);
@@ -92,7 +92,7 @@ void printvars() {
   }
 }
 
-dbval** lprinthere(dbval** p) {
+dbval** lprinthere(dbval** p, dbval* var) {
   if (!*p) return NULL;
   
   long f= L(*p);
@@ -108,14 +108,14 @@ dbval** lprinthere(dbval** p) {
   return p+1;
 }
 
-void lprintplan(dbval** p, int lines) {
+void lprintplan(dbval** p, dbval* var, int lines) {
   if (lines>1 || lines<0)
     printf("LPLAN\n");
 
   for(int i=0; i<lines || lines<0; i++) {
     if (!p || !p[i]) break;
 
-    p= lprinthere(p);
+    p= lprinthere(p, var);
     putchar('\n');
   }
   printf("\n");
@@ -139,7 +139,7 @@ void* jmp[TWORANGE]= {0};
 
 
 // lrun is 56% faster!
-long lrun(dbval** start) {
+long lrun(dbval** start, dbval* var) {
   static void* jmp[]= {
     [  0]= &&END,
     ['t']= &&TRUE,
@@ -252,7 +252,7 @@ long lrun(dbval** start) {
   }
 #endif
 
-  //lprintplan(start, -1);
+  //lprintplan(start, var, -1);
 
   dbval** p= start;
   dbval* v= var;
@@ -305,13 +305,13 @@ long lrun(dbval** start) {
 	printf(")\n");
       } else {
 	printf("\n[");
-	lprinthere(p-1);
+	lprinthere(p-1, var);
 	putchar('\t');
 
 	// print vars
 	for(int i=1; i<=10; i++) {
 	  //if (!v[i]) break; // lol
-	  printvar(i);
+	  printvar(i, var);
 	}
 
 	printf("]\t");
@@ -399,7 +399,7 @@ DEL:    case 127: while(127==L(N));NEXT;
 OR:   case 'o': // OR nxt a b c...
       Pr;
       while(*p)
-	if (lrun(lplan+L(N))) {
+	if (lrun(lplan+L(N), var)) {
 	  p= lplan+L(r); continue;
 	}
       goto fail;
@@ -460,8 +460,8 @@ LOR:  case '|': Prab; R.d=L(A.d)|L(B.d); NEXT;
 LXOR: CASE("xo"): Prab; R.d=L(A.d)^L(B.d); NEXT;
 
 // generators
-IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) results+= lrun(p+1); goto done;
-DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) results+= lrun(p+1); goto done;
+IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) results+= lrun(p+1, var); goto done;
+DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) results+= lrun(p+1, var); goto done;
 LINE: case 'l': { Pa; FILE* fil= A.p;
 	//   165ms time cat fil10M.tsv
 	//  3125ms time wc fil...
@@ -510,7 +510,7 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
 	    dbfree(**f);
 	    **f++= mknull();
 	  }
-	  lrun(f+1);
+	  lrun(f+1, var);
 	  //free(line); // for csvgetline
 	}
 	fclose(fil);
@@ -527,7 +527,7 @@ FIL:   case 'F': { Pra;
 // print
 OUT:   CASE("ou"): if (var[4].d>0) {
 	  for(int i= var[4].d; var[i].d; i++) {
-	    printvar(i);
+	    printvar(i, var);
 	  }
 	  putchar('\n');
 	  for(int i= var[4].d; var[i].d; i++) {
@@ -536,10 +536,10 @@ OUT:   CASE("ou"): if (var[4].d>0) {
 	  putchar('\n');
 	  var[4].d= -var[4].d;
        }
-      while(*p) printvar(N-var);
+      while(*p) printvar(N-var, var);
       putchar('\n');
       NEXT;
-PRINT: case '.': while(*p) printvar(N-var); NEXT;
+PRINT: case '.': while(*p) printvar(N-var, var); NEXT;
 PRINC: case 'p': while(*p) printf("%s", STR(*N)); NEXT;
 NEWLINE: case 'n': putchar('\n'); NEXT;
     
@@ -725,12 +725,14 @@ int feq(dbval**p){return p[0]->l==p[1]->l?0:-1;}
 int fneq(dbval**p){return p[0]->l!=p[1]->l?0:-1;}
 int fiota(dbval**p) {
   for(p[0]->d=p[1]->d; p[0]->d<=p[2]->d; (void)(p[0]->d++))
-    lrun(p+4);
+    //TODO: fix his?
+    ;//lrun(p+4, var);
   return 1;
 }
-int fprint(dbval**p) {
+int fprint(dbval**p) {// TODO:, dbval* var) {
+  //TODO: need "context"
   while(*p) {
-    printvar(*p++-var);
+    ;//printvar(*p++-var, var);
   }
   return 0;
 }
@@ -844,8 +846,8 @@ int main(int argc, char** argv) {
   if (debug) {
     printf("\n\nLoaded %ld constants %ld plan elemewnts\n", nextvar-var, p-plan);
   
-    printvars();
-    lprintplan(lplan, -1);
+    printvars(var);
+    lprintplan(lplan, var, -1);
   }
 
   //trace= 1;
@@ -854,7 +856,7 @@ int main(int argc, char** argv) {
   if (debug) printf("\n\nLPLAN---Running...\n\n");
   mallocsreset();
   long ms= mstime();
-  long res= lrun(lplan);
+  long res= lrun(lplan, var);
   ms = mstime()-ms;
   printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);
   hprint_hlp(olops*1000/ms, " ologs (/s)\n", 0);
