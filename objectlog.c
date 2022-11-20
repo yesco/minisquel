@@ -125,7 +125,9 @@ typedef int(*fun)(dbval**p);
 
 typedef int(*lfun)(dbval**p, dbval* var);
 
+// TODO: bad name?
 typedef struct thunk {
+  fun ccode;
   dbval** plan;
   dbval* var;
   int paramix;
@@ -159,7 +161,7 @@ int call(thunk* t, dbval** params, dbval* var, thunk* toOut) {
 
   // TODO: paramsix not correct to return
 
-  thunk ret= { params, var, -1, toOut };
+  thunk ret= { NULL, params, var, -1, toOut };
   int r= lrun(t->plan, t->var, &ret);
   return r;
 }
@@ -169,6 +171,9 @@ int call(thunk* t, dbval** params, dbval* var, thunk* toOut) {
 // When this value is processed, it'll
 // backtrack to find next out in orig plan.
 int out(thunk* t, dbval** params, dbval* var) {
+  if (!t) return 0;
+  if (t->ccode) return (*t->ccode)(params);
+
   dbval** p= params;
   // points to first caller param!
   dbval** d= t->plan;
@@ -206,6 +211,9 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
     ['o']= &&OR,
 
     [TWO(":=")]= &&SET,
+    ['c']= &&CCODE,
+    [TWO("ca")]= &&CALL,
+    [TWO("ru")]= &&RUN,
 
     ['+']= &&PLUS,
     ['-']= &&MINUS,
@@ -285,8 +293,8 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
     while(*p) {
       int f= L(*p);
       void* x= jmp[f];
-      if (!x || debug) printf("TRANS '%c' %p\n", f, x);
-      if (!x) error("ObjectLog: Function not recognized");
+      if (!x || debug) printf("@%ld: TRANS '%c'(%d) %p\n", p-start, f, f, x);
+      if (!x) error("ObjectLog.TRANS: Function not recognized");
 
       // "optimize"
       if (x==&&EQ) {
@@ -385,23 +393,23 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
 
       } else {
 	// TODO: funcall...
-      printf("FOOL\n");
-      fun fp= func[f];
+	printf("FOOL\n");
+	fun fp= func[f];
 
-      if (!fp) goto done;
-      int ret= fp(p);
-      //printf("\nf='%c' fp= %p\n", f, fp);
-      //      printf("ret= %d\n", ret);
+	if (!fp) goto done;
+	int ret= fp(p);
+	//printf("\nf='%c' fp= %p\n", f, fp);
+	//      printf("ret= %d\n", ret);
   
-      switch(ret) {
-      case -1: goto fail;
-      case  0: while(*++p); break;
-      case  1: goto succeed;
-      case  2: result = !result; break;
-      default: error("Unknown ret action!");
+	switch(ret) {
+	case -1: goto fail;
+	case  0: while(*++p); break;
+	case  1: goto succeed;
+	case  2: result = !result; break;
+	case  3: goto done;
+	default: error("Unknown ret action!");
+	}
       }
-      }
-
       p++;
       continue;
     }
@@ -462,6 +470,22 @@ SET:  CASE(":="): Pra; R= A; NEXT;
 //RUN:  CASE("run"): Pr;
 //      results+= lrun((dbval**)R.p, p);
 //      NEXT;
+CCODE:case 'c': { Pr;
+      fun c= R.p;
+      // TODO: have controlling codes?
+      int ret= c(p);
+
+      switch(ret) {
+      case -1: goto fail;
+      case  0: while(*++p); break;
+      case  1: goto succeed;
+      case  2: result = !result; break;
+      case  3: goto done;
+      default: error("Unknown ret action!");
+      }
+      NEXT; }
+
+RUN:  CASE("run"): ;
 CALL: CASE("call"): Pr;
       results+= call((thunk*)*p, p, var, toOut);
       NEXT;
@@ -589,6 +613,7 @@ FIL:   case 'F': { Pra;
 OUT:   CASE("ou"): if (toOut) {
 	 // basically a return to caller
 	 out(toOut, p, var);
+	 while(*p) p++;
 	 NEXT;
        }
        // default "out" is print!
@@ -847,6 +872,12 @@ void regfuncs() {
 
 
 
+int printlines(dbval** p) {
+  while(*p)
+    printf("--- %s\n", STR(**p++));
+  printf("==========\n");
+  return 0;
+}
 
 
 
@@ -923,7 +954,8 @@ int main(int argc, char** argv) {
   if (debug) printf("\n\nLPLAN---Running...\n\n");
   mallocsreset();
   long ms= mstime();
-  long res= lrun(lplan, var, NULL);
+  thunk myout= (thunk){&printlines};
+  long res= lrun(lplan, var, &myout);
   ms = mstime()-ms;
   printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);
   hprint_hlp(olops*1000/ms, " ologs (/s)\n", 0);
