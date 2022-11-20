@@ -123,6 +123,61 @@ void lprintplan(dbval** p, dbval* var, int lines) {
 
 typedef int(*fun)(dbval**p);
 
+typedef int(*lfun)(dbval**p, dbval* var);
+
+typedef struct thunk {
+  dbval** plan;
+  dbval* var;
+  int paramix;
+  // int params; // TODO:
+  struct thunk* out;
+} thunk;
+
+typedef int(*plancall)(thunk* t, dbval* var);
+
+// a reference doesn't own ptr
+// (so it won't free it)
+// ptr must be guaranteed to stay around
+// otherwise "copy" (dbcopy)
+dbval dbref(dbval d) {
+  void* p= ptr(d);
+  if (!p) return d;
+  return mkptr(p, 0);
+}
+
+long lrun(dbval** start, dbval* var, thunk* toOut);
+
+// Call another plan/thunk expecting result
+int call(thunk* t, dbval** params, dbval* var, thunk* toOut) {
+  dbval** p= params;
+  dbval* d= t->var + t->paramix;
+  // copy in params
+  while(*p) *d++= dbref(**p++);
+  // using a future "ret" thunk
+  // using "out" to copy out same param!
+  // This makes us continuation based
+
+  // TODO: paramsix not correct to return
+
+  thunk ret= { params, var, -1, toOut };
+  int r= lrun(t->plan, t->var, &ret);
+  return r;
+}
+
+// Return (out) a result to a plan
+// (by calling it's cont)
+// When this value is processed, it'll
+// backtrack to find next out in orig plan.
+int out(thunk* t, dbval** params, dbval* var) {
+  dbval** p= params;
+  // points to first caller param!
+  dbval** d= t->plan;
+  // copy OUT params to caller
+  while(*d) **d++= dbref(**p++);
+  // continue with original "toOut" function
+  // called after "out" of caller
+  return lrun(++d, t->var, t->out);
+}
 
   // adds 130ms to 1945 ms 5.3%
   //#define TWO(s) (s[0]+256*s[1])
@@ -139,7 +194,7 @@ void* jmp[TWORANGE]= {0};
 
 
 // lrun is 56% faster!
-long lrun(dbval** start, dbval* var) {
+long lrun(dbval** start, dbval* var, thunk* toOut) {
   static void* jmp[]= {
     [  0]= &&END,
     ['t']= &&TRUE,
@@ -399,11 +454,17 @@ DEL:    case 127: while(127==L(N));NEXT;
 OR:   case 'o': // OR nxt a b c...
       Pr;
       while(*p)
-	if (lrun(lplan+L(N), var)) {
+	if (lrun(lplan+L(N), var, toOut)) {
 	  p= lplan+L(r); continue;
 	}
       goto fail;
 SET:  CASE(":="): Pra; R= A; NEXT;
+//RUN:  CASE("run"): Pr;
+//      results+= lrun((dbval**)R.p, p);
+//      NEXT;
+CALL: CASE("call"): Pr;
+      results+= call((thunk*)*p, p, var, toOut);
+      NEXT;
 
 // arith
 PLUS:  case '+': Prab; R.d= A.d+B.d; NEXT;
@@ -460,8 +521,8 @@ LOR:  case '|': Prab; R.d=L(A.d)|L(B.d); NEXT;
 LXOR: CASE("xo"): Prab; R.d=L(A.d)^L(B.d); NEXT;
 
 // generators
-IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) results+= lrun(p+1, var); goto done;
-DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) results+= lrun(p+1, var); goto done;
+IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) results+= lrun(p+1, var, toOut); goto done;
+DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) results+= lrun(p+1, var, toOut); goto done;
 LINE: case 'l': { Pa; FILE* fil= A.p;
 	//   165ms time cat fil10M.tsv
 	//  3125ms time wc fil...
@@ -510,7 +571,7 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
 	    dbfree(**f);
 	    **f++= mknull();
 	  }
-	  lrun(f+1, var);
+	  lrun(f+1, var, toOut);
 	  //free(line); // for csvgetline
 	}
 	fclose(fil);
@@ -525,7 +586,13 @@ FIL:   case 'F': { Pra;
        NEXT; }
 
 // print
-OUT:   CASE("ou"): if (var[4].d>0) {
+OUT:   CASE("ou"): if (toOut) {
+	 // basically a return to caller
+	 out(toOut, p, var);
+	 NEXT;
+       }
+       // default "out" is print!
+       if (var[4].d>0) {
 	  for(int i= var[4].d; var[i].d; i++) {
 	    printvar(i, var);
 	  }
@@ -856,7 +923,7 @@ int main(int argc, char** argv) {
   if (debug) printf("\n\nLPLAN---Running...\n\n");
   mallocsreset();
   long ms= mstime();
-  long res= lrun(lplan, var);
+  long res= lrun(lplan, var, NULL);
   ms = mstime()-ms;
   printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);
   hprint_hlp(olops*1000/ms, " ologs (/s)\n", 0);
