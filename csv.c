@@ -224,6 +224,7 @@ char* nextCSV(char** cur, char delim) {
     if (*e=='\\') e++; // \"
     e++;
   }
+
   // truncate
   char endchar= *e;
   *e++ = 0;

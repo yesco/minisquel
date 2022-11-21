@@ -226,10 +226,6 @@ int parse_num() {
 
 // Parses a string and gives it to a new
 // dbval, it should be dbfree(d).
-//
-// A pointer to the parsed string
-// is returned in *s.
-// ! DO NOT FREE!
 int parse_str() {
   spcs();
 
@@ -247,6 +243,7 @@ int parse_str() {
   ps--;
   if (*ps!=q) return 0; // fail
 
+  // work on a copy "unquote"
   char* a= strndup(s, ps-s);
   s= a;
   ps++;
@@ -366,9 +363,7 @@ int call(char* name) {
     int v= EXPECT(expr());
 
     params[pcount++]= v;
-    if (debug && !parse_only) {
-      printf("\tARG %d: %d\n", pcount, v);
-    }
+    if (debug && !parse_only) printf("\tARG %d: %d\n", pcount, v);
 
     spcs();
     if (*ps!=')') EXPECT(gotc(','));
@@ -385,9 +380,8 @@ int call(char* name) {
   #undef MAXPARAMS
 }
 
-// parse var name and get value
-// WARNING: if not found=>NULL
-// and always return true
+// parse var name and get varnum
+// if not existing, create and assign
 int var() {
   char name[NAMELEN]= {};
   // TODO:? "variables) in prepared stmsts
@@ -880,9 +874,15 @@ int sqlselect() {
   strcpy(format, globalformat);
   if (got("format")) EXPECT(getname(format));
   if (!got("select")) return 0;
+  spcs();
+  
+  // TODO: little confusing (expr will
+  // be used to call select_+expr again
   char* expr= ps;
 
-  // "skip" (dummies) to get beyond
+  // first we "skip over" since these expr
+  // only should be evaluationed once from
+  // where etc are finished.
   parse_only= 1;
   char* end= select_exprs_and_header(expr, 0);
   if (end) ps= end;
