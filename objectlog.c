@@ -66,8 +66,96 @@ dbval** lplan= NULL;
 //   fun, 0,
 //   0
 
+// A Plan for a query, can contain
+// several objectlog functions.
+// Use as "template" - can't exec!
+typedef struct Plan {
+  char*   name; // or be in val?
+  int     plansize;
+  int*    plan;
+  int     varsize;
+  dbval*  var;
+} Plan;
+
+
+//  dbval** lplan; // compiled into ptrs
+
+Plan* mkplan(char* name) {
+  return NULL;
+}
+
+
+typedef int(*fun)(dbval**p);
+
+typedef int(*lfun)(dbval**p, dbval* var);
+
+// A thunk is an executble plan, more like
+// a continuation.
+typedef struct thunk {
+  fun     ccode;
+  dbval** lplan;
+  dbval*  var;
+  int     paramix;
+  // int params; // TODO: not overwrite
+  struct thunk* out;
+} thunk;
+
+
+// Two letter function names are mapped
+// to an interger in TWORANGE (512 values).
+// This keeps SWITCH fast, more values
+// performance deterioates too much!
+
+  // adds 130ms to 1945 ms 5.3%
+  //#define TWO(s) (s[0]+256*s[1])
+  //#define TWO(s) (s[0]-32+(s[1]?3*(s[1]-96):0))
+
+// no performance loss!
+#define TWO(s) (s[0]+3*(s[1]))
+#define TWORANGE 128*4
+
+// pointers to functions
+fun func[TWORANGE]= {0};
+
+// pointer to labels inside lrun
+void* jmp[TWORANGE]= {0};
+
+
+// Compiles a PLAN to a concrete thunk.
+// The funk can be run/called.
+// The compilation transforms integer
+// Plan->plan to pointer to variables
+// and direct "opcode" pointer to labels.
+thunk compilePlan(Plan* plan) {
+  // Use Plan as template
+  thunk t= {};
+  // Copy vars from template
+  t.var= memdup(plan->var, plan->varsize*sizeof(*t.var));
+  // Generate pointer array
+  t.lplan= malloc(plan->plansize*sizeof(*t.lplan));
+  int* p= plan->plan;
+  dbval** d= t.lplan;
+  for(int i= 0; i < plan->plansize; i++) {
+    // function (int) -> label
+    if (*p == 0) {
+      assert(i == p - plan->plan);
+      break;
+    }
+    *d++ = jmp[*p++];
+    // vars
+    while(*p) {
+      *d++= t.var + *p++;
+    }
+    *d++= 0; p++; // skip 0
+  }
+
+  return t;
+}
+
 void init(int size) {
-  // lol
+  // These are used for building,
+  // once read/loaded they are named
+  // and stored.
   long n= nextvar-var;
   var = realloc(var, size*sizeof(*var));
   nextvar= n+var;
@@ -121,19 +209,6 @@ void lprintplan(dbval** p, dbval* var, int lines) {
   printf("\n");
 }
 
-typedef int(*fun)(dbval**p);
-
-typedef int(*lfun)(dbval**p, dbval* var);
-
-// TODO: bad name?
-typedef struct thunk {
-  fun ccode;
-  dbval** plan;
-  dbval* var;
-  int paramix;
-  // int params; // TODO:
-  struct thunk* out;
-} thunk;
 
 typedef int(*plancall)(thunk* t, dbval* var);
 
@@ -162,7 +237,7 @@ int call(thunk* t, dbval** params, dbval* var, thunk* toOut) {
   // TODO: paramsix not correct to return
 
   thunk ret= { NULL, params, var, -1, toOut };
-  int r= lrun(t->plan, t->var, &ret);
+  int r= lrun(t->lplan, t->var, &ret);
   return r;
 }
 
@@ -176,7 +251,7 @@ int out(thunk* t, dbval** params, dbval* var) {
 
   dbval** p= params;
   // points to first caller param!
-  dbval** d= t->plan;
+  dbval** d= t->lplan;
   // copy OUT params to caller
   while(*d) **d++= dbref(**p++);
   // continue with original "toOut" function
@@ -184,21 +259,8 @@ int out(thunk* t, dbval** params, dbval* var) {
   return lrun(++d, t->var, t->out);
 }
 
-  // adds 130ms to 1945 ms 5.3%
-  //#define TWO(s) (s[0]+256*s[1])
-  //#define TWO(s) (s[0]-32+(s[1]?3*(s[1]-96):0))
 
-  // no performance loss!
-#define TWO(s) (s[0]+3*(s[1]))
-#define TWORANGE 128*4
-
-fun func[TWORANGE]= {0};
-
-void* jmp[TWORANGE]= {0};
-
-
-
-// lrun is 56% faster!
+// lrun is 56% faster! (mostly because no cleanup, lol)
 long lrun(dbval** start, dbval* var, thunk* toOut) {
   static void* jmp[]= {
     [  0]= &&END,
@@ -897,18 +959,24 @@ int main(int argc, char** argv) {
     char* s= *argv;
     if (*s == ':') {
       if (s[1] == ':') {
+	if (s[2] == ':') {
 
-	// :: head head head 0
+	  // ::: name (of objectlog plan)
+	  error("TODO: new plan");
 
-	// store "index" as num
-	var[4]= mknum(nextvar-var+1);
-	while (0!=strcmp("0", s)) {
-	  --argc; s= *++argv;
-	  *++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
-	}
+	} else {
+
+	  // :: head head head 0
+
+	  // store "index" as num
+	  var[4]= mknum(nextvar-var+1);
+	  while (0!=strcmp("0", s)) {
+	    --argc; s= *++argv;
+	    *++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
+	  }
 	
-	// header :: str str str ... 0
-	
+	  // header :: str str str ... 0
+	}	
       } else {
 
 	// init var
@@ -955,6 +1023,8 @@ int main(int argc, char** argv) {
   mallocsreset();
   long ms= mstime();
   thunk myout= (thunk){&printlines};
+  //dbval** dblplan= lplan+10;
+  //thunk dbl= {NULL, dblplan, nextvar++, 
   long res= lrun(lplan, var, &myout);
   ms = mstime()-ms;
   printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);

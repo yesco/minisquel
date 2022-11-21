@@ -41,6 +41,12 @@ int strcount(char* s, char* sub) {
   return n;
 }
 
+void* memdup(void* m, size_t size) {
+  void* r= malloc(size);
+  if (r && m) memcpy(r, m, size);
+  return r;
+}
+
 // To malloced string S
 // append N characters from ADD.
 //
@@ -556,6 +562,7 @@ char* readfile(char* name) {
   fclose(f);
   return r;
 }
+
 
 
 #define JSK_INCLUDED_UTILS
