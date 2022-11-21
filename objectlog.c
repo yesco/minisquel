@@ -222,6 +222,7 @@ dbval dbref(dbval d) {
   return mkptr(p, 0);
 }
 
+long trun(thunk* t, thunk* toOut);
 long lrun(dbval** start, dbval* var, thunk* toOut);
 
 // Call another plan/thunk expecting result
@@ -236,7 +237,7 @@ int call(thunk* t, dbval** params, dbval* var, thunk* toOut) {
 
   // TODO: paramsix not correct to return
 
-  thunk ret= { NULL, params, var, -1, toOut };
+  thunk ret= {NULL, params, var, -1, toOut };
   int r= lrun(t->lplan, t->var, &ret);
   return r;
 }
@@ -261,8 +262,16 @@ int out(thunk* t, dbval** params, dbval* var) {
 
 
 // lrun is 56% faster! (mostly because no cleanup, lol)
+inline long trun(thunk* t, thunk* toOut) {
+  return lrun(t->lplan, t->var, toOut);
+}
+
 long lrun(dbval** start, dbval* var, thunk* toOut) {
-  static void* jmp[]= {
+  // This has to be done inside this
+  // function, little irritating, as it's
+  // used in compilation outside.
+  // Call lrun with NULL, NULL once.
+  static void* ljmp[TWORANGE]= {
     [  0]= &&END,
     ['t']= &&TRUE,
     ['f']= &&FAIL,
@@ -342,8 +351,17 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
 #undef DEF
   };
 
-// Not sure can tell the speed diff!
+  static int copiedjmp= 0;
+  if (!copiedjmp) {
+    memcpy(jmp, ljmp, sizeof(jmp));
+    copiedjmp= 1;
+  }
 
+  // just to init lablels
+  //if (!start) return 0;
+
+// Use labels for jumping
+// Not sure can tell the speed diff!
 #define JUMPER
   
 #ifdef JUMPER
@@ -607,12 +625,19 @@ LOR:  case '|': Prab; R.d=L(A.d)|L(B.d); NEXT;
 LXOR: CASE("xo"): Prab; R.d=L(A.d)^L(B.d); NEXT;
 
 // generators
-IOTA: case 'i': Prab;  for(R.d=A.d; R.d<=B.d; R.d+=  1) results+= lrun(p+1, var, toOut); goto done;
-DOTA: case 'd': Prabc; for(R.d=A.d; R.d<=B.d; R.d+=C.d) results+= lrun(p+1, var, toOut); goto done;
+IOTA: case 'i': Prab; 
+      for(R.d=A.d; R.d<=B.d; R.d+=  1) {
+	results+= lrun(p+1, var, toOut);
+      } goto done;
+DOTA: case 'd': Prabc;
+      for(R.d=A.d; R.d<=B.d; R.d+=C.d) {
+	results+= lrun(p+1, var, toOut);
+      } goto done;
 LINE: case 'l': { Pa; FILE* fil= A.p;
-	//   165ms time cat fil10M.tsv
-	//  3125ms time wc fil...
-	//  4054ms time ./olrun sql where 1=0
+      // TODO: "move out"?
+      //   165ms time cat fil10M.tsv
+      //  3125ms time wc fil...
+      //  4054ms time ./olrun sql where 1=0
 	// 14817ms time ./olrun sql p cols
 	// 15976ms    full strings
 	// 33s     time ./run sql p cols
@@ -808,8 +833,8 @@ default:
       printf("\n\n%% Illegal opcode at %ld: %ld '%c'\n", p-lplan-1, f, (int)(isprint(f)?f:'?'));
       exit(0);
 
-    }
- 
+    } 
+
     // step over zero
     assert(!*p);
     p++;
@@ -862,6 +887,8 @@ default:
   return results;
 }
 
+// Try function dispatch
+// -- TODO: remove, not fast
 
 #define R0 return 0;
 
