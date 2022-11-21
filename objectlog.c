@@ -13,6 +13,12 @@
 #include <assert.h>
 #include <string.h>
 
+
+// Use labels for jumping
+// Not sure can tell the speed diff!
+#define JUMPER
+  
+
 int debug=0, stats=0, lineno=0, foffset=0, security= 0;
 
 int nfiles= 0;
@@ -43,6 +49,7 @@ long olops= 0, nresults= 0;
 dbval*  var= NULL;
 char** name=NULL;
 
+// bad name as it points to prev. lol
 dbval*  nextvar= NULL;
 
 #define L(x) ((long)x)
@@ -52,7 +59,6 @@ dbval*  nextvar= NULL;
 // indices into vars[i] (names[i])
 
 int* plan= NULL;
-
 dbval** lplan= NULL;
 
 // Plan is a serialized array of indices
@@ -80,8 +86,17 @@ typedef struct Plan {
 
 //  dbval** lplan; // compiled into ptrs
 
-Plan* mkplan(char* name) {
-  return NULL;
+Plan* mkplan(char* name, int* plan, dbval* var, int plansize, int varsize) {
+  Plan* p= calloc(1, sizeof(plan));
+  p->name = strdup(name);
+
+  p->plansize= plansize;
+  p->plan= memdup(plan, plansize*sizeof(*plan));
+
+  p->varsize= varsize;
+  p->var= memdup(var, varsize*sizeof(*var));
+		  
+  return p;
 }
 
 
@@ -92,12 +107,13 @@ typedef int(*lfun)(dbval**p, dbval* var);
 // A thunk is an executble plan, more like
 // a continuation.
 typedef struct thunk {
-  fun     ccode;
+  Plan*   plan;
   dbval** lplan;
   dbval*  var;
   int     paramix;
   // int params; // TODO: not overwrite
   struct thunk* out;
+  fun     ccode;
 } thunk;
 
 
@@ -130,6 +146,7 @@ thunk compilePlan(Plan* plan) {
   // Use Plan as template
   thunk t= {};
   // Copy vars from template
+  t.plan= plan;
   t.var= memdup(plan->var, plan->varsize*sizeof(*t.var));
   // Generate pointer array
   t.lplan= malloc(plan->plansize*sizeof(*t.lplan));
@@ -137,16 +154,21 @@ thunk compilePlan(Plan* plan) {
   dbval** d= t.lplan;
   for(int i= 0; i < plan->plansize; i++) {
     // function (int) -> label
-    if (*p == 0) {
-      assert(i == p - plan->plan);
+    *d++ = jmp[*p++]; i++;
+    if (debug)
+      printf("%2d %3d '%c' %p\n", i, p[-1], isprint(p[-1])?p[-1]:'?', d[-1]);
+    if (p[-1] == 0) {
+      *d++= 0;
+      //assert(i == p - plan->plan);
       break;
     }
-    *d++ = jmp[*p++];
+
     // vars
     while(*p) {
-      *d++= t.var + *p++;
+      *d++= t.var + abs(*p++); i++;
+      if (debug) printf("\t%d %p\n", p[-1], d[-1]);
     }
-    *d++= 0; p++; // skip 0
+    *d++= 0; p++; i++; // 0
   }
 
   return t;
@@ -169,12 +191,13 @@ void printvar(int i, dbval* var) {
   dbp(var[i]);
 }
 
-void printvars(dbval* var) {
+void printvars(dbval* var, int n) {
   printf("\n\nVARS\n");
-  for(int i=1; i<=nextvar-var; i++) {
+  for(int i=1; i<=n; i++) {
     printf("%3d: ", i);
     //printf("\t%p", &var[i]);
     //printvar(i);
+    printf("%p ", var[i].p);
     printf("%s", STR(var[i]));
     putchar('\n');
   }
@@ -224,6 +247,10 @@ dbval dbref(dbval d) {
 
 long trun(thunk* t, thunk* toOut);
 long lrun(dbval** start, dbval* var, thunk* toOut);
+
+long initlabels() {
+  return lrun(NULL, NULL, NULL);
+}
 
 // Call another plan/thunk expecting result
 int call(thunk* t, dbval** params, dbval* var, thunk* toOut) {
@@ -358,42 +385,7 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
   }
 
   // just to init lablels
-  //if (!start) return 0;
-
-// Use labels for jumping
-// Not sure can tell the speed diff!
-#define JUMPER
-  
-#ifdef JUMPER
-  static int firsttime= 1;
-  if (firsttime) {
-    if (debug) printf("--- JUMPER!\n");
-    // TODO: for all plans
-    dbval** p= start;
-    while(*p) {
-      int f= L(*p);
-      void* x= jmp[f];
-      if (!x || debug) printf("@%ld: TRANS '%c'(%d) %p\n", p-start, f, f, x);
-      if (!x) error("ObjectLog.TRANS: Function not recognized");
-
-      // "optimize"
-      if (x==&&EQ) {
-	int ta= type(*p[1]), tb= type(*p[2]);
-	printf("----EQ %d %d\n", ta, tb);
-	if (ta==TNUM || tb==TNUM)
-	  x= &&NUMEQ; // 4 % savings
-	else if (ta==TSTR || tb==TSTR)
-	  x= &&STREQ;
-	else if (ta==TPTR || tb==TPTR)
-	  x= &&STREQ;
-      }
-      *p= (dbval*)x;
-      while(*p++);
-    }
-
-    firsttime= 0;
-  }
-#endif
+  if (!start) return 0;
 
   //lprintplan(start, var, -1);
 
@@ -974,9 +966,32 @@ int strisnum(char* s) {
   return isdigit(s[0]) || *s=='-' && isdigit(s[1]);
 }
     
+void bang() {
+  printf("%% SIGFAULT, or something...\n\n");
+  install_signalhandlers(bang);
+  
+  if (1) {
+    printf("%% Stacktrace? (Y/n/d/q) >"); fflush(stdout);
+    char key= tolower(getchar());
+    switch(key) {
+    case 'n': break;
+    case 'q': exit(77); break;
+    case 'd': debugger(); break;
+    case 'y':
+    default:  print_stacktrace(); break;
+    }
+    //process_file(stdin, 1);
+    exit(99);
+  }
+  //else exit(77);
+}
+
 int main(int argc, char** argv) {
+  install_signalhandlers(bang);
+
   init(1024);
   regfuncs();
+  initlabels();
 
   // read plan from arguments
   int* p= plan;
@@ -1010,7 +1025,7 @@ int main(int argc, char** argv) {
 	// TODO: "can't just store strptr!"
 	--argc; s= *++argv;
 	*++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
-	//printf("var[%ld] = ", nextvar-var); dbp(*nextvar);
+	//printf("var[%ld] = ", nextvar-var); dbp(*nextvar); putchar('\n');
       }
 
     } else {
@@ -1036,10 +1051,13 @@ int main(int argc, char** argv) {
   *lp++ = 0; // just to be sure!
   *lp++ = 0; // just to be sure!
 
+  Plan* pl= mkplan("query", plan, var, p-plan+2, nextvar-var+1);
+  thunk t= compilePlan(pl);
+
   if (debug) {
     printf("\n\nLoaded %ld constants %ld plan elemewnts\n", nextvar-var, p-plan);
   
-    printvars(var);
+    printvars(var,10);
     lprintplan(lplan, var, -1);
   }
 
@@ -1049,10 +1067,14 @@ int main(int argc, char** argv) {
   if (debug) printf("\n\nLPLAN---Running...\n\n");
   mallocsreset();
   long ms= mstime();
-  thunk myout= (thunk){&printlines};
+  thunk myout= (thunk){.ccode=&printlines};
   //dbval** dblplan= lplan+10;
   //thunk dbl= {NULL, dblplan, nextvar++, 
-  long res= lrun(lplan, var, &myout);
+
+  //long res= lrun(lplan, var, &myout);
+  //printvars(t.var, t.plan->varsize);
+  long res= lrun(t.lplan, t.var, &myout);
+
   ms = mstime()-ms;
   printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);
   hprint_hlp(olops*1000/ms, " ologs (/s)\n", 0);
