@@ -136,6 +136,30 @@ fun func[TWORANGE]= {0};
 // pointer to labels inside lrun
 void* jmp[TWORANGE]= {0};
 
+#include "darr.c"
+
+darr* plans= NULL;
+
+// actually, the plan is represented by
+// a "default" thunk. The thunk can only
+// be used "once" in another plan. It
+// provides it's own storage.
+//
+// Thunk.plan -> Plan ...
+void regplan(Plan* p, thunk t) {
+  thunk* tp= memdup(&t, sizeof(t));
+  plans= dpush(plans, (dint)tp);
+}
+
+thunk* findplan(char* name) {
+  int len= dlen(plans);
+  for(int i=0; i<len; i++) {
+    thunk* t= (void*)dget(plans, i);
+    if (0==strcmp(name, t->plan->name))
+      return t;
+  }
+  return NULL;
+}
 
 // Compiles a PLAN to a concrete thunk.
 // The funk can be run/called.
@@ -153,17 +177,45 @@ thunk compilePlan(Plan* plan) {
   int* p= plan->plan;
   dbval** d= t.lplan;
   for(int i= 0; i < plan->plansize; i++) {
-    // function (int) -> label
-    *d++ = jmp[*p++]; i++;
+
+    // -- function (int) -> label
+    void* x= jmp[*p];
+
+    // "optimize"
+    if (x==jmp['=']) {
+      int ta= type(plan->var[abs(p[1])]);
+      int tb= type(plan->var[abs(p[2])]);
+      //printf("----EQ %d %d\n", ta, tb);
+      if (ta==TNUM || tb==TNUM)
+	x= jmp[TWO("N=")]; // 4 % savings
+      else if (ta==TSTR || tb==TSTR)
+	x= jmp[TWO("S=")];
+      else if (ta==TPTR || tb==TPTR)
+	x= jmp[TWO("S=")];
+    }
+
+    *d++ = x; p++; i++;
+
     if (debug)
       printf("%2d %3d '%c' %p\n", i, p[-1], isprint(p[-1])?p[-1]:'?', d[-1]);
+
     if (p[-1] == 0) {
       *d++= 0;
       //assert(i == p - plan->plan);
       break;
     }
 
-    // vars
+    // -- vars
+    if (x==jmp[TWO("call")]) {
+      // skip "actual" pointer...
+      // TODO: could just ptr atr str value
+      // and here do the lookup . same same..
+      //printf(" ... CALLLLLL %p\n", *p);
+      *d++ = (void*)findplan("double"); 
+      p++; i++;
+      //*d++ = *p++; i++;
+    }
+
     while(*p) {
       *d++= t.var + abs(*p++); i++;
       if (debug) printf("\t%d %p\n", p[-1], d[-1]);
@@ -174,7 +226,10 @@ thunk compilePlan(Plan* plan) {
   return t;
 }
 
+int varplansize= 0;
+
 void init(int size) {
+  varplansize= size;
   // These are used for building,
   // once read/loaded they are named
   // and stored.
@@ -182,9 +237,14 @@ void init(int size) {
   var = realloc(var, size*sizeof(*var));
   nextvar= n+var;
   
-  name= realloc(name, size*sizeof(*name));
   plan= realloc(plan, size*sizeof(*plan));
   lplan= realloc(lplan, size*sizeof(*lplan));
+}
+
+void cleandefault() {
+  memset(var, 0, varplansize*sizeof(*var));
+  memset(plan, 0, varplansize*sizeof(*var));
+  memset(plan, 0, varplansize*sizeof(*var));
 }
 
 void printvar(int i, dbval* var) {
@@ -254,17 +314,26 @@ long initlabels() {
 
 // Call another plan/thunk expecting result
 int call(thunk* t, dbval** params, dbval* var, thunk* toOut) {
+  fprintf(stderr, "CALL...%p\n", t);
+  fprintf(stderr, "CALL...%p, %p\n", t->lplan, t->var);
   dbval** p= params;
-  dbval* d= t->var + t->paramix;
+  dbval* d= t->var + t->paramix + 6; // TODO: 6?
   // copy in params
-  while(*p) *d++= dbref(**p++);
+  fprintf(stderr, "about to copy\n");
+  while(*p) {
+    fprintf(stderr, "1 copied: %s\n", STR(**p));
+    *d++= dbref(**p++);
+  }
+  fprintf(stderr, "CALL.copied...\n");
   // using a future "ret" thunk
   // using "out" to copy out same param!
   // This makes us continuation based
 
   // TODO: paramsix not correct to return
 
+  // p+1 is next statement after call!
   thunk ret= {NULL, params, var, -1, toOut };
+  fprintf(stderr, "CALL.lrun...\n");
   int r= lrun(t->lplan, t->var, &ret);
   return r;
 }
@@ -274,6 +343,7 @@ int call(thunk* t, dbval** params, dbval* var, thunk* toOut) {
 // When this value is processed, it'll
 // backtrack to find next out in orig plan.
 int out(thunk* t, dbval** params, dbval* var) {
+  fprintf(stderr, "OUT....\n");
   if (!t) return 0;
   if (t->ccode) return (*t->ccode)(params);
 
@@ -281,7 +351,11 @@ int out(thunk* t, dbval** params, dbval* var) {
   // points to first caller param!
   dbval** d= t->lplan;
   // copy OUT params to caller
-  while(*d) **d++= dbref(**p++);
+  while(*d) {
+    fprintf(stderr, "...copy out %ld <= %ld: %s\n", *d-t->var, *p-var, STR(**p));
+    **d++= dbref(**p++);
+  }
+  fprintf(stderr, "OUT..lrun\n");
   // continue with original "toOut" function
   // called after "out" of caller
   return lrun(++d, t->var, t->out);
@@ -425,17 +499,18 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
 
     if (trace) {
       if (1) {
-	int i= p-lplan-3;
-	while(plan[i]) i--;
-	i++;
+	// find prev statement
+	int i= p-start-2;
+	while(i>0 && start[i]) i--;
 	if (i<0) i= 0;
-	//\n%*s", 2*i, "");
-	printf("@%2d", i);
-	printf("(%c", plan[i]);
-	int v;
-	while((v= plan[++i])) {
-	  printf(" %d:", v);
-	  printf("%s", STR(var[abs(v)]));
+
+	printf("TRACE  @%2d", i);
+	//printf("(%c", plan[i]);
+	printf(" %p", start[i]);
+	dbval* vp;
+	while((vp= start[++i])) {
+	  printf(" %ld:", vp-var);
+	  //printf("%s", STR(*vp));
 	}
 	printf(")\n");
       } else {
@@ -502,11 +577,14 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
 // 8% FASTER w direct pointers...
 #ifdef JUMPER
     #define NEXT {N; olops++; \
-    if (trace) printf("NEXT '%c'(%d) @%ld %p\n", plan[p-lplan], plan[p-lplan], p-lplan, *p); \
     if (!*p) goto succeed;	\
       goto *(void*)*p++;}
 #endif
     
+    // TODO:
+    //#  inside NEXT  if (trace) printf("NEXT '%c'(%d) @%ld %p\n", plan[p-lplan], plan[p-lplan], p-lplan, *p); \
+
+
     // TODO: why need !*p ??? 
     // ONLY 100% slower than OPTIMAL!
     
@@ -559,8 +637,10 @@ CCODE:case 'c': { Pr;
 
 RUN:  CASE("run"): ;
 CALL: CASE("call"): Pr;
-      results+= call((thunk*)*p, p, var, toOut);
-      NEXT;
+      fprintf(stderr, "...call...\n");
+      fprintf(stderr, " thunk=%p \n", r);
+      results+= call((thunk*)r, p, var, toOut);
+      goto done;
 
 // arith
 PLUS:  case '+': Prab; R.d= A.d+B.d; NEXT;
@@ -970,7 +1050,7 @@ void bang() {
   printf("%% SIGFAULT, or something...\n\n");
   install_signalhandlers(bang);
   
-  if (1) {
+  while(1) {
     printf("%% Stacktrace? (Y/n/d/q) >"); fflush(stdout);
     char key= tolower(getchar());
     switch(key) {
@@ -981,9 +1061,7 @@ void bang() {
     default:  print_stacktrace(); break;
     }
     //process_file(stdin, 1);
-    exit(99);
   }
-  //else exit(77);
 }
 
 int main(int argc, char** argv) {
@@ -999,45 +1077,57 @@ int main(int argc, char** argv) {
   nextvar= var;
   while(--argc>0 && *++argv) {
     char* s= *argv;
-    if (*s == ':') {
-      if (s[1] == ':') {
-	if (s[2] == ':') {
+    if (0==strcmp(":::", s)) {
 
-	  // ::: name (of objectlog plan)
-	  error("TODO: new plan");
+      // plan... ::: name (of objectlog plan)
+      --argc; s= *++argv;
+      Plan* pl= mkplan(s, plan, var, p-plan+2, nextvar-var+1);
+      thunk t= compilePlan(pl);
+      regplan(pl, t);
 
-	} else {
+      cleandefault();
+      nextvar= var;
+      p= plan;
+      lp= lplan;
 
-	  // :: head head head 0
+    } else if (0==strcmp("::", s)) {
 
-	  // store "index" as num
-	  var[4]= mknum(nextvar-var+1);
-	  while (0!=strcmp("0", s)) {
-	    --argc; s= *++argv;
-	    *++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
-	  }
-	
-	  // header :: str str str ... 0
-	}	
-      } else {
+      // :: head head head 0
 
-	// init var
-	// TODO: "can't just store strptr!"
+      // store "index" as num
+      var[4]= mknum(nextvar-var+1);
+      while (0!=strcmp("0", s)) {
 	--argc; s= *++argv;
 	*++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
-	//printf("var[%ld] = ", nextvar-var); dbp(*nextvar); putchar('\n');
       }
+	
+      // header :: str str str ... 0
+    } else if (0==strcmp(":", s)) {
+
+      // init var
+      // TODO: "can't just store strptr!"
+      --argc; s= *++argv;
+      *++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
+      //printf("var[%ld] = ", nextvar-var); dbp(*nextvar); putchar('\n');
 
     } else {
 
       // add to plan
       if (debug) printf("%s ", *argv);
+      thunk* t= *s=='@' ? findplan(s+1) : NULL;
       long f= TWO(s);
       long isnum= strisnum(s);
       long num= atol(s);
+      if (!isnum && !jmp[f]) {
+	f= (ulong)t;
+	printf("\tCALL: %s -> %p\n", s, t);
+      }
+
       *p = isnum ? (num ? num : 0) : f;
       dbval* v= *lp = isnum?( num ? var+labs(num) : NULL) : (void*)f;
-      //printf("v= %p\n", v);
+      //if (debug)
+      printf("@%3ld '%s' %p\n", p-plan, s, v);
+
       if (!*p && debug) putchar('\n');
       p++; lp++;
 
@@ -1051,9 +1141,17 @@ int main(int argc, char** argv) {
   *lp++ = 0; // just to be sure!
   *lp++ = 0; // just to be sure!
 
+  // Done input
+
   Plan* pl= mkplan("query", plan, var, p-plan+2, nextvar-var+1);
   thunk t= compilePlan(pl);
+  regplan(pl, t);
 
+  cleandefault();
+  nextvar= var;
+  p= plan;
+  lp= lplan;
+  
   if (debug) {
     printf("\n\nLoaded %ld constants %ld plan elemewnts\n", nextvar-var, p-plan);
   
@@ -1061,10 +1159,7 @@ int main(int argc, char** argv) {
     lprintplan(lplan, var, -1);
   }
 
-  //trace= 1;
-  //debug= 1;
-
-  if (debug) printf("\n\nLPLAN---Running...\n\n");
+  if (debug) printf("\n\nLPLAN---Running...\n\n");  if (debug) printf("\n\nLPLAN---Running...\n\n");
   mallocsreset();
   long ms= mstime();
   thunk myout= (thunk){.ccode=&printlines};
@@ -1073,7 +1168,18 @@ int main(int argc, char** argv) {
 
   //long res= lrun(lplan, var, &myout);
   //printvars(t.var, t.plan->varsize);
+
+
+
+  //trace= 1;
+    //  debug= 1;
+
+
+
   long res= lrun(t.lplan, t.var, &myout);
+
+
+
 
   ms = mstime()-ms;
   printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);

@@ -1190,6 +1190,7 @@ int main(int argc, char** argv) {
   // assumptions!
   assert(sizeof(long)==8);
   assert(sizeof(double)==8);
+  assert(sizeof(void*)==8);
   // pointers on x64 linux is 51 bits
   // - https://stackoverflow.com/questions/9249619/is-the-pointer-guaranteed-to-be-a-certain-value
   
