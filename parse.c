@@ -101,6 +101,24 @@ int defint(long d) {
   return defnum(d);
 }
 
+int findOLname(char olname[NAMELEN], char* name) {
+  // --- look up ObjectLog name
+  snprintf(olname, NAMELEN, "\t%s", name);
+  char* s= strcasestr(OLnames, olname);
+  char* p= s;
+  if (!p) {
+    // assume it's an UDF!
+    snprintf(olname, NAMELEN, "@%s", name);
+    return 1;
+    // TODO: verify "OL" UDF
+    return 0;
+  }
+  while(*p!='\n' && p>OLnames) p--;
+  strncpy(olname, p+1, s-p);
+  olname[s-p-1]= 0;
+  return 1;
+}
+
 // -- Options
 
 int batch= 0, force= 0, browse= 0;
@@ -148,14 +166,18 @@ char *query=NULL, *ps= NULL;
 
 // not returning variable;
 int parse(char* s) {
-  free(query);
-  query= ps= s;
+  // TODO: what about user vars!!!
+  varcount= 0;
 
+  query= ps= s;
+  nextvarnum= 1;
+  
   defstr(""); // 1
   defnum(0);  // 2
   defnum(1);  // 3
   defvar("$system","$header", 0); // 4
   int q= defstr(query);
+  printf("Q==%d\n", q);
   assert(q==5);
   defvar("$system", "sql", q); // 5
   assert(nextvarnum==6);
@@ -339,19 +361,12 @@ int expr();
 int call(char* name) {
   #define MAXPARAMS 10
 
-  // --- look up ObjectLog name
   char olname[NAMELEN]= {};
-  snprintf(olname, NAMELEN, "\t%s", name);
-  char* s= strcasestr(OLnames, olname);
-  char* p= s;
-  if (!p) {
+  if (!findOLname(olname, name)) {
     ps-= strlen(name)+1;
     expected2("Unknown func()", name);
   }
-  while(*p!='\n' && p>OLnames) p--;
-  strncpy(olname, p+1, s-p);
-  olname[s-p-1]= 0;
-
+ 
   if (debug) fprintf(stderr, "Call.OLNAME '%s' ... '%s'\n", name, olname);
 
   // -- get parameters
@@ -371,7 +386,10 @@ int call(char* name) {
 
   // output '' (null)
   //  we don't know return type
-  printf("OL : \'\'\nOL %s -%d", olname, nextvarnum);
+  printf("OL : \'\'\n");
+  printf("OL %s %s -%d",
+    olname[0]=='@' ? "call" : "",
+    olname, nextvarnum);
   for(int i=0; i<pcount; i++)
     printf(" %d", params[i]);
   printf(" 0\n");
@@ -871,6 +889,8 @@ int from(char* selexpr) {
 }
 
 int sqlselect() {
+  int oldvarcount= varcount;
+
   strcpy(format, globalformat);
   if (got("format")) EXPECT(getname(format));
   if (!got("select")) return 0;
@@ -888,6 +908,10 @@ int sqlselect() {
   if (end) ps= end;
 
   from(expr);
+
+  // TODO: clean vars? leak?
+  varcount= oldvarcount;
+
   return 1;
 }
 
@@ -898,7 +922,31 @@ int sqlcreateview() {
 
 
 // CREATE FUNCTION sum(a,b) RETURN a+b;
-int sqlcreate_function() {
+int create_function() {
+  int oldvarcount= varcount;
+
+  char fname[NAMELEN]= {};
+  expectname(fname, "function name");
+  EXPECT(gotc('('));
+  int ol[10]= {};
+  int oln= 0;
+  assert(nextvarnum==6); // TODO:
+  do {
+    char name[NAMELEN]= {};
+    expectname(name, "parameter name");
+    ol[oln++]= defvar(fname, name, 0);
+    spcs();
+  } while(gotc(','));
+  EXPECT(gotc(')'));
+  EXPECT(got("as"));
+  // TODO: out only select-result
+  //   potential mismatch copy back...
+  // write: in, in, ..., out, out, out
+  EXPECT(sqlselect());
+  printf("OL ::: '%s'\n", fname);
+
+  // TODO: cleanup?
+  varcount= oldvarcount;
   return 1;
 }
 
@@ -956,7 +1004,7 @@ int sqlcreate() {
   
   if (got("index")) return create_index();
   if (got("view"))  return create_view();
-  //  if (got("function")) return create_function();
+  if (got("function")) return create_function();
   return 0;
 }
 
