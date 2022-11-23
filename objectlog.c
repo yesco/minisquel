@@ -14,6 +14,8 @@
 #include <string.h>
 
 
+char* meap= NULL;
+
 // Use labels for jumping
 // Not sure can tell the speed diff!
 #define JUMPER
@@ -161,6 +163,8 @@ thunk* findplan(char* name) {
   return NULL;
 }
 
+void lprintplan(dbval** lplan, dbval* var, int lines);
+
 // Compiles a PLAN to a concrete thunk.
 // The funk can be run/called.
 // The compilation transforms integer
@@ -176,7 +180,12 @@ thunk compilePlan(Plan* plan) {
   t.lplan= malloc(plan->plansize*sizeof(*t.lplan));
   int* p= plan->plan;
   dbval** d= t.lplan;
-  for(int i= 0; i < plan->plansize; i++) {
+  for(int i=0; i < plan->plansize; i++) 
+    t.lplan[i]= (void*)~0L;
+  int i= 0;
+  //printf("PLANSXIZE=%d\n", plan->plansize);
+  //  while(i < plan->plansize) {
+  while(1) {
 
     // -- function (int) -> label
     void* x= jmp[*p];
@@ -194,13 +203,16 @@ thunk compilePlan(Plan* plan) {
 	x= jmp[TWO("S=")];
     }
 
+    // store function pointer
     *d++ = x; p++; i++;
 
     if (debug)
-      printf("%2d %3d '%c' %p\n", i, p[-1], isprint(p[-1])?p[-1]:'?', d[-1]);
+      printf("%2d %3d '%c' %p\n", i-1, p[-1], isprint(p[-1])?p[-1]:'?', d[-1]);
 
+    if (!x) error("compile: coulnd't find fun\n");
     if (p[-1] == 0) {
-      *d++= 0;
+      //printf("STOP COMPILE\n");
+      *d++= 0; p++; i++;
       //assert(i == p - plan->plan);
       break;
     }
@@ -213,22 +225,24 @@ thunk compilePlan(Plan* plan) {
       //printf(" ... CALLLLLL %p\n", *p);
       *d++ = (void*)findplan("double"); 
       p++; i++;
-      //*d++ = *p++; i++;
     }
 
     while(*p) {
       *d++= t.var + abs(*p++); i++;
       if (debug) printf("\t%d %p\n", p[-1], d[-1]);
     }
-    *d++= 0; p++; i++; // 0
+    *d++ = 0; p++; i++; // 0
   }
 
+  //lprintplan(t.lplan, t.var, -1);
   return t;
 }
 
 int varplansize= 0;
 
 void init(int size) {
+  meap= malloc(1024*1024*64);
+
   varplansize= size;
   // These are used for building,
   // once read/loaded they are named
@@ -263,11 +277,10 @@ void printvars(dbval* var, int n) {
   }
 }
 
-dbval** lprinthere(dbval** p, dbval* var) {
+dbval** lprinthere(dbval** start, dbval** p, dbval* var) {
   if (!*p) return NULL;
-  
   long f= L(*p);
-  printf("%2ld ", p-lplan);
+  printf("%2ld ", p-start);
   if (f < 256*256)
     printf("(%c", isprint(f)?(int)f:'?');
   else
@@ -279,14 +292,15 @@ dbval** lprinthere(dbval** p, dbval* var) {
   return p+1;
 }
 
-void lprintplan(dbval** p, dbval* var, int lines) {
+void lprintplan(dbval** start, dbval* var, int lines) {
+  dbval** p= start;
   if (lines>1 || lines<0)
     printf("LPLAN\n");
 
   for(int i=0; i<lines || lines<0; i++) {
-    if (!p || !p[i]) break;
+    if (!p || !*p) break;
 
-    p= lprinthere(p, var);
+    p= lprinthere(start, p, var);
     putchar('\n');
   }
   printf("\n");
@@ -515,7 +529,7 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
 	printf(")\n");
       } else {
 	printf("\n[");
-	lprinthere(p-1, var);
+	lprinthere(start, p-1, var);
 	putchar('\t');
 
 	// print vars
@@ -667,7 +681,7 @@ EQ:   CASE("=="):
 	if (type(A)!=type(B)) goto fail;
 	// same type
 	FAIL(dbstrcmp(A, B));
-      } else
+      } else // number
 	FAIL(A.d != B.d);
 
 NUMNEQ: CASE("N!"): Pab; FAIL(A.l==B.l)
@@ -676,8 +690,14 @@ STRNEQ: CASE("S!"): Pab; FAIL(!dbstrcmp(A,B));
 // Generic
 NEQ:  CASE("!="):
       CASE("<>"):
-      // TODO: complete (see '=')
-      case '!': Pab; FAIL(A.l==B.l);
+      case '!': Pab;
+      if (A.l==B.l) goto fail;
+      if (isnan(A.d) || isnan(A.d)) {
+	if (type(A)!=type(B)) NEXT;
+	// same type
+	FAIL(!dbstrcmp(A, B));
+      } else // number
+	FAIL(A.d == B.d);
 
 // TODO: do strings...
 LT:   case '<': Pab; FAIL(A.d>=B.d);
@@ -790,19 +810,34 @@ OUT:   CASE("ou"): if (toOut) {
       while(*p) printvar(N-var, var);
       putchar('\n');
       NEXT;
-PRINT: case '.': while(*p) printvar(N-var, var); NEXT;
+PRINT: case '.': while(*p) printvar(*(p++)-var, var); NEXT;
 PRINC: case 'p': while(*p) printf("%s", STR(*N)); NEXT;
 NEWLINE: case 'n': putchar('\n'); NEXT;
     
 // -- strings
 CONCAT: CASE("CO"): { Pr; int len= 1;
+if(0){
+	char* ss= meap;
+	char* sp= ss;
+	while(*p) {
+	  char* rs= STR(*N);
+	  strcat(sp, rs);
+	  sp += strlen(rs);
+	}
+	meap= sp+1;
+	*r= mkstrfree(ss, 0);
+	NEXT;
+}
+
 	dbval** n= p;
 	while(*n) {
+	  //printf("CO.STR: '%s'\n", STR(**n));
 	  len+= strlen(STR(**n));
 	  n++;
 	}
 	// +3.5% alloca
-	char* rr= alloca(len); 
+	//char* rr= alloca(len); 
+	char* rr= malloc(len); 
 	*rr= 0;
 	char* rp= rr;
 	while(*p) {
@@ -810,7 +845,8 @@ CONCAT: CASE("CO"): { Pr; int len= 1;
 	  strcat(rp, rs);
 	  rp += strlen(rs);
 	}
-	SETR(mkstrfree(rr, 0));
+	//printf("RR> '%s'\n", rr);
+	SETR(mkstrfree(rr, 1));
 	NEXT; }
       
 ASCII:  CASE("AS"): Pra; SETR(mknum(STR(A)[0])); NEXT;
@@ -1113,6 +1149,9 @@ int main(int argc, char** argv) {
     } else {
 
       // add to plan
+      //  4711
+      //  fun
+      //  @olfun
       if (debug) printf("%s ", *argv);
       thunk* t= *s=='@' ? findplan(s+1) : NULL;
       long f= TWO(s);
@@ -1120,13 +1159,13 @@ int main(int argc, char** argv) {
       long num= atol(s);
       if (!isnum && !jmp[f]) {
 	f= (ulong)t;
-	printf("\tCALL: %s -> %p\n", s, t);
+	//printf("\tCALL: %s -> %p\n", s, t);
       }
 
       *p = isnum ? (num ? num : 0) : f;
       dbval* v= *lp = isnum?( num ? var+labs(num) : NULL) : (void*)f;
       //if (debug)
-      printf("@%3ld '%s' %p\n", p-plan, s, v);
+      //printf("@%3ld '%s' %p\n", p-plan, s, v);
 
       if (!*p && debug) putchar('\n');
       p++; lp++;
@@ -1143,8 +1182,16 @@ int main(int argc, char** argv) {
 
   // Done input
 
-  Plan* pl= mkplan("query", plan, var, p-plan+2, nextvar-var+1);
+  // WTF 4??? +1?? if another concat???
+  if (0)
+  for(int i=0; i<p-plan+4+1; i++)
+    printf("PLAN: %3d %d\n", i, plan[i]);
+
+  Plan* pl= mkplan("query", plan, var, p-plan+4, nextvar-var+1);
   thunk t= compilePlan(pl);
+
+  //lprintplan(t.lplan, t.var, -1);
+
   regplan(pl, t);
 
   cleandefault();
@@ -1176,7 +1223,8 @@ int main(int argc, char** argv) {
 
 
 
-  long res= lrun(t.lplan, t.var, &myout);
+  //long res= lrun(t.lplan, t.var, &myout);
+  long res= lrun(t.lplan, t.var, NULL);
 
 
 

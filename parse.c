@@ -564,7 +564,7 @@ int comparator(char cmp[NAMELEN]) {
   char* start= ps;
   // TODO: [not] BETWEEN ... AND
   // TODO: IS [not]
-  if (got("like") || got("ilike") || got("in") || got("==") || got("<>") || got("!+") || got("<=") || got(">=") || got("!<") || got("!>") || gotcs("=<>")) {
+  if (got("like") || got("ilike") || got("in") || got("==") || got("<>") || got("!=") || got("<=") || got(">=") || got("!<") || got("!>") || gotcs("=<>")) {
     strncpy(cmp, start, ps-start);
     cmp[ps-start]= 0;
     // got eats trailing spaces...
