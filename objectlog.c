@@ -14,6 +14,7 @@
 #include <string.h>
 
 
+char* meaporig= NULL;
 char* meap= NULL;
 
 // Use labels for jumping
@@ -241,7 +242,7 @@ thunk compilePlan(Plan* plan) {
 int varplansize= 0;
 
 void init(int size) {
-  meap= malloc(1024*1024*64);
+  meap= meaporig= malloc(1024*1024*1);
 
   varplansize= size;
   // These are used for building,
@@ -377,7 +378,7 @@ int out(thunk* t, dbval** params, dbval* var) {
 
 
 // lrun is 56% faster! (mostly because no cleanup, lol)
-inline long trun(thunk* t, thunk* toOut) {
+long trun(thunk* t, thunk* toOut) {
   return lrun(t->lplan, t->var, toOut);
 }
 
@@ -399,7 +400,7 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
     [TWO(":=")]= &&SET,
     ['c']= &&CCODE,
     [TWO("ca")]= &&CALL,
-    [TWO("ru")]= &&RUN,
+    [TWO("ru")]= &&lrun,
 
     ['+']= &&PLUS,
     ['-']= &&MINUS,
@@ -476,6 +477,9 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
   if (!start) return 0;
 
   //lprintplan(start, var, -1);
+
+  // save ("mark")
+  char* _meap= meap;
 
   dbval** p= start;
   dbval* v= var;
@@ -631,7 +635,7 @@ OR:   case 'o': // OR nxt a b c...
 	}
       goto fail;
 SET:  CASE(":="): Pra; R= A; NEXT;
-//RUN:  CASE("run"): Pr;
+//lrun:  CASE("run"): Pr;
 //      results+= lrun((dbval**)R.p, p);
 //      NEXT;
 CCODE:case 'c': { Pr;
@@ -649,7 +653,7 @@ CCODE:case 'c': { Pr;
       }
       NEXT; }
 
-RUN:  CASE("run"): ;
+lrun:  CASE("run"): ;
 CALL: CASE("call"): Pr;
       fprintf(stderr, "...call...\n");
       fprintf(stderr, " thunk=%p \n", r);
@@ -816,9 +820,10 @@ NEWLINE: case 'n': putchar('\n'); NEXT;
     
 // -- strings
 CONCAT: CASE("CO"): { Pr; int len= 1;
-if(0){
+	// 100% faster than alloca!
 	char* ss= meap;
 	char* sp= ss;
+	*sp =0;
 	while(*p) {
 	  char* rs= STR(*N);
 	  strcat(sp, rs);
@@ -826,29 +831,7 @@ if(0){
 	}
 	meap= sp+1;
 	*r= mkstrfree(ss, 0);
-	NEXT;
-}
-
-	dbval** n= p;
-	while(*n) {
-	  //printf("CO.STR: '%s'\n", STR(**n));
-	  len+= strlen(STR(**n));
-	  n++;
-	}
-	// +3.5% alloca
-	//char* rr= alloca(len); 
-	char* rr= malloc(len); 
-	*rr= 0;
-	char* rp= rr;
-	while(*p) {
-	  char* rs= STR(*N);
-	  strcat(rp, rs);
-	  rp += strlen(rs);
-	}
-	//printf("RR> '%s'\n", rr);
-	SETR(mkstrfree(rr, 1));
 	NEXT; }
-      
 ASCII:  CASE("AS"): Pra; SETR(mknum(STR(A)[0])); NEXT;
 CHAR:   CASE("CA"): { Pra; char s[2]={L(A.d),0}; SETR(mkstr7ASCII(s)); NEXT; }
     
@@ -991,7 +974,11 @@ default:
     }
   }
 
-  //return result;
+  // restore ("release")
+  // wow, really expensi!!!
+  // 39ms -> 6000ms! wtf?
+  meap= _meap;
+
   return results;
 }
 
@@ -1224,8 +1211,9 @@ int main(int argc, char** argv) {
 
 
   //long res= lrun(t.lplan, t.var, &myout);
+  meap= meaporig;
   long res= lrun(t.lplan, t.var, NULL);
-
+  assert(meap==meaporig);
 
 
 
