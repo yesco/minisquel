@@ -821,13 +821,64 @@ NEWLINE: case 'n': putchar('\n'); NEXT;
 // -- strings
 CONCAT: CASE("CO"): { Pr; int len= 1;
 	// 100% faster than alloca
+if(1) {
+        // 1032 ms long2str!
+        // from 5800 ms...
+        // from 6500 ms
+        // 7x faster NOW!!! long2str
+
+        // ./olrun 'select * from num10M num where concat(i,"foo",i+3,"bar",42)!="x" and 1=0'
+        //   1800 ms for olog
+
+        // duckdb reading csv: 
+        //   1400 ms
+
+        // Test/10Mconcat.c
+        //    355 ms
+
+        // olog with enumerator
+        //    800-900 ms
+
+        // OLD ol Thu Nov 17 05:56:55 2022 +0700
+        //   17000 ms!
+
+        // this morning Nov 23 16:49:40
+        //   7676 ms ...
+        
 	char* ss= meap;
 	char* sp= ss;
-	while(*p) {
-	  char* rs= STR(*N);
-	  // 5.8% faster than strcat
-	  while(*rs) *sp++= *rs++;
+	dbval* v;
+	while((v=N)) {
+	  // inline STR 20-25%
+	  char* rs= ptr(*v);
+	  if (rs)
+	    // 5.8% faster than strcat
+	    while(*rs) *sp++= *rs++;
+	  else if (islong(*v)) {
+	    sp= long2str(sp, (long)v->d);
+          } else if (isnum(*v))
+	    sp+= sprintf(sp, "%.15lg", num(*v));
 	}
+	p--;
+	*sp= 0;
+	meap= sp+1;
+	*r= mkstrfree(ss, 0);
+	NEXT;
+
+} 
+	char* ss= meap;
+	char* sp= ss;
+	dbval* v;
+	while((v=N)) {
+	  // 3.5% faster than STR
+	  char* rs= ptr(*v);
+	  if (rs)
+	    // 5.8% faster than strcat
+	    while(*rs) *sp++= *rs++;
+	  else 
+	    sp+= sprintf(sp, "%.15lg", num(*v));
+	}
+	p--;
 	*sp= 0;
 	meap= sp+1;
 	*r= mkstrfree(ss, 0);

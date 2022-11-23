@@ -552,6 +552,24 @@ char* str(dbval v) {
   return u<ISTRLIMIT?dbstrings[u/2]:NULL;
 }
 
+
+// 5-10x faster than sprintf
+// Returns pointer to end of str
+char* long2str(char* s, long l) {
+  char x[32]= {};
+  int neg= (l<0), i= 0;
+  if (neg) l= -l;
+  while (l>0) {
+    x[i++]= '0' + (l%10);
+    l/= 10;
+  }
+  if (neg) *s++= '-';
+  while(i)
+    *s++= x[--i];
+  *s= 0;
+  return s;
+}
+
 // STRingify "any" dbval
 //
 // Returns a temporary string.
@@ -566,7 +584,10 @@ char* STR(dbval v) {
   static char sel= 0;
 
   if (isnum(v)) {
-    sprintf(seven[sel=!sel], "%.15lg", v.d);
+    if (islong(v))
+      long2str(seven[sel=!sel], (long)v.d);
+    else
+      sprintf(seven[sel=!sel], "%.15lg", v.d);
     return seven[sel];
   }
   if (isnull(v)) return "";
