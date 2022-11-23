@@ -177,7 +177,7 @@ int parse(char* s) {
   defnum(1);  // 3
   defvar("$system","$header", 0); // 4
   int q= defstr(query);
-  printf("Q==%d\n", q);
+  //printf("Q==%d\n", q);
   assert(q==5);
   defvar("$system", "sql", q); // 5
   assert(nextvarnum==6);
