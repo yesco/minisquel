@@ -375,7 +375,16 @@ int out(thunk* t, dbval** params, dbval* var) {
   // called after "out" of caller
   return lrun(++d, t->var, t->out);
 }
-
+ 
+// Returns: ALWAYS a pointer to
+//   a copied string in the MEAP
+//   If null or emtpy return empty
+char* mstrdup(char* s) {
+  char* p= meap;
+  if (s) while(*s) *meap++ = *s++;
+  *meap++ = 0;
+  return p;
+}
 
 // lrun is 56% faster! (mostly because no cleanup, lol)
 long trun(thunk* t, thunk* toOut) {
@@ -450,6 +459,7 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
     [TWO("RI")]= &&RIGHT,
     [TWO("LO")]= &&LOWER,
     [TWO("UP")]= &&UPPER,
+    [TWO("LN")]= &&LENGTH,
     [TWO("LT")]= &&LTRIM,
     [TWO("RT")]= &&RTRIM,
     [TWO("TR")]= &&TRIM,
@@ -734,13 +744,13 @@ LINE: case 'l': { Pa; FILE* fil= A.p;
       //   165ms time cat fil10M.tsv
       //  3125ms time wc fil...
       //  4054ms time ./olrun sql where 1=0
-	// 14817ms time ./olrun sql p cols
-	// 15976ms    full strings
-	// 33s     time ./run sql p cols
-	// 56         full strings
+      // 14817ms time ./olrun sql p cols
+      // 15976ms    full strings
+      // 33s     time ./run sql p cols
+      // 56         full strings
 
-	// - 30 610 ms !!!
-	// ./run 'select * from "fil10M.tsv" fil where 1=0' | tail
+      // - 30 610 ms !!!
+      // ./run 'select * from "fil10M.tsv" fil where 1=0' | tail
 
 	char *line= NULL, delim= 0;
 	size_t len= 0;
@@ -819,9 +829,8 @@ PRINC: case 'p': while(*p) printf("%s", STR(*N)); NEXT;
 NEWLINE: case 'n': putchar('\n'); NEXT;
     
 // -- strings
-CONCAT: CASE("CO"): { Pr; int len= 1;
+CONCAT: CASE("CO"): { Pr;
 	// 100% faster than alloca
-if(1) {
         // 1032 ms long2str!
         // from 5800 ms...
         // from 6500 ms
@@ -845,81 +854,67 @@ if(1) {
         // this morning Nov 23 16:49:40
         //   7676 ms ...
         
-	char* ss= meap;
-	char* sp= ss;
-	dbval* v;
-	while((v=N)) {
-	  // inline STR 20-25%
-	  char* rs= ptr(*v);
-	  if (rs)
-	    // 5.8% faster than strcat
-	    while(*rs) *sp++= *rs++;
-	  else if (islong(*v)) {
-	    sp= long2str(sp, (long)v->d);
-          } else if (isnum(*v))
-	    sp+= sprintf(sp, "%.15lg", num(*v));
+        char* ss= meap;
+	while(*p) {
+	  char* s= STR(*N);
+	  while(*s) *meap++ = *s++;
 	}
-	p--;
-	*sp= 0;
-	meap= sp+1;
-	*r= mkstrfree(ss, 0);
-	NEXT;
-
-} 
-	char* ss= meap;
-	char* sp= ss;
-	dbval* v;
-	while((v=N)) {
-	  // 3.5% faster than STR
-	  char* rs= ptr(*v);
-	  if (rs)
-	    // 5.8% faster than strcat
-	    while(*rs) *sp++= *rs++;
-	  else 
-	    sp+= sprintf(sp, "%.15lg", num(*v));
-	}
-	p--;
-	*sp= 0;
-	meap= sp+1;
+	*meap++ = 0;
 	*r= mkstrfree(ss, 0);
 	NEXT; }
+
 ASCII:  CASE("AS"): Pra; SETR(mknum(STR(A)[0])); NEXT;
-CHAR:   CASE("CA"): { Pra; char s[2]={L(A.d),0}; SETR(mkstr7ASCII(s)); NEXT; }
+
+//CHAR:   CASE("CA"): { Pra; char s[2]={L(A.d),0}; SETR(mkstrconst7ASCII(s)); NEXT; }
+CHAR:   CASE("CA"): { Pra;
+	char* rs= meap;
+	*meap++ = L(A.d);
+	*meap++ = 0;
+	*r= mkstrconst(rs);
+	NEXT; }
     
 CHARIX: CASE("CI"): { Prab; char* aa= STR(A);
-  	char* rr= strchr(aa, STR(B)[0]);
-	SETR(aa ? mknum(rr-aa) : mknull());
+	char* rr= strstr(aa, STR(B));
+	*r= mknum(rr ? rr-aa+1 : 0);
 	NEXT; }
 
-LEFT:   CASE("LE"): Prab; dbfree(R);
-        SETR(mkstrfree(strndup(STR(A), num(B)), 1)); NEXT;
+LEFT:   CASE("LE"): { Prab; char* s= STR(A);
+        int n= L(B.d);
+        char* rs= meap;
+	while(n-->=0 && *s)
+	  *meap++ = *s++;
+	*meap= 0;
+	*r= mkstrconst(rs);
+	NEXT; }
 
 RIGHT:  CASE("RI"): { Prab; char* aa= STR(A);
-	int len= strlen(aa) - num(B);
-	if (len<=0 || num(B)<=0) SETR(mkstrconst(""));
-	else SETR(mkstrdup(aa+len));
+	int i= strlen(aa) - num(B);
+	if (i<=0 || num(B)<=0)
+	  *r= mknull();
+	else
+	  *r= mkstrconst(aa+i);
 	NEXT; }
 
-LOWER:  CASE("LO"): { Pra; char* aa= strdup(STR(A));
-	char* ab= aa;
-	while(*ab) {
-	  *ab= tolower(*ab); ab++;
-	}
-	SETR(mkstrfree(aa, 1));
+LENGTH: CASE("LN"): Pra; *r= mknum(strlen(STR(A))); NEXT;
+
+LOWER:  CASE("LO"): { Pra; char* s= STR(A);
+	char* rs= meap;
+	while(*s) *meap++ = tolower(*s++);
+	*meap++ = 0;
+	*r= mkstrconst(rs);
 	NEXT; }
   
-UPPER:  CASE("UP"): { Pra; char* aa= strdup(STR(A));
-	char* ab= aa;
-	while(*ab) {
-	  *ab= toupper(*ab); ab++;
-	}
-	SETR(mkstrfree(aa, 1));
+UPPER:  CASE("UP"): { Pra; char* s= STR(A);
+	char* rs= meap;
+	while(*s) *meap++ = toupper(*s++);
+	*r= mkstrconst(rs);
 	NEXT; }
       
-LTRIM:  CASE("LT"): Pra; SETR(mkstrdup(ltrim(STR(A)))); NEXT;
-RTRIM:  CASE("RT"): Pra; SETR(mkstrfree(rtrim(strdup(STR(A))), 1)); NEXT;
-TRIM:   CASE("TR"): Pra; SETR(R= mkstrfree(trim(strdup(ltrim(STR(A)))), 1)); NEXT;
-STR:    CASE("ST"): Pra; SETR(mkstrdup(STR(A))); NEXT;
+LTRIM:  CASE("LT"): Pra; *r= mkstrconst(ltrim(STR(A))); NEXT;
+RTRIM:  CASE("RT"): Pra; *r= mkstrconst(rtrim(mstrdup(STR(A)))); NEXT; //  TODO: meap
+TRIM:   CASE("TR"): Pra; *r= mkstrconst(trim(mstrdup(ltrim(STR(A))))); NEXT; // TODO: meap
+STR:    CASE("ST"): Pra; char* s= ptr(A);
+        *r= s ? mkptr(s, 0) : mkstrconst(mstrdup(STR(A))); NEXT;
 
 
 #define MATH(short, fun) short: CASE(#short): Pra; R.d=fun(A.d); NEXT
@@ -969,7 +964,7 @@ rr: CASE("rr"): Pa; srandom((int)A.d); NEXT;
 sg: CASE("sg"): Pra; R.d=A.d<0?-1:(A.d>0?+1:0); NEXT;
 
 	
-TS    : CASE("ts"): Pr;  SETR(mkstrdup(isotime())); NEXT;
+TS: CASE("ts"): Pr; *r= mkstrconst(mstrdup(isotime())); NEXT;
       
 default:
       printf("\n\n%% Illegal opcode at %ld: %ld '%c'\n", p-lplan-1, f, (int)(isprint(f)?f:'?'));

@@ -71,6 +71,7 @@ LE	left
 RI	right
 LO	lower
 UP	upper
+LN	length
 LT	ltrim
 RT	rtrim
 TR	trim

@@ -583,17 +583,16 @@ char* STR(dbval v) {
   static char seven[2][32]= {0};
   static char sel= 0;
 
-  if (isnum(v)) {
-    if (islong(v))
-      long2str(seven[sel=!sel], (long)v.d);
-    else
-      sprintf(seven[sel=!sel], "%.15lg", v.d);
+  char* p= ptr(v);
+  if (p) return p;
+  if (islong(v))
+    return long2str(seven[sel=!sel], (long)v.d);
+  else {
+    sprintf(seven[sel=!sel], "%.15lg", v.d);
     return seven[sel];
   }
-  if (isnull(v)) return "";
   if (isend(v)) return "\n";
-
-  return ptr(v);
+  return "";
 
   // TODO: clever but needed only for table?
   if (is7ASCII(v))
@@ -639,6 +638,17 @@ void dumpdb() {
       nstrfree&&i==strnext?"<--- NEXT":"");
   }
   printf("nstrings=%d nstrfree=%d strnext=%d\n", nstrings, nstrfree, strnext);
+}
+
+// safely copy allocated ptr,
+// make sure copy doesn't free it!
+dbval dbvaldup(dbval d) {
+  // negative means need free
+  // but we're not ownder...
+  if (d.l<0) d.l= -d.l;
+  return d;
+  // same
+  // return p ? mkptr(p, 0) : d;
 }
 
 dbval val2dbdup(val* v) {
