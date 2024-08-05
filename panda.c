@@ -38,11 +38,6 @@ void spc(char** p) {
 }
 
 // TODO: reuse same constants...
-int str(char** s) {
-  return 0;
-}
-
-// TODO: scan and store all const num/'strings'/:foo
 #define KMAX 1024
 char* konst[KMAX];
 int nk= 0, klen[KMAX];
