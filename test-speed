@@ -21,10 +21,11 @@ echo "-- JOIN! ---"
 
 # -- 3-4s with nested loop join
 #    after built index
-time ./run 'select t1.hmid, t2.hmid, predicted_category from happy.csv t1, happy.csv t2 where t1.hmid=t2.hmid'
+time ./run 'select t1.hmid, t2.hmid, predicted_category from happy.csv t1 join happy.csv t2 on hmid where t1.hmid=t2.hmid'
 
 # -- one result per 1 s!
-time ./run 'select t1.hmid, t2.hmid, predicted_category from happy.csv t1 join happy.csv t2 on hmid where t1.hmid=t2.hmid'
+#    (NEVER FINISHES!)
+#time ./run 'select t1.hmid, t2.hmid, predicted_category from happy.csv t1, happy.csv t2 where t1.hmid=t2.hmid'
 
 # --- 30M fun-calls = 30s = 1M/s
 time ./sql 'select left(right(concat("foo", "bar", "fie"), 6),4) from int(1,10000000) i'
