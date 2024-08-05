@@ -563,10 +563,11 @@ char* long2str(char* s, long l) {
     x[i++]= '0' + (l%10);
     l/= 10;
   }
-  if (neg) *s++= '-';
+  char* r= s;
+  if (neg) *r++= '-';
   while(i)
-    *s++= x[--i];
-  *s= 0;
+    *r++= x[--i];
+  *r= 0;
   return s;
 }
 
@@ -580,23 +581,26 @@ char* long2str(char* s, long l) {
 //   (actually two are "safe")
 char* STR(dbval v) {
   // alternate between two strings, LOL
-  static char seven[2][32]= {0};
+  static char s[2][32]= {0};
   static char sel= 0;
 
   char* p= ptr(v);
   if (p) return p;
+
+  // assume it's number
   if (islong(v))
-    return long2str(seven[sel=!sel], (long)v.d);
+    return long2str(s[sel=!sel], (long)v.d);
   else {
-    sprintf(seven[sel=!sel], "%.15lg", v.d);
-    return seven[sel];
+    sprintf(s[sel=!sel], "%.15lg", v.d);
+    return s[sel];
   }
+
   if (isend(v)) return "\n";
   return "";
 
   // TODO: clever but needed only for table?
   if (is7ASCII(v))
-    return str7ASCIIcpy(seven[sel=!sel], v);
+    return str7ASCIIcpy(s[sel=!sel], v);
   return str(v);
 }
 

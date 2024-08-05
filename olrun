@@ -1,4 +1,10 @@
 # compile and run sql give on commandline using objectlog
 
+# debugging:
+#   p: file with objectlog
+#   o: executable file that invokes objectlog interpreter with program
+
 clang -lm -O3 parse.c && ./a.out "$@" > p && ( grep -v "OL" p ; (./ol < p | tee o | sh))
+chmod a+x o
+
 
