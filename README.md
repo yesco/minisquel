@@ -1,10 +1,14 @@
 # MiniSQueL - a minimalistic plaintext sql interpreter
 
-This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concept doing an SQL-style interpreter from first principles. It takes the same naive/simple approach to interpretation as early BASICs did: It re-parses and interprets the source code *every* time. Is it efficient? No. Was it easy to write? Yes! So far...
+This implements a simple SQL:ish interpreter in 1008 lines of C!
+
+It's more of a toy/proof-of-concept doing an SQL-style interpreter from first principles. It takes the same naive/simple approach to interpretation as early BASICs did: It re-parses and interprets the source code *every* time. Is it efficient? No. Was it easy to write? Yes! So far...
+
+Update: experimental much faster parse.c that compiles to ObjectLog interpreted by objectlog.c; run sql using ./olsql "select('foo', 42, 'bar');"
 
 ## GOALS
 
-- "minimal" in code/complexity (~1000 lines code)
+- "minimal" in code/complexity (~1000 lines code (count by /wcode))
 - fast hack for fun
 - do the simplest for the moment to add functionality
 - "not for professional use" :-D
@@ -31,9 +35,10 @@ This implements a simple SQL:ish interpreter. It's more of a toy/proof-of-concep
 - NO: high optimial efficency (go download DuckDB instead!)
 - NO: tokenizer/parser-tree/internal represenation (yet... lol)
 - NO: optimizer
-- NO: more datatypes (but funtions on strings: xml/json etc)
+- NO: more datatypes (but funtions on strings: xml/json etc, can add fancy syntax: . -> or even a xpath?)
 - NO: ODBC, NO: JDBC - no fxxing way!
 - NO: stored procedures P/SQL
+- NO: row values/tuples
 
 ## Working Examples
 
@@ -67,8 +72,10 @@ Joins!
     from int(1,10) a, int(1,10) b
     where a=b
     
-select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
+    select int.a, b, a*int.b from int(1,10) a, int(1,10) b where a=b
     
+You can even get optimized index lookup join, but you have to use the "JOIN" keyword to force the second table (?) to be stored in memory and then sorted.
+
 External program quering (EXTENSION!)
 
      select name from \"ls -1 |\"(name) file\n\
@@ -106,17 +113,35 @@ or happen to work...
 
      select -i, i from int(1,10) ORDER BY -2
 
+
+
+### CSV input/output format
+
+The CSV-parser is handwritten and it's small, lean, extreemly fast. It handles quoted strings, commas inside strings, backslash quoted, double "-quoted, or using '-quoted strings.
+
+It's silly flexible, in that it looks a the first line and tries to figure out what delimited to use. The default assumption is comma, but it uses heuristics to try all of the following: , ; : \t | or plain spaced -- whatever is most occuring.
+
+Using the FORMAT keyword you can choose between CSV TAB BAR output formats.
+
+Also, using --browse, as explained below, you can view the results. No longer have to suffering through endless database output scrolling by on the screen. (pretty useless unless piped/stored)
+
 ### Pretty Browsing
 
 Only one column for now. This stores the result set in a main memory results table. By giving the --browse option, you can. GUI/browse a pretty printed variant of the table. More features coming!
 
      ./sql --browse select -i, i from int(1,10) 
 
+
 ### Schema
+
+Simple shell commands to show current tables (.sql-files) and views (.csv).
 
      UNIX> ./tables
 
+A single table's columns are shown by:
+
      UNIX> ./describe foo.csv
+
 
 ### Create Index
 
@@ -126,15 +151,21 @@ It's a dummy for now, it uses a special in-memory 12 byte structure. It's being 
 
      UNIX> ./index foo.csv a
 
+But it's not used.
+
+
 ## Performance?
+
 - actually, not too bad!
-- 22MB of csv w 108K records take < 1s to scan!
+- 22MB of csv w 108K records take < 1s to scan! (competetive with DuckDB!)
 - 1000x1000 iterations <1s (1.4M "where"-evals)
-- opening/close same file 100,000 times (in nested loop) almost no overhead!
+- opening/close same file 100,000 times (in nested loop) almost no overhead! (modern computers/mobile phones use SSD flash, incredible fast)
+
 
 ## Current Features - DONE
+
 - last column in fancy mode not truncate, also for header...
-- truncate print strings to 7 cols showing * at end if truncated, only for "formatted" not "csv"
+- truncate print strings to 7 cols showing * at end if truncated, only for "formatted" not "csv" (TODO: how to disable?)
 - select [foo.*] from foo foo order by 1
 - less memory leaks! LOL
 - LIKE and ILIKE operators added
@@ -152,7 +183,7 @@ It's a dummy for now, it uses a special in-memory 12 byte structure. It's being 
 - cross-product join (slow)
 - refer to columns by col or table.col
 - table names can be quoted (getsymbol)
-- plain-text CSV/TAB-file querying
+- plain-text CSV/TAB-file or even passwd-file querying
 - SET @varible = 3+4*7
 - variables can/should be '@var'
 - undefined/not present variables are NULL
@@ -180,10 +211,12 @@ It's a dummy for now, it uses a special in-memory 12 byte structure. It's being 
 
 
 ## functions
+
 - mod div
 - ascii char concat ilike left like lower right timestamp upper
 - count sum min max avg stdev
 - type (!)
+
 
 ## ./minisquel - "help"
 
@@ -222,6 +255,8 @@ Error: Unkonwn option
 
 
 ## TODO:
+
+- columns default to only 7 chars, make it more adoptable? or default to --browse (and make it work?)
 - make alias table name optional, but maybe need to test for "uniqueness" (self-joins) select [foo.*] from foo foo order by 1
 - allow = and operators inside SELECT, maybe:
 - maybe: need a boolean type? (duckdb has, sqlite uses 0, 1)
@@ -252,10 +287,3 @@ Error: Unkonwn option
 
       IMPORT TABLE happy FROM https://...
 
-## NOT todo
-- optimizer (reordering)
-- row values/tuples
-- more datatypes (just keep as string)
-- Ordering and/or Aggregation with GROUP BY. Basically this would either have to use memory or temporary files. Not such good idea. Maybe generate set and then call unix "sort" with right arguments/types as ORDER BY, then could do GROUP BY.
-- GROUP BY (unless sorted input?)
-- ORDER BY

@@ -398,6 +398,7 @@ inline double num(dbval v) {return v.d;}
 // - too long strings (>7)
 // - null pointer
 dbval mkstr7ASCII(char* s) {
+  // TODO: this breaks --browse ???
   error("don't use for now");
   if (!s || !*s) return mknull();
   int len= strlen(s);
