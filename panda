@@ -1,0 +1,4 @@
+#clang -g panda.c && ./a.out "$@"
+clang -g panda.c && ./a.out "$*"
+
+
