@@ -1,6 +1,10 @@
 OBJECTLOG FUNCTIONS
 ===================
-
+(This file is read in entirity.
+ Used by parse.c to map full function names to two letter short names.
+ It searches for "\tconcat" and returns string between last \n and \t.
+ 
+ Seeems a bit magical? LOL)
 
 CONTROL
 
