@@ -1,0 +1,8 @@
+# init directory tools and test files
+# run once
+
+pkg install -y scc wget time
+
+wget https://raw.githubusercontent.com/megagonlabs/HappyDB/master/happydb/data/cleaned_hm.csv
+mv cleaned_hm.csv Test/happy.csv
+
