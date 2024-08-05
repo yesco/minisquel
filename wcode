@@ -1,0 +1,26 @@
+# count code lines (LOC):
+# - no full comment lines '//' '#'
+# - no empty lines
+# - no single '{' or '}'
+# - no 'TRACE(' lines
+# - no 'assert(' lines
+# - no 'else'-only lines
+# - nothing after the string  'ENDWCOUNT'
+
+# shorter lol!
+# tr -d -c ";" $* | wc | (read a b c ; echo $c)
+
+
+ls -1 $* | xargs -I% sh -c "
+cat % | \
+sed '/ENDWCOUNT/q' | \
+grep -iPv '^\s*//' | \
+grep -iPv '^\s*#' | \
+grep -iPv '^\s*}\s*$' | \
+grep -iPv '^\s*{\s*$' | \
+grep -v '^\s*$' | \
+grep -vP 'TRACE\(' | \
+grep -vP 'assert\(' | \
+grep -vinP '^\s*}?\s*else\s*{?\s*(//.*)?$' | \
+wc | (read lines foo ; echo \$lines)"
+

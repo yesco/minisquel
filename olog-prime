@@ -1,3 +1,5 @@
+# handwritten objectlog to test if something is a prime (divisors)
+
 ./olog \
 \
   : 2                \

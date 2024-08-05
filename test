@@ -1,5 +1,10 @@
 # requires an existing "./sql" binary!
 
+# this isn't mature enough yet...
+#gcc -lm -O3 parse.c -o sql
+
+gcc -lm -O3 minisquel.c -o sql
+
 # header/formatting
 ./sql 'select 1234567, 42' 
 ./sql 'select 12345678, 42'

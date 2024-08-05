@@ -1,3 +1,9 @@
+# compile and run objectlog
+#
+# if crash and give core file, launch debugger and show stack!
+#
+# olog.x binary left behind (-O3)
+
 clang -g -O3 -lm objectlog.c -o olog.x && {
    rm -f core
    ulimit -c unlimited

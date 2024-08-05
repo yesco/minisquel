@@ -1,2 +1,4 @@
+# compile and run sql give on commandline using objectlog
+
 clang -lm -O3 parse.c && ./a.out "$@" > p && ( grep -v "OL" p ; (./ol < p | tee o | sh))
 

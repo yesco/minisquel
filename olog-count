@@ -1,3 +1,5 @@
+# simulate how to do count using objectlog
+
 ./olog : 10 : 20 : 100 : "i= " \
   i -5 1 2 0  \
   + -6 5 3 0  \
