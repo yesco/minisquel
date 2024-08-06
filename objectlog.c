@@ -40,16 +40,15 @@
 #define JUMPER
   
 
+// global statistics used elsewhere
 int debug=0, stats=0, lineno=0, foffset=0, security= 0;
-
 int nfiles= 0;
 
+// parameters for parsing etc
 #define NAMELEN 64
 #define VARCOUNT 256
 #define MAXCOLS 32
-
 #include "utils.c"
-
 #include "csv.c"
 #include "vals.c"
 #include "dbval.c"
@@ -152,11 +151,15 @@ typedef struct thunk {
 // This keeps SWITCH fast, more values
 // performance deterioates too much!
 
-  // adds 130ms to 1945 ms 5.3%
+  // SLOWER - adds 130ms to 1945 ms 5.3%
+  //
   //#define TWO(s) (s[0]+256*s[1])
   //#define TWO(s) (s[0]-32+(s[1]?3*(s[1]-96):0))
+  //
+  // conclusion: too big space thus can't do arrayjmp?
 
 // no performance loss!
+// (keep target space small)
 #define TWO(s) (s[0]+3*(s[1]))
 #define TWORANGE 128*4
 
@@ -505,10 +508,11 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
     DEF(ie), DEF(ii), DEF(in),
     DEF(ln), DEF(lg), DEF(l2),
     DEF(pi), DEF(pw), DEF(ss), DEF(de), DEF(rd), DEF(ra), DEF(rr), DEF(sg),
-
 #undef DEF
   };
 
+  // We copy this jmp table to see if putting directly
+  // in plan improves performance.
   static int copiedjmp= 0;
   if (!copiedjmp) {
     memcpy(jmp, ljmp, sizeof(jmp));
@@ -528,6 +532,7 @@ long lrun(dbval** start, dbval* var, thunk* toOut) {
 
 #define N (*p++)
   
+  // parameter access for use in switch/case
   dbval *r, *a, *b, *c;
   
 #define R (*r)
