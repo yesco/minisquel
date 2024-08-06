@@ -1170,17 +1170,26 @@ void bang() {
   }
 }
 
-Plan* readplan(int argc, char** argv) {
+// globals for nextarg() iterator
+int gargc= 0;
+char** gargv= 0;
+
+char* nextarg() {
+  --gargc;
+  return *++gargv;
+}
+
+Plan* readplan(char* nexttok()) {
   // read plan from arguments
   int* p= plan;
   dbval** lp= lplan;
   nextvar= var;
-  while(--argc>0 && *++argv) {
-    char* s= *argv;
+  char* s;
+  while((s= nexttok())) {
     if (0==strcmp(":::", s)) {
 
       // plan... ::: name (of objectlog plan)
-      --argc; s= *++argv;
+      s= nexttok();
       Plan* pl= mkplan(s, plan, var, p-plan+2, nextvar-var+1);
       thunk t= compilePlan(pl);
       regplan(pl, t);
@@ -1199,7 +1208,7 @@ Plan* readplan(int argc, char** argv) {
       // store "index" as num
       var[4]= mknum(nextvar-var+1);
       while (0!=strcmp("0", s)) {
-	--argc; s= *++argv;
+	s= nexttok();
 	*++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
       }
 	
@@ -1208,7 +1217,7 @@ Plan* readplan(int argc, char** argv) {
 
       // init var
       // TODO: "can't just store strptr!"
-      --argc; s= *++argv;
+      s= nexttok();
       *++nextvar = strisnum(s) ? mknum(atof(s)) : mkstrconst(s);
       //printf("var[%ld] = ", nextvar-var); dbp(*nextvar); putchar('\n');
 
@@ -1218,7 +1227,7 @@ Plan* readplan(int argc, char** argv) {
       //  4711
       //  fun
       //  @olfun
-      if (debug) printf("%s ", *argv);
+      if (debug) printf("%s ", s);
       thunk* t= *s=='@' ? findplan(s+1) : NULL;
       long f= TWO(s);
       long isnum= strisnum(s);
@@ -1270,8 +1279,9 @@ int main(int argc, char** argv) {
   regfuncs();
   initlabels();
 
+  gargc= argc; gargv= argv;
 
-  Plan* pl= readplan(argc, argv);
+  Plan* pl= readplan(nextarg);
   thunk t= compilePlan(pl);
 
   //lprintplan(t.lplan, t.var, -1);
