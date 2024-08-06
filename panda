@@ -1,4 +1,11 @@
-clang -g panda.c && ./a.out "$*" #| tee | ./olog
+clang -g panda.c -o panda.x && {
+  echo "PANDA> $*"
+  echo
+  ./panda.x "$*"
+  echo
+  ./panda.x "$*" | ./olog
+}
+
 
 
 

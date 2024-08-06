@@ -77,7 +77,7 @@ int expr(char** p) {
   spc(p);
   if (*p==konst[ik]) {
     *p+= klen[ik];
-    return ik++;
+    return ++ik;
   }
   // TODO: paren expression
   // TODO: +-*/ math should use proper preceedence
@@ -90,8 +90,9 @@ int fun(char** s, int o) {
   char* endn= *s;
 
   // read name
+  if (isdigit(*endn)) return 0;
   char* n= endn;
-  while(*endn && isalnum(*endn))
+  while(*endn && !isspace(*endn))
     endn++;
   *s= endn;
   if (endn==n) return 0;
