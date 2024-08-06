@@ -1170,13 +1170,7 @@ void bang() {
   }
 }
 
-int main(int argc, char** argv) {
-  install_signalhandlers(bang);
-
-  init(1024);
-  regfuncs();
-  initlabels();
-
+Plan* readplan(int argc, char** argv) {
   // read plan from arguments
   int* p= plan;
   dbval** lp= lplan;
@@ -1250,25 +1244,13 @@ int main(int argc, char** argv) {
   *lp++ = 0; // just to be sure!
   *lp++ = 0; // just to be sure!
 
-  // Done input
-
   // WTF 4??? +1?? if another concat???
   if (0)
   for(int i=0; i<p-plan+4+1; i++)
     printf("PLAN: %3d %d\n", i, plan[i]);
 
-  Plan* pl= mkplan("query", plan, var, p-plan+4, nextvar-var+1);
-  thunk t= compilePlan(pl);
+  // Done input
 
-  //lprintplan(t.lplan, t.var, -1);
-
-  regplan(pl, t);
-
-  cleandefault();
-  nextvar= var;
-  p= plan;
-  lp= lplan;
-  
   if (debug) {
     printf("\n\nLoaded %ld constants %ld plan elemewnts\n", nextvar-var, p-plan);
   
@@ -1276,7 +1258,30 @@ int main(int argc, char** argv) {
     lprintplan(lplan, var, -1);
   }
 
+  return mkplan("query", plan, var, p-plan+4, nextvar-var+1);
+}
+
+int main(int argc, char** argv) {
+  install_signalhandlers(bang);
+
+  init(1024);
+  regfuncs();
+  initlabels();
+
+
+  Plan* pl= readplan(argc, argv);
+  thunk t= compilePlan(pl);
+
+  //lprintplan(t.lplan, t.var, -1);
+
+  regplan(pl, t);
+
+
+  // -- time to run
   if (debug) printf("\n\nLPLAN---Running...\n\n");  if (debug) printf("\n\nLPLAN---Running...\n\n");
+
+  cleandefault();
+  nextvar= var;
   mallocsreset();
   long ms= mstime();
   thunk myout= (thunk){.ccode=&printlines};
@@ -1286,20 +1291,16 @@ int main(int argc, char** argv) {
   //long res= lrun(lplan, var, &myout);
   //printvars(t.var, t.plan->varsize);
 
-
-
   //trace= 1;
-    //  debug= 1;
+  //debug= 1;
 
-
-
-  //long res= lrun(t.lplan, t.var, &myout);
   meap= meaporig;
+  //long res= lrun(t.lplan, t.var, &myout);
   long res= lrun(t.lplan, t.var, NULL);
+  // make sure all cleanup
   assert(meap==meaporig);
 
-
-
+  // -- Report
   ms = mstime()-ms;
   printf("\n\n%ld Results in %ld ms and performed %ld ops\n", res, ms, olops);
   hprint_hlp(olops*1000/ms, " ologs (/s)\n", 0);
@@ -1331,7 +1332,7 @@ int main(int argc, char** argv) {
 // (|)
 // (| x > e)
 // (| fail)
-
+      
 // out-of-bounds
 
 // (x<s AND foo) OR (x>e AND bar)
