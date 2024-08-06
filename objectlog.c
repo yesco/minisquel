@@ -1147,7 +1147,7 @@ int printlines(dbval** p) {
 }
 
 
-
+// TODO: get rid of - make const explicit
 int strisnum(char* s) {
   return isdigit(s[0]) || *s=='-' && isdigit(s[1]);
 }
@@ -1190,6 +1190,8 @@ Plan* readplan(int argc, char** argv) {
       p= plan;
       lp= lplan;
 
+      // TODO: can we continue after this?
+      
     } else if (0==strcmp("::", s)) {
 
       // :: head head head 0
@@ -1273,9 +1275,7 @@ int main(int argc, char** argv) {
   thunk t= compilePlan(pl);
 
   //lprintplan(t.lplan, t.var, -1);
-
   regplan(pl, t);
-
 
   // -- time to run
   if (debug) printf("\n\nLPLAN---Running...\n\n");  if (debug) printf("\n\nLPLAN---Running...\n\n");

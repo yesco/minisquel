@@ -1,10 +1,31 @@
 OBJECTLOG FUNCTIONS
 ===================
+This file provides a mapping from "longname" to shortname (SH)
+
+Format:
+  SH <tab> longname <comment ignored>
+
 (This file is read in entirity.
- Used by parse.c to map full function names to two letter short names.
+ Used by parse.c to map full function names to two letter
+ short names, as used in the objectlog.c switch/case:s.
+
  It searches for "\tconcat" and returns string between last \n and \t.
  
  Seeems a bit magical? LOL)
+
+
+META
+
+               (these come first)
+: 42             register number constant
+: 'foo'          register string constant (only ' ?)
+
+               (once)
+:: head ... 0    simple names for headers of output
+
+               (at the end)
+::: planname     establish the plan name for the objectlog
+
 
 CONTROL
 
