@@ -1,1 +1,3 @@
-./panda 1 i 10 sr lt 55
+./panda "1 i 10 sr < 55"
+
+

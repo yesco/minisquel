@@ -1179,6 +1179,39 @@ char* nextarg() {
   return *++gargv;
 }
 
+char *gline= 0, *gnext= 0;
+size_t glsize= 0;
+
+char* nextstdin() {
+  char q=0, *r= 0;
+  do {
+    if (!gline || !*gline || !gnext || !*gnext) {
+      if (getline(&gline, &glsize, stdin)==EOF) {
+	free(gline); gnext= gline= 0; return NULL;
+      }
+      //printf(">>>%s\n", gline);
+      gnext= gline;
+    }
+
+    // find space delimited token
+    while(*gnext && isspace(*gnext)) gnext++;
+    // string?
+    q= (*gnext=='\"' || *gnext=='\'')? *gnext: 0;
+    if (q) gnext++;
+
+    // read till end of token/string
+    r= gnext;
+    while(*gnext && (q || !isspace(*gnext))) {
+      if (*gnext=='\\') gnext++;
+      else if (q && *gnext==q) break;
+      gnext++;
+    }
+    if (*gnext) *gnext++= 0;
+
+  } while (!q && !*r);
+  return r;
+}
+
 Plan* readplan(char* nexttok()) {
   // read plan from arguments
   int* p= plan;
@@ -1186,14 +1219,17 @@ Plan* readplan(char* nexttok()) {
   nextvar= var;
   char* s;
   while((s= nexttok())) {
-    if (0==strcmp(":::", s)) {
 
+    if (0==strcmp(":::", s)) {
       // plan... ::: name (of objectlog plan)
       s= nexttok();
       Plan* pl= mkplan(s, plan, var, p-plan+2, nextvar-var+1);
       thunk t= compilePlan(pl);
       regplan(pl, t);
 
+      // prepare read another plan?
+      // TODO: how about this func return a plan?
+      //       need call readplan again? till NULL
       cleandefault();
       nextvar= var;
       p= plan;
@@ -1279,9 +1315,9 @@ int main(int argc, char** argv) {
   regfuncs();
   initlabels();
 
+  // Read plan from args/stdin
   gargc= argc; gargv= argv;
-
-  Plan* pl= readplan(nextarg);
+  Plan* pl= readplan(argc==1? nextstdin: nextarg);
   thunk t= compilePlan(pl);
 
   //lprintplan(t.lplan, t.var, -1);
