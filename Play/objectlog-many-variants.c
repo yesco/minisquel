@@ -6,27 +6,6 @@
 // in Test/objectlog-simple.c read that
 // one instead!
 
-// This is experimential code, just a for trying out and
-// experimenting with different way of doing interpreter
-// dispatch.
-//
-// 1. tight loop, calling a series of func[] pointers
-// 2. a) VM-style switch-case dispatch
-//    b) GCC-style goto-label dispatch
-//
-// Variants for 2a and 2b is implmenting NEXT by
-//     i) while-loop/break
-//    ii) goto next
-//   iii) jump label
-
-
-// The structure of this code is using global variables.
-// It compiles and runs a single plan.
-
-// TODO: generalize?
-
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -34,6 +13,9 @@
 #include <assert.h>
 #include <string.h>
 
+
+char* meaporig= NULL;
+char* meap= NULL;
 
 // Use labels for jumping
 // Not sure can tell the speed diff!
@@ -55,8 +37,6 @@ int nfiles= 0;
 #include "dbval.c"
 #include "table.c"
 
-#include "darr.c"
-
 #include "malloc-count.c"
 //#include "malloc-simple.c"
 
@@ -68,13 +48,6 @@ long olops= 0, nresults= 0;
 // all variables in a plan are numbered
 // zero:th var isn't used.
 // a zero index is a delimiter
-
-// This is code for experimenting, thus it's using globals
-// interpreting a single objectlog program
-
-// TODO: make it more "functional" and composable?
-// the drawback of this is passing around more variables.
-// ALT: just fork for background tasks?
 
 dbval*  var= NULL;
 char** name=NULL;
@@ -165,6 +138,8 @@ fun func[TWORANGE]= {0};
 
 // pointer to labels inside lrun
 void* jmp[TWORANGE]= {0};
+
+#include "darr.c"
 
 darr* plans= NULL;
 
@@ -265,13 +240,6 @@ thunk compilePlan(Plan* plan) {
 }
 
 int varplansize= 0;
-
-// We provide our own global "Memory hEAP"
-// It's basically an arena, and as all allocations are
-// local and structures, deallocation is implicit by
-// reasetting the meap pointer after a "function" call.
-char* meaporig= NULL;
-char* meap= NULL;
 
 void init(int size) {
   meap= meaporig= malloc(1024*1024*1);

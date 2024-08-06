@@ -1,3 +1,9 @@
+// SQL parser that outputs ObjectLog
+//
+// This is more efficient than the minisquel.c original
+// parser that reparses all the sql and interprets at
+// the same time.
+
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -6,7 +12,10 @@
 #include <errno.h>
 #include <assert.h>
 
+// enable for tracing memory leaks
 #include "malloc-count.c"
+
+// enable for speed 
 //#include "malloc-simple.c"
 
 // global state "external"
