@@ -1,8 +1,3 @@
-#include <stdio.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <assert.h>
-
 // PANDA LANGUAGE
 // ==============
 // pandalang.org is an online enviornment implementing
@@ -30,6 +25,27 @@
 // Then print it.
 //
 // 
+
+#include <stdio.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include <assert.h>
+
+// TODO: consider move to "config.h" file
+#define NAMELEN 64
+#define VARCOUNT 256
+#define MAXCOLS 32
+
+// global state "external"
+int stats= 1, debug= 0, security= 0;
+long foffset= 0;
+
+// stats
+long lineno= -2, readrows= 0, nfiles= 0;
+
+#include "utils.c"
+#include "olmapping.c"
+
 
 int nval= 0;
 
@@ -111,7 +127,16 @@ int fun(char** s, int o) {
   // result num
   int r= ++nval;
 
-  printf("%.*s -%d", (int)(endn-n), n, r);
+  char name[NAMELEN]= {0};
+  strncpy(name, n, (int)(endn-n));
+	  
+  char olname[NAMELEN]= {};
+  if (!findOLname(olname, name)) {
+    expected2("Unknown func()", name);
+  }
+
+  //printf("%.*s -%d", (int)(endn-n), n, r);
+  printf("%s -%d", olname, r);
   for(int i=0; i<npar; i++)
     printf(" %d", par[i]);
   printf(" 0\n");

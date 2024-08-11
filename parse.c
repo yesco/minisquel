@@ -19,13 +19,13 @@
 //#include "malloc-simple.c"
 
 // global state "external"
-
 int stats= 1, debug= 0, security= 0;
 long foffset= 0;
 
 // stats
 long lineno= -2, readrows= 0, nfiles= 0;
 
+// TODO: consider move to "config.h" file
 #define NAMELEN 64
 #define VARCOUNT 256
 #define MAXCOLS 32
@@ -39,7 +39,7 @@ long lineno= -2, readrows= 0, nfiles= 0;
 
 int nextvarnum= 1;
 
-char* OLnames= NULL;
+#include "olmapping.c"
 
 #define OLcmp(f, a, b) (printf("OL \"%s\" %d %d 0\n", f, (int)a, (int)b))
 
@@ -108,24 +108,6 @@ int defnum(double d) {
 
 int defint(long d) {
   return defnum(d);
-}
-
-int findOLname(char olname[NAMELEN], char* name) {
-  // --- look up ObjectLog name
-  snprintf(olname, NAMELEN, "\t%s", name);
-  char* s= strcasestr(OLnames, olname);
-  char* p= s;
-  if (!p) {
-    // assume it's an UDF!
-    snprintf(olname, NAMELEN, "@%s", name);
-    return 1;
-    // TODO: verify "OL" UDF
-    return 0;
-  }
-  while(*p!='\n' && p>OLnames) p--;
-  strncpy(olname, p+1, s-p);
-  olname[s-p-1]= 0;
-  return 1;
 }
 
 // -- Options

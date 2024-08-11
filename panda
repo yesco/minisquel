@@ -1,4 +1,4 @@
-clang -g panda.c -o panda.x && {
+clang -lm -g panda.c -o panda.x && {
   echo "PANDA> $*"
   echo
   ./panda.x "$*"
