@@ -105,10 +105,16 @@ int fun(char** s, int o) {
   spc(s);
   char* endn= *s;
 
-  // read name
   if (isdigit(*endn)) return 0;
+
+  // how to treat random chars?
+  if (*endn==',' || *endn==';') return 0; 
+
+  // read name
+
   char* n= endn;
-  while(*endn && !isspace(*endn))
+  // TODO: while "isalnum?"
+  while(*endn && (!isspace(*endn) && *endn!=',' && *endn!=';'))
     endn++;
   *s= endn;
   if (endn==n) return 0;
@@ -144,15 +150,30 @@ int fun(char** s, int o) {
   return r;
 }
 
-
 int panda(char** p) {
+  #define NPAR 16
+  int par[NPAR]= {0};
+  int npar= 0;
+
   spc(p);
-  int r= expr(p);
   while(**p) {
+    int r= expr(p);
+    spc(p);
+    if (**p==',') (*p)++;
     int f= fun(p, r);
     if (f) r= f;
+    if (r==0) {
+      //printf("ZERO: %s\n", *p);
+      continue;
+    }
+    par[npar++]= r;
   }
-  return r;
+
+  printf("out");
+  for(int i=0; i<npar; i++)
+    printf(" %d", par[i]);
+  printf(" 0\n"); 
+  return 0;
 }
 
 int main(int argc, char** argv) {
@@ -174,7 +195,5 @@ int main(int argc, char** argv) {
       printf("ERROR.panda: at >>>%s\n", p);
       exit(1);
     }
-
-    printf("out %d 0\n", r);
   }
 }

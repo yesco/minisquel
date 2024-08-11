@@ -1260,8 +1260,6 @@ int main(int argc, char** argv) {
   }
   // END assumptions
 
-  OLnames= readfile("objectlog.txt");
-
   // carry on!
   print_exit_info= print_at_error;
   

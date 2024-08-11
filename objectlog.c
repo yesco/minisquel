@@ -41,7 +41,8 @@
   
 
 // global statistics used elsewhere
-int debug=0, stats=0, lineno=0, foffset=0, security= 0;
+//int debug=0, stats=0, lineno=0, foffset=0, security= 0;
+int debug=1, stats=0, lineno=0, foffset=0, security= 0;
 int nfiles= 0;
 
 // parameters for parsing etc
@@ -238,7 +239,11 @@ thunk compilePlan(Plan* plan) {
     if (debug)
       printf("%2d %3d '%c' %p\n", i-1, p[-1], isprint(p[-1])?p[-1]:'?', d[-1]);
 
-    if (!x) error("compile: coulnd't find fun\n");
+    if (!x) {
+      printf("%2d %3d '%c' %p\n", i-1, p[-1], isprint(p[-1])?p[-1]:'?', d[-1]);
+    error("objectlog.compile: no such function");
+    }
+
     if (p[-1] == 0) {
       //printf("STOP COMPILE\n");
       *d++= 0; p++; i++;
@@ -846,21 +851,25 @@ OUT:   CASE("ou"): if (toOut) {
 	 while(*p) p++;
 	 NEXT;
        }
+
        // default "out" is print!
-       if (var[4].d>0) {
-	  for(int i= var[4].d; var[i].d; i++) {
-	    printvar(i, var);
-	  }
-	  putchar('\n');
-	  for(int i= var[4].d; var[i].d; i++) {
-	    printf("======= ");
-	  }
-	  putchar('\n');
-	  var[4].d= -var[4].d;
+       // [4] is header... GRRRR TODO: fix
+       if (0 && var[4].d>0) {
+         for(int i= var[4].d; var[i].d; i++) {
+	   printvar(i, var);
+	 }
+	 putchar('\n');
+	 for(int i= var[4].d; var[i].d; i++) {
+	   printf("======= ");
+	 }
+	 putchar('\n');
+	 // mark as already printed header
+	 //var[4].d= -var[4].d;
        }
-      while(*p) printvar(N-var, var);
-      putchar('\n');
-      NEXT;
+       // print actual values
+       while(*p) printvar(N-var, var);
+       putchar('\n');
+       NEXT;
 PRINT: case '.': while(*p) printvar(*(p++)-var, var); NEXT;
 PRINC: case 'p': while(*p) printf("%s", STR(*N)); NEXT;
 NEWLINE: case 'n': putchar('\n'); NEXT;
@@ -1149,7 +1158,7 @@ int printlines(dbval** p) {
 
 // TODO: get rid of - make const explicit
 int strisnum(char* s) {
-  return isdigit(s[0]) || *s=='-' && isdigit(s[1]);
+  return isdigit(s[0]) || (*s=='-' && isdigit(s[1]));
 }
     
 void bang() {
@@ -1241,6 +1250,8 @@ Plan* readplan(char* nexttok()) {
 
       // :: head head head 0
 
+      // TODO: WTF!!!
+      
       // store "index" as num
       var[4]= mknum(nextvar-var+1);
       while (0!=strcmp("0", s)) {
