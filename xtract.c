@@ -150,21 +150,28 @@ char* xscan2(char* s) {
   return s;
 }
 
-char* xscan3(char* s) {
+void result(char* r, int n) {
+  if (n==0 || !*r) printf("---NORESULT\n");
+  else printf("---Result: %.*s\n", n, r);
+}
+
+char* xscan3(char* s, char* p) {
   const static char bracks[] = "(){}[]";
   //printf("--> %s\n", s);
   s= spc(s);
+  if (!p || !*p) { result(s, strlen(s)); return 0; }
   if (!s || !*s) return s;
   switch(*s) {
-  case ',': return xscan3(s+1); // TODO: remove?
+  case ',': return xscan3(s+1, p); // TODO: remove?
   case '(': case '{': case '[': {
     char q= bracks[strchr(bracks, *s)-bracks+1];
-    s++;
+    s++; int n= 1;
     do {
       s= spc(s);
       if (*s==',') s= spc(s+1);
       char* a= s;
-      s= xscan3(s);
+      s= xscan3(s, p);
+      if (n==3) result(a, (int)(s-a));
       printf("> %.*s\n", (int)(s-a), a);
       s= spc(s);
     } while(*s && *s!=q);
@@ -180,7 +187,8 @@ void scan(char* s) {
   printf("\n??? %s\n", s);
   //xscan(s, 0);
   //xscan2(s);
-  xscan3(s);
+  xscan3(s, "");
+  xscan3(s, "foo/bar/3/fie");
 }
 
 int main(int argc, char** argv) {
