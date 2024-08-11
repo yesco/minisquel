@@ -150,16 +150,16 @@ char* xscan2(char* s) {
   return s;
 }
 
-void result(char* r, int n) {
+void result(char* p, char* r, int n) {
   if (n==0 || !*r) printf("---NORESULT\n");
-  else printf("---Result: %.*s\n", n, r);
+  else printf("--- %s: %.*s\n", p, n, r);
 }
 
 char* xscan3(char* s, char* p) {
   const static char bracks[] = "(){}[]";
   //printf("--> %s\n", s);
   s= spc(s);
-  if (!p || !*p) { result(s, strlen(s)); return 0; }
+  if (p && !*p) { result(p, s, strlen(s)); return 0; }
   if (!s || !*s) return s;
   switch(*s) {
   case ',': return xscan3(s+1, p); // TODO: remove?
@@ -171,8 +171,20 @@ char* xscan3(char* s, char* p) {
       if (*s==',') s= spc(s+1);
       char* a= s;
       s= xscan3(s, p);
-      if (n==3) result(a, (int)(s-a));
-      printf("> %.*s\n", (int)(s-a), a);
+
+      // TODO: handle ':' separate (?)
+      if (*p=='/') p++;
+      char* e= strpbrk(p, "/.[");
+      int l= e? e-p: strlen(p);
+      if (0==strncmp(p, a, l)) {
+	//result(a, (int)(s-a));
+	printf("BEFORE: %s\t%s\n", e, s);
+	char* r= s= spc(s);
+	s= xscan3(s, e);
+	if (!e) result(e, r, s-r);
+      }
+
+      //printf("> %.*s\n", (int)(s-a), a);
       s= spc(s);
     } while(*s && *s!=q);
     assert(*s==q);
@@ -188,7 +200,9 @@ void scan(char* s) {
   //xscan(s, 0);
   //xscan2(s);
   xscan3(s, "");
-  xscan3(s, "foo/bar/3/fie");
+  printf("\n\n");
+  xscan3(s, "/foo/bar/fie");
+  //xscan3(s, "foo/bar/3/fie");
 }
 
 int main(int argc, char** argv) {
