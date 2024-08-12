@@ -159,10 +159,31 @@ char* xscan3(char* s, char* p) {
   s= spc(s);
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
   if (!s || !*s) return s;
+  // extract next path name needed
   char* pn= p;
   while(pn && *pn && strchr("./", *pn)) pn++;
+  // TODO: handle ':' separate (?)
+  char* e= pn? strpbrk(pn, "/.["): 0;
+  int l= !pn? 0: e? e-pn: strlen(pn);
+
   switch(*s) {
   case ',': return xscan3(s+1, p); // TODO: remove?
+  case '<': {
+    s= spc(s);
+    if (*s!='/') {
+      s= spc(s);
+      if (0==strncmp(pn, s, l)) {
+	
+      }
+    }
+    
+    s= spc(s);
+    if (*s=='/')
+      ;
+    s= spc(s);
+    assert(*s=='>');
+    return s+1; }
+      
   case '(': case '{': case '[': {
     char q= bracks[strchr(bracks, *s)-bracks+1];
     s++; int n= 1;
@@ -171,10 +192,6 @@ char* xscan3(char* s, char* p) {
       if (*s==',') s= spc(s+1);
       char* a= s;
       s= xscan3(s, p);
-
-      // TODO: handle ':' separate (?)
-      char* e= strpbrk(pn, "/.[");
-      int l= e? e-pn: strlen(pn);
       if (0==strncmp(pn, a, l)) {
 	char* r= s= spc(s);
 	s= xscan3(s, e);
