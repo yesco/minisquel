@@ -14,9 +14,9 @@
 #include <assert.h>
 
 // TODO: use???
-char* xnext(char* s) {
-  return strpbrk(s, " \t\n\r()[]{,;}</>=:\\\"\'");
-}
+//char* xnext(char* s) {
+//  return strpbrk(s, " \t\n\r()[]{,;}</>=:\\\"\'");
+//}
 
 char* spc(char* s) {
   while(s && isspace(*s)) s++;
@@ -47,7 +47,7 @@ void result(char* p, char* r, int n) {
 
 // TODO: handle <!-- comments? -->
 
-// 23 LOC
+// 21 LOC
 char* xxml(char* s, char* p, int level) {
   if (!s || !*s) return s;
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
@@ -69,15 +69,13 @@ char* xxml(char* s, char* p, int level) {
     if (*s=='/') return s-1;
 
     // <tag - start
-    char* a= s;
-    s= xatm(s);
+    char* a= s;  s= xatm(s);
     int match= (0==strncmp(pn, a, l));
     // TODO: do correctly @attr write xattr? (a=b c:d)
     while(*s && *s!='>')
       if (*s++=='/') { s++; goto next; } // <foo/> - no content
 
-    char* r= ++s;
-    s= xxml(s, match? e: p, level+2);
+    char* r= ++s;  s= xxml(s, match? e: p, level+2);
     if (match && !e)
       result(e, r, (int)(s-r));
       
@@ -88,7 +86,7 @@ char* xxml(char* s, char* p, int level) {
   return s;
 }
 
-// 30 LOC
+// 28 LOC
 // Extract from String using Path, do set xml if it is
 // TODO: results...
 char* xtract(char* s, char* p, int xml) {
@@ -112,13 +110,11 @@ char* xtract(char* s, char* p, int xml) {
     do {
       s= spc(s);
       if (*s==',') s= spc(s+1); // comma is optional...
-      char* a= s;
-      s= xtract(s, p, xml);
+      char* a= s;  s= xtract(s, p, xml);
       // TODO: BUG: ["foo" "bar"] find "foo" will return "bar"...
       //   (It's right for assoc list ("foo" "bar") )
       if (0==strncmp(pn, a, l)) {
-	char* r= s= spc(s);
-	s= xtract(s, e, xml);
+	char* r= s= spc(s);  s= xtract(s, e, xml);
 	if (!e) result(e, r, s-r);
       }
       s= spc(s);
@@ -132,6 +128,8 @@ char* xtract(char* s, char* p, int xml) {
   default: return xsym(s);
   }
 }
+
+// ENDWCOUNT
 
 void scan(char* s) {
   printf("\n??? %s\n", s);
