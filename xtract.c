@@ -120,7 +120,6 @@ char* xstr(char* s) {
     s++;
   }
   assert(*s==q);
-  s++;
   return s+1;
 }
 
@@ -157,10 +156,11 @@ void result(char* p, char* r, int n) {
 
 char* xscan3(char* s, char* p) {
   const static char bracks[] = "(){}[]";
-  //printf("--> %s\n", s);
   s= spc(s);
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
   if (!s || !*s) return s;
+  char* pn= p;
+  while(pn && *pn && strchr("./", *pn)) pn++;
   switch(*s) {
   case ',': return xscan3(s+1, p); // TODO: remove?
   case '(': case '{': case '[': {
@@ -173,12 +173,9 @@ char* xscan3(char* s, char* p) {
       s= xscan3(s, p);
 
       // TODO: handle ':' separate (?)
-      if (*p=='/') p++;
-      char* e= strpbrk(p, "/.[");
-      int l= e? e-p: strlen(p);
-      if (0==strncmp(p, a, l)) {
-	//result(a, (int)(s-a));
-	printf("BEFORE: %s\t%s\n", e, s);
+      char* e= strpbrk(pn, "/.[");
+      int l= e? e-pn: strlen(pn);
+      if (0==strncmp(pn, a, l)) {
 	char* r= s= spc(s);
 	s= xscan3(s, e);
 	if (!e) result(e, r, s-r);
@@ -187,6 +184,7 @@ char* xscan3(char* s, char* p) {
       //printf("> %.*s\n", (int)(s-a), a);
       s= spc(s);
     } while(*s && *s!=q);
+    //printf("ASSERT: q='%c' \"%s\"\n", q, s);
     assert(*s==q);
     return s+1; }
   case '"': case '\'': return xstr(s);
@@ -206,9 +204,9 @@ void scan(char* s) {
 }
 
 int main(int argc, char** argv) {
-  scan("{foo: { bar: [1,2,{ fie: \"fum\" }] } }");
+  scan("{foo: { bar: [1,2,{fie: \"fum\" },{fie: \"FUM\"}] fie: \"NOT\" }}");
   exit(1);
-  scan("<foo>...<bar></bar><bar></bar><bar>...<fie>fum</fie></bar></foo>");
+  scan("<foo>...<bar></bar><bar></bar><bar>...<fie>fum</fie></bar><fie>not</fie><bar><fie>FUM</fie></bar></foo>");
   // TODO: ?
   scan("(foo (bar 1 bar 2 bar (fie \"fum\")))");
   scan("((foo (bar . 1) (bar . 2) ( bar fie . \"fum\" )))");
