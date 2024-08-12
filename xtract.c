@@ -1,11 +1,13 @@
-// Extract anything from anything
+// Poor mans path extractor (xmlpath, jsonpath, assoc, proplist)
 //
 // Extract foo/bar[3]/fie => fum
 //
+// TODO: toplevel: / $
+// TODO: numbered match or index in array: [3]
+// TODO: wildcard strict (/): * or // ..
+//
 //   xml:  <foo>..<bar>...<bar>...<fie>fum</fie>
 //   json: { foo: { bar: { fuu: .. } ... bar: .. fie: "fum" } }
-
-// TODO: [1,2,3,foo:bar] - nodejs...
 
 #include <stdio.h>
 #include <ctype.h>
@@ -45,9 +47,9 @@ void result(char* p, char* r, int n) {
 }
 
 
-// TODO: handle <!-- comments? -->
-
-// 21 LOC
+// Extract from xml using simple path
+//   TODO: results... collection
+//   21 LOC
 char* xxml(char* s, char* p, int level) {
   if (!s || !*s) return s;
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
@@ -86,9 +88,11 @@ char* xxml(char* s, char* p, int level) {
   return s;
 }
 
-// 28 LOC
 // Extract from String using Path, do set xml if it is
-// TODO: results...
+//   TODO: results... collection
+//   Quirk handles [1,2,3,foo:bar] - nodejs...
+//   28 LOC
+//   TODO: better choose xml/json/properties...
 char* xtract(char* s, char* p, int xml) {
   if (xml) return xxml(s, p, xml);
 
