@@ -155,7 +155,7 @@ char* xscan2(char* s) {
 
 void result(char* p, char* r, int n) {
   if (n==0 || !*r) printf("---NORESULT\n");
-  else printf("--- %s: %.*s\n", p, n, r);
+  else printf("===> %.*s\n", n, r);
 }
 
 // TODO: not  working, looses the p...
@@ -218,7 +218,13 @@ char* xxml2(char* s, char* p, int level) {
   if (!s || !*s) return s;
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
 
-  // TODO: skip spaces...
+  // extract next path name needed
+  char* pn= p;
+  while(pn && *pn && strchr("./", *pn)) pn++;
+  char* e= pn? strpbrk(pn, "/.["): 0;
+  int l= !pn? 0: e? e-pn: strlen(pn);
+
+  // TODO: skip spaces inside tag parsing...
 
   //printf("XXX: %*s%d %s    %.10s\n", level, "", level, p, s);
   while(*s) {
@@ -231,27 +237,26 @@ char* xxml2(char* s, char* p, int level) {
       if (*s=='/') {
 	printf("%*s<--- %.10s\n", level-2, "", s);
 	return s-1;
-
-	while(*s && *s!='>') s++;
-	return *s? s+1: s;
       }
 
       // start tag
-      int single= 0;
       printf("%*s---> %.10s\n", level, "", s);
-      while(*s && *s!='>') {
-	// TODO: do correctly... skip attributes?
-	// TODO: handle @attr name extract
-	if (*s=='/') single= 1;
-	s++;
-      }
+      char* a= s;
+      s= xatm(s);
+      int match= (0==strncmp(pn, a, l));
+      int single= 0;
+      while(*s && *s!='>')
+	if (*s++=='/') single= 1;
+
+      // TODO: do correctly... skip attributes?
+      // TODO: handle @attr name extract
+
       s++;
       if (!single) {
 	char* r= s;
-	s= xxml2(s, p, level+2);
-	// if <MATCH>
-	printf("\t\t\t\t::: %.*s\n", (int)(s-r), r);
-
+	s= xxml2(s, match? e: p, level+2);
+	if (match && !e)
+	  result(e, r, (int)(s-r));
 	// skip </MATCH>
 	assert(*s=='<');
 	while(*s && *s!='>') s++;
@@ -267,6 +272,7 @@ char* xscan3(char* s, char* p, int xml) {
   //if (xml) return xxml(s, p, xml);
   if (xml) return xxml2(s, p, xml);
   const static char bracks[] = "(){}[]";
+
   s= spc(s);
   if (!s || !*s) return s;
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
@@ -274,7 +280,6 @@ char* xscan3(char* s, char* p, int xml) {
   // extract next path name needed
   char* pn= p;
   while(pn && *pn && strchr("./", *pn)) pn++;
-  // TODO: handle ':' separate (?)
   char* e= pn? strpbrk(pn, "/.["): 0;
   int l= !pn? 0: e? e-pn: strlen(pn);
 
@@ -298,7 +303,6 @@ char* xscan3(char* s, char* p, int xml) {
       //printf("> %.*s\n", (int)(s-a), a);
       s= spc(s);
     } while(*s && *s!=q);
-    //printf("ASSERT: q='%c' \"%s\"\n", q, s);
     assert(*s==q);
     return s+1; }
   case '"': case '\'': return xstr(s);
