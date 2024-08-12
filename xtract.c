@@ -23,41 +23,31 @@ char* spc(char* s) {
   return s;
 }
 
-char* xstr(char* s) {
-  char q= *s++;
-  while(*s && *s!=q) {
-    if (*s=='\\') s++;
-    s++;
-  }
-  assert(*s==q);
-  return s+1;
-}
-
-char* xnum(char* s) {
-  while(*s && (isdigit(*s) || strchr("+-eE.", *s))) s++;
-  return s;
-}
-
+// TODO: remove?
 char* xatm(char* s) {
-  // TODO: unicode use stopchars
+  // TODO: unicode use stopchars?
   while(*s && isalnum(*s)) s++;
   return s;
 }
 
+// TODO: remove?
 char* xsym(char* s) {
   s= xatm(s);
   assert(*s==':');
   return s+1;
 }
 
+// TODO: how to gather result, not just print...
+//   idea: int* offset<<16+len ... 0
 void result(char* p, char* r, int n) {
   if (n==0 || !*r) printf("---NORESULT\n");
   else printf("===> %.*s\n", n, r);
 }
 
 
-// TODO: handle comments?
+// TODO: handle <!-- comments? -->
 
+// 25 LOC
 char* xxml(char* s, char* p, int level) {
   if (!s || !*s) return s;
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
@@ -74,11 +64,16 @@ char* xxml(char* s, char* p, int level) {
  next: while(*s) {
     if (*s=='<') {
       s++;
-      // end tag
+
+      // <!-- comment? -->   <? and... ?>
+      if (*s=='!') { s= strstr(s, "-->"); continue; }
+      if (*s=='?') { s= strstr(s, "?>"); continue; }
+
+      // </tag end
       if (*s=='/') return s-1;
       //printf("%*s<--- %.10s\n", level-2, "", s);
 
-      // start tag
+      // <tag - start
       //printf("%*s---> %.10s\n", level, "", s);
       char* a= s;
       s= xatm(s);
@@ -102,16 +97,19 @@ char* xxml(char* s, char* p, int level) {
   return s;
 }
 
+// 32 LOC
+// Extract from String using Path, do set xml if it is
+// TODO: results...
 char* xtract(char* s, char* p, int xml) {
-  //if (xml) return xxml(s, p, xml);
   if (xml) return xxml(s, p, xml);
+
   const static char bracks[] = "(){}[]";
 
   s= spc(s);
   if (!s || !*s) return s;
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
 
-  // extract next path name needed
+  // extract current name (and len) + next path
   char* pn= p;
   while(pn && *pn && strchr("./", *pn)) pn++;
   char* e= pn? strpbrk(pn, "/.["): 0;
@@ -127,6 +125,7 @@ char* xtract(char* s, char* p, int xml) {
       s= spc(s);
       if (*s==',') s= spc(s+1);
       char* a= s;
+      // TODO: match with "string" foo: and ( ... foo ...)
       s= xtract(s, p, xml);
       if (0==strncmp(pn, a, l)) {
 	char* r= s= spc(s);
@@ -139,8 +138,10 @@ char* xtract(char* s, char* p, int xml) {
     } while(*s && *s!=q);
     assert(*s==q);
     return s+1; }
-  case '"': case '\'': return xstr(s);
-  case '0'...'9': case '-': case '.': return xnum(s);
+  case '"': case '\'': { char q= *s++;
+      while(*s && *s!=q) s+= 1+(*s=='\\'); return s+1; }
+  case '0'...'9': case '-': case '.':
+    return s+strspn(s, "0123456789eE.+-");
   default: return xsym(s);
   }
 }
@@ -155,6 +156,7 @@ void scan(char* s) {
 }
 
 int main(int argc, char** argv) {
+  // TODO: test xml comments?
   scan("{foo: { bar: [1,2,{fie: \"fum\" },{fie: \"FUM\"}] fie: \"NOT\" }}");
   scan("<foo>...<bar></bar><bar></bar><bar>...<fie>fum</fie></bar><fie>NOT</fie><bar><fie>FUM</fie></bar></foo>");
   exit(1);
