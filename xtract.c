@@ -47,7 +47,7 @@ void result(char* p, char* r, int n) {
 
 // TODO: handle <!-- comments? -->
 
-// 25 LOC
+// 23 LOC
 char* xxml(char* s, char* p, int level) {
   if (!s || !*s) return s;
   if (p && !*p) { result(p, s, strlen(s)); return 0; }
@@ -58,52 +58,41 @@ char* xxml(char* s, char* p, int level) {
   char* e= pn? strpbrk(pn, "/.["): 0;
   int l= !pn? 0: e? e-pn: strlen(pn);
 
-  // TODO: skip spaces inside tag parsing...
-
-  //printf("XXX: %*s%d %s    %.10s\n", level, "", level, p, s);
  next: while(*s) {
-    if (*s=='<') {
-      s++;
+    if (*s++!='<') continue;
 
-      // <!-- comment? -->   <? and... ?>
-      if (*s=='!') { s= strstr(s, "-->"); continue; }
-      if (*s=='?') { s= strstr(s, "?>"); continue; }
+    // <!-- comment? -->   <? and... ?>
+    if (*s=='!') { s= strstr(s, "-->"); continue; }
+    if (*s=='?') { s= strstr(s, "?>"); continue; }
 
-      // </tag end
-      if (*s=='/') return s-1;
-      //printf("%*s<--- %.10s\n", level-2, "", s);
+    // </tag end
+    if (*s=='/') return s-1;
 
-      // <tag - start
-      //printf("%*s---> %.10s\n", level, "", s);
-      char* a= s;
-      s= xatm(s);
-      int match= (0==strncmp(pn, a, l));
-      // TODO: do correctly @attr
-      while(*s && *s!='>')
-	if (*s++=='/') { s++; goto next; }
+    // <tag - start
+    char* a= s;
+    s= xatm(s);
+    int match= (0==strncmp(pn, a, l));
+    // TODO: do correctly @attr write xattr? (a=b c:d)
+    while(*s && *s!='>')
+      if (*s++=='/') { s++; goto next; } // <foo/> - no content
 
-      char* r= ++s;
-      s= xxml(s, match? e: p, level+2);
-      if (match && !e)
-	result(e, r, (int)(s-r));
+    char* r= ++s;
+    s= xxml(s, match? e: p, level+2);
+    if (match && !e)
+      result(e, r, (int)(s-r));
       
-      assert(*s=='<');
-      while(*s && *s!='>') s++;
-
-    } else { // ignore all else text
-      s++;
-    }
+    // xxml returns just before </tag> - no check name...
+    assert(*s=='<');
+    while(*s && *s!='>') s++;
   }
   return s;
 }
 
-// 32 LOC
+// 30 LOC
 // Extract from String using Path, do set xml if it is
 // TODO: results...
 char* xtract(char* s, char* p, int xml) {
   if (xml) return xxml(s, p, xml);
-
-  const static char bracks[] = "(){}[]";
 
   s= spc(s);
   if (!s || !*s) return s;
@@ -119,29 +108,27 @@ char* xtract(char* s, char* p, int xml) {
   case ',': return xtract(s+1, p, xml); // TODO: remove?
       
   case '(': case '{': case '[': {
-    char q= bracks[strchr(bracks, *s)-bracks+1];
     s++; int n= 1;
     do {
       s= spc(s);
-      if (*s==',') s= spc(s+1);
+      if (*s==',') s= spc(s+1); // comma is optional...
       char* a= s;
-      // TODO: match with "string" foo: and ( ... foo ...)
       s= xtract(s, p, xml);
+      // TODO: BUG: ["foo" "bar"] find "foo" will return "bar"...
+      //   (It's right for assoc list ("foo" "bar") )
       if (0==strncmp(pn, a, l)) {
 	char* r= s= spc(s);
 	s= xtract(s, e, xml);
 	if (!e) result(e, r, s-r);
       }
-
-      //printf("> %.*s\n", (int)(s-a), a);
       s= spc(s);
-    } while(*s && *s!=q);
-    assert(*s==q);
+    } while(*s && *s!=')' && *s!='}' && *s!=']');
     return s+1; }
   case '"': case '\'': { char q= *s++;
       while(*s && *s!=q) s+= 1+(*s=='\\'); return s+1; }
   case '0'...'9': case '-': case '.':
     return s+strspn(s, "0123456789eE.+-");
+  // TODO: not match sym with : but without
   default: return xsym(s);
   }
 }
