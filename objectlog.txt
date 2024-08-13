@@ -112,6 +112,16 @@ il	ilike
 ts	timestamp
 
 
+
+XML EXTRACTION FUNCTIONS
+
+xt	xmlpath
+xt	jsonpath        duckdb: foo->'$foo.bar[2].fie'  ->> for VARCHAR
+xt      extract
+xt      get
+
+
+
 MATH FUNCTIONS
 
 sr	sqrt
