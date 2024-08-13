@@ -14,6 +14,9 @@
 //
 //   xml:  <foo>..<bar>...<bar>...<fie>fum</fie>
 //   json: { foo: { bar: { fuu: .. } ... bar: .. fie: "fum" } }
+//
+// TODO: BUG: currently no '$' and no '/' root,
+// everything interpreted as '..' or '//' == any depth
 
 // TODO:  { "foo": { "bar": { "fuu": .. } ... "bar": .. "fie": "fum" } }
 
@@ -61,6 +64,45 @@ char* xsym(char* s) {
   s= xatm(s);
   assert(*s==':');
   return s+1;
+}
+
+// Used to compare source json text string with unquoted C string
+//   (if not start with ' or " then just direct compare)
+// Result: 1 if 'equal'
+int jsoneqn2(char* json, char* str, int l) {
+  char *j= json, *s= str, q= 0, jc;
+  if (*j=='"' || *j=='\'') q= *j++;
+  //printf("--JSONEQN:%d '%.*s'   ==   '%s'\n", l, l, j, s);
+  j--, s--;
+  do {
+    j++, s++;
+    //printf("... j='%s'\n", j);
+    //printf("... s='%s'\n", s);
+    jc= *j;
+    // TODO: all?
+    if (jc=='\\') {
+      switch(*++j) {
+      case 'n': jc= '\n'; break;
+      case 't': jc= '\t'; break;
+      default: jc= *j;
+      }
+    }
+    // TODO: wrong with match " ?
+  } while(--l >0 && *j && *s && jc==*s);
+  //if (l+1<=0) printf(" : lll\n");
+  //if (!*j) printf(" : !j\n");
+  //if (!*s) printf(" : !s\n");
+  //if (jc!=*s) printf(" : not eq chars jc='%c' *s='%c'\n", jc, *s);
+  //if (jc==q) printf(" : is q\n");
+  //printf("<JSONEQN: %d\t'%.*s'\t'%s'\n", l, l, j, s);
+  return !l;
+  if (q) return *j==q && (l==-1 || !j[1]);
+}
+
+int jsoneqn(char* json, char* str, int l) {
+  int r= jsoneqn2(json, str, l);
+  //printf("-> %d\n\n", r);
+  return r;
 }
 
 // TODO: how to gather result, not just print...
@@ -138,19 +180,22 @@ char* xtract(char* s, char* p, int xml) {
   int l= !pn? 0: e? e-pn: strlen(pn);
 
   switch(*s) {
-  case ',': return xtract(s+1, p, xml);
+  case ':': case ',': return xtract(s+1, p, xml);
       
   case '(': case '{': case '[': {
-    s++; int n= 1;
+    s= spc(s+1); int n= 1;
     do {
-      s= spc(s);
       if (*s==',') s= spc(s+1); // comma is optional...
       char* a= s;  s= xtract(s, p, xml);
       // TODO: if match string it's >"foo\nbar" ... need our own strncmp?
       // TODO: BUG: ["foo" "bar"] find "foo" will return "bar"...
       //   (It's right for assoc list ("foo" "bar") )
-      if (0==strncmp(pn, a, l)) {
+      //printf("...a=>%s<\n", a);
+      if (jsoneqn(a, pn, l)) {
+        //printf("MATCH! %s\n", e);
 	char* r= s= spc(s);  s= xtract(s, e, xml);
+        //printf("<<<RETURN: r=%s\n", r);
+        //printf(":::RETURN: s=%s\n", s);
 	if (!e) result(e, r, s-r);
       }
       s= spc(s);
@@ -160,7 +205,6 @@ char* xtract(char* s, char* p, int xml) {
       while(*s && *s!=q) s+= 1+(*s=='\\'); return s+1; }
   case '0'...'9': case '-': case '.':
     return s+strspn(s, "0123456789eE.+-");
-  // TODO: not match sym with : but without
   default: return xsym(s);
   }
 }
